@@ -4,9 +4,11 @@ Guidance for AI agents and contributors working in this repository.
 
 ## Project
 
-A tic-tac-toe game built with Next.js (App Router) and TypeScript. It supports
-two-player local play and a single-player mode against an unbeatable AI (minimax,
-in `lib/gameLogic.ts`).
+A multiplayer tic-tac-toe app built with Next.js (App Router) and TypeScript.
+Players join game rooms from a lobby and play across browsers or spectate live.
+Rooms are kept in an in-memory server store (`lib/roomStore.ts`, a `Map` on
+`globalThis`) and surfaced to clients via polling. A room is either two-player or
+played against an unbeatable AI (minimax, in `lib/gameLogic.ts`).
 
 ## Styling conventions
 
@@ -43,8 +45,12 @@ its own `styles.module.scss`. Do not share one stylesheet across components.
 ## Layout conventions
 
 - Reusable components live in `components/<Name>/`.
-- Pure game logic (no React) lives in `lib/`.
-- Routes/pages live in `app/` (App Router).
+- `lib/` holds non-component code: pure game logic (no React) in
+  `lib/gameLogic.ts`, the in-memory room store and all move/seat validation in
+  `lib/roomStore.ts`, shared types in `lib/roomTypes.ts`, browser fetch helpers
+  in `lib/roomClient.ts`, and the client hooks `usePolling`/`usePlayerId`.
+- Routes, pages, and API endpoints live in `app/` (App Router); the room REST
+  endpoints are under `app/api/rooms/`.
 
 ## Commands
 
