@@ -18,6 +18,24 @@ export function badRequest(error = "invalid-body"): NextResponse {
 }
 
 /**
+ * Parse the JSON body and pull out the required string `playerId` that every
+ * mutation route needs. Returns the parsed body plus playerId, or an `error`
+ * response when the body is missing/malformed or playerId is absent.
+ */
+export async function parsePlayerBody(
+  request: Request,
+): Promise<
+  | { body: Record<string, unknown>; playerId: string; error?: undefined }
+  | { error: NextResponse; body?: undefined; playerId?: undefined }
+> {
+  const body = await parseJsonBody(request);
+  if (!body) return { error: badRequest() };
+  const playerId = typeof body.playerId === "string" ? body.playerId : "";
+  if (!playerId) return { error: badRequest() };
+  return { body, playerId };
+}
+
+/**
  * Turn a StoreResult into its HTTP response: the error code mapped to a status
  * on failure, or the room view (defaulting to 200) on success.
  */

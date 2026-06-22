@@ -1,5 +1,5 @@
 import { makeMove } from "@/lib/roomStore";
-import { badRequest, parseJsonBody, storeResponse } from "@/lib/apiHelpers";
+import { badRequest, parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
 
 export const dynamic = "force-dynamic";
 
@@ -8,12 +8,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const body = await parseJsonBody(request);
-  if (!body) return badRequest();
+  const parsed = await parsePlayerBody(request);
+  if (parsed.error) return parsed.error;
 
-  const playerId = typeof body.playerId === "string" ? body.playerId : "";
-  const index = typeof body.index === "number" ? body.index : NaN;
-  if (!playerId || !Number.isInteger(index)) return badRequest();
+  const index =
+    typeof parsed.body.index === "number" ? parsed.body.index : NaN;
+  if (!Number.isInteger(index)) return badRequest();
 
-  return storeResponse(makeMove(id, index, playerId));
+  return storeResponse(makeMove(id, index, parsed.playerId));
 }

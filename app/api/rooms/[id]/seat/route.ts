@@ -1,5 +1,5 @@
 import { claimSeat, leaveSeat } from "@/lib/roomStore";
-import { badRequest, parseJsonBody, storeResponse } from "@/lib/apiHelpers";
+import { badRequest, parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
 
 export const dynamic = "force-dynamic";
 
@@ -8,14 +8,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const body = await parseJsonBody(request);
-  if (!body) return badRequest();
+  const parsed = await parsePlayerBody(request);
+  if (parsed.error) return parsed.error;
 
-  const playerId = typeof body.playerId === "string" ? body.playerId : "";
-  if (!playerId) return badRequest();
-  if (body.seat !== "X" && body.seat !== "O") return badRequest("invalid-seat");
+  const { seat } = parsed.body;
+  if (seat !== "X" && seat !== "O") return badRequest("invalid-seat");
 
-  return storeResponse(claimSeat(id, body.seat, playerId));
+  return storeResponse(claimSeat(id, seat, parsed.playerId));
 }
 
 export async function DELETE(
@@ -23,11 +22,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const body = await parseJsonBody(request);
-  if (!body) return badRequest();
+  const parsed = await parsePlayerBody(request);
+  if (parsed.error) return parsed.error;
 
-  const playerId = typeof body.playerId === "string" ? body.playerId : "";
-  if (!playerId) return badRequest();
-
-  return storeResponse(leaveSeat(id, playerId));
+  return storeResponse(leaveSeat(id, parsed.playerId));
 }
