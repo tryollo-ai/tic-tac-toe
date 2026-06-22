@@ -8,8 +8,8 @@ import {
   type Board as BoardState,
 } from "@/lib/gameLogic";
 import Board from "@/components/Board/Board";
-import Scoreboard, { type Scores } from "@/components/Scoreboard/Scoreboard";
-import GameControls from "@/components/GameControls/GameControls";
+import { type Scores } from "@/components/Scoreboard/Scoreboard";
+import OverflowMenu from "@/components/OverflowMenu/OverflowMenu";
 import Status from "@/components/Status/Status";
 import styles from "./styles.module.scss";
 
@@ -116,7 +116,17 @@ export default function Game() {
 
   return (
     <div className={styles.game}>
-      <Scoreboard scores={scores} xLabel={xLabel} oLabel={oLabel} />
+      <header className={styles.topBar}>
+        <h1 className={styles.title}>Tic-Tac-Toe</h1>
+        <OverflowMenu
+          mode={mode}
+          onModeChange={handleModeChange}
+          scores={scores}
+          xLabel={xLabel}
+          oLabel={oLabel}
+          onResetScores={handleResetScores}
+        />
+      </header>
       <Status message={statusMessage} tone={statusTone} />
       <Board
         board={board}
@@ -124,12 +134,9 @@ export default function Game() {
         onSquareClick={makeMove}
         disabled={gameOver || aiTurn}
       />
-      <GameControls
-        mode={mode}
-        onModeChange={handleModeChange}
-        onNewGame={startNewGame}
-        onResetScores={handleResetScores}
-      />
+      <button type="button" className={styles.newGame} onClick={startNewGame}>
+        New Game
+      </button>
     </div>
   );
 }

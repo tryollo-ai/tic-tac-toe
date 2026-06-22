@@ -1,0 +1,248 @@
+.lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, var(--x-color), var(--o-color));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.createForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.nameInput {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+.modeToggle {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  gap: 3px;
+}
+
+.mode,
+.modeActive {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.modeActive {
+  color: #06121f;
+  background: linear-gradient(120deg, var(--x-color), #7dd3fc);
+}
+
+.createButton {
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #06121f;
+  background: linear-gradient(120deg, var(--x-color), #7dd3fc);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.formError,
+.loadError {
+  margin: 0;
+  color: var(--o-color);
+  font-size: 0.9rem;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 18px;
+  text-align: center;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.emptyHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.roomList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roomCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.08s ease;
+
+  &:hover {
+    border-color: var(--accent);
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.roomInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.roomName {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.badge {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge_waiting {
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+.badge_inProgress {
+  color: #06121f;
+  background: var(--win);
+}
+
+.badge_finished {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.modeBadge {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-radius: 999px;
+}
+
+.seats {
+  display: flex;
+  gap: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.seatOpen {
+  color: var(--win);
+}
+
+.seatTaken {
+  color: var(--text-muted);
+}
