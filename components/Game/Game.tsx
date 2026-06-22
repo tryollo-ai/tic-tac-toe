@@ -10,7 +10,7 @@ import {
 import Board from "@/components/Board/Board";
 import { type Scores } from "@/components/Scoreboard/Scoreboard";
 import OverflowMenu from "@/components/OverflowMenu/OverflowMenu";
-import Status from "@/components/Status/Status";
+import Status, { type StatusTone, playerTone } from "@/components/Status/Status";
 import styles from "./styles.module.scss";
 
 export type GameMode = "two-player" | "ai";
@@ -97,11 +97,11 @@ export default function Game() {
   const oLabel = mode === "ai" ? "AI (O)" : "Player O";
 
   let statusMessage: string;
-  let statusTone: "x" | "o" | "draw" | "neutral";
+  let statusTone: StatusTone;
   if (result) {
     const winnerLabel = result.winner === "X" ? xLabel : oLabel;
     statusMessage = `${winnerLabel} wins!`;
-    statusTone = result.winner === "X" ? "x" : "o";
+    statusTone = playerTone(result.winner);
   } else if (boardFull) {
     statusMessage = "It's a draw!";
     statusTone = "draw";
@@ -111,7 +111,7 @@ export default function Game() {
   } else {
     statusMessage =
       mode === "ai" ? "Your turn (X)" : `${currentPlayer} to move`;
-    statusTone = currentPlayer === "X" ? "x" : "o";
+    statusTone = playerTone(currentPlayer);
   }
 
   return (

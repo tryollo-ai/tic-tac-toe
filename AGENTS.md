@@ -48,7 +48,8 @@ its own `styles.module.scss`. Do not share one stylesheet across components.
 - `lib/` holds non-component code: pure game logic (no React) in
   `lib/gameLogic.ts`, the in-memory room store and all move/seat validation in
   `lib/roomStore.ts`, shared types in `lib/roomTypes.ts`, browser fetch helpers
-  in `lib/roomClient.ts`, and the client hooks `usePolling`/`usePlayerId`.
+  in `lib/roomClient.ts`, shared request/response helpers for the API routes in
+  `lib/apiHelpers.ts`, and the client hooks `usePolling`/`usePlayerId`.
 - Routes, pages, and API endpoints live in `app/` (App Router); the room REST
   endpoints are under `app/api/rooms/`.
 

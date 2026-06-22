@@ -2,9 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createRoom, fetchRooms, RoomError } from "@/lib/roomClient";
+import { createRoom, fetchRooms, roomErrorCode } from "@/lib/roomClient";
 import { usePolling } from "@/lib/usePolling";
-import type { RoomMode, RoomSummary } from "@/lib/roomTypes";
+import { modeLabel, type RoomMode, type RoomSummary } from "@/lib/roomTypes";
 import MiniBoard from "@/components/MiniBoard/MiniBoard";
 import styles from "./styles.module.scss";
 
@@ -41,7 +41,7 @@ export default function Lobby() {
         const room = await createRoom(trimmed, mode);
         router.push(`/room/${room.id}`);
       } catch (err) {
-        const code = err instanceof RoomError ? err.code : "unknown";
+        const code = roomErrorCode(err);
         setFormError(
           code === "invalid-name"
             ? "That room name is not valid."
@@ -128,7 +128,7 @@ export default function Lobby() {
                       {STATUS_LABEL[room.status]}
                     </span>
                     <span className={styles.modeBadge}>
-                      {room.mode === "ai" ? "vs AI" : "2 Player"}
+                      {modeLabel(room.mode)}
                     </span>
                   </div>
                   <div className={styles.seats}>

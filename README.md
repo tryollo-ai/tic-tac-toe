@@ -49,6 +49,7 @@ lib/gameLogic.ts          # Pure game logic: winner detection + minimax AI
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/roomTypes.ts          # Shared room, seat, and score types
 lib/roomClient.ts         # Browser fetch helpers for the room API
+lib/apiHelpers.ts         # Shared request/response helpers for the room API routes
 lib/usePolling.ts         # Client hook: poll the server on an interval
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 ```

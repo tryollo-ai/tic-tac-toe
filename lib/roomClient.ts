@@ -8,6 +8,11 @@ export class RoomError extends Error {
   }
 }
 
+/** Extract a thrown error's machine-readable code, or "unknown". */
+export function roomErrorCode(err: unknown): string {
+  return err instanceof RoomError ? err.code : "unknown";
+}
+
 async function parseRoom(res: Response): Promise<RoomView> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -17,6 +22,19 @@ async function parseRoom(res: Response): Promise<RoomView> {
   return body.room as RoomView;
 }
 
+/** Send a JSON-bodied mutation and return the resulting room view. */
+function sendJson(
+  path: string,
+  method: "POST" | "DELETE",
+  body: unknown,
+): Promise<RoomView> {
+  return fetch(path, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(parseRoom);
+}
+
 export async function fetchRooms(signal?: AbortSignal): Promise<RoomSummary[]> {
   const res = await fetch("/api/rooms", { cache: "no-store", signal });
   if (!res.ok) throw new RoomError(`http-${res.status}`);
@@ -24,16 +42,8 @@ export async function fetchRooms(signal?: AbortSignal): Promise<RoomSummary[]> {
   return body.rooms as RoomSummary[];
 }
 
-export async function createRoom(
-  name: string,
-  mode: RoomMode,
-): Promise<RoomView> {
-  const res = await fetch("/api/rooms", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, mode }),
-  });
-  return parseRoom(res);
+export function createRoom(name: string, mode: RoomMode): Promise<RoomView> {
+  return sendJson("/api/rooms", "POST", { name, mode });
 }
 
 export async function fetchRoom(
@@ -49,52 +59,26 @@ export async function fetchRoom(
   return parseRoom(res);
 }
 
-export async function claimSeat(
+export function claimSeat(
   id: string,
   playerId: string,
   seat: "X" | "O",
 ): Promise<RoomView> {
-  const res = await fetch(`/api/rooms/${id}/seat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId, seat }),
-  });
-  return parseRoom(res);
+  return sendJson(`/api/rooms/${id}/seat`, "POST", { playerId, seat });
 }
 
-export async function leaveSeat(
-  id: string,
-  playerId: string,
-): Promise<RoomView> {
-  const res = await fetch(`/api/rooms/${id}/seat`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId }),
-  });
-  return parseRoom(res);
+export function leaveSeat(id: string, playerId: string): Promise<RoomView> {
+  return sendJson(`/api/rooms/${id}/seat`, "DELETE", { playerId });
 }
 
-export async function makeMove(
+export function makeMove(
   id: string,
   playerId: string,
   index: number,
 ): Promise<RoomView> {
-  const res = await fetch(`/api/rooms/${id}/move`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId, index }),
-  });
-  return parseRoom(res);
+  return sendJson(`/api/rooms/${id}/move`, "POST", { playerId, index });
 }
 
-export async function resetRoom(
-  id: string,
-  playerId: string,
-): Promise<RoomView> {
-  const res = await fetch(`/api/rooms/${id}/reset`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId }),
-  });
-  return parseRoom(res);
+export function resetRoom(id: string, playerId: string): Promise<RoomView> {
+  return sendJson(`/api/rooms/${id}/reset`, "POST", { playerId });
 }

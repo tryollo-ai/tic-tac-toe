@@ -9,18 +9,33 @@ import {
   makeMove,
   resetRoom,
   RoomError,
+  roomErrorCode,
 } from "@/lib/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
 import { usePolling } from "@/lib/usePolling";
 import type { Player } from "@/lib/gameLogic";
-import type { RoomView } from "@/lib/roomTypes";
+import { modeLabel, type RoomView } from "@/lib/roomTypes";
 import Board from "@/components/Board/Board";
-import Status from "@/components/Status/Status";
+import Status, { type StatusTone, playerTone } from "@/components/Status/Status";
 import Scoreboard from "@/components/Scoreboard/Scoreboard";
 import styles from "./styles.module.scss";
 
 interface RoomGameProps {
   id: string;
+}
+
+/** User-facing copy for the room error codes the UI can surface. */
+const ROOM_ERROR_MESSAGES: Record<string, string> = {
+  "not-your-turn": "It is not your turn.",
+  "cell-taken": "That cell is already taken.",
+  "game-over": "The game is already over.",
+  "seat-taken": "That seat was just taken.",
+  "not-participant": "Only a seated player can do that.",
+};
+
+/** Map a thrown error to a known room-error message, or the given fallback. */
+function roomErrorMessage(err: unknown, fallback: string): string {
+  return ROOM_ERROR_MESSAGES[roomErrorCode(err)] ?? fallback;
 }
 
 export default function RoomGame({ id }: RoomGameProps) {
@@ -92,16 +107,7 @@ export default function RoomGame({ id }: RoomGameProps) {
         setData(updated);
       } catch (err) {
         setData(snapshot);
-        const code = err instanceof RoomError ? err.code : "unknown";
-        setActionError(
-          code === "not-your-turn"
-            ? "It is not your turn."
-            : code === "cell-taken"
-              ? "That cell is already taken."
-              : code === "game-over"
-                ? "The game is already over."
-                : "Could not make that move.",
-        );
+        setActionError(roomErrorMessage(err, "Could not make that move."));
       } finally {
         setPaused(false);
       }
@@ -116,14 +122,7 @@ export default function RoomGame({ id }: RoomGameProps) {
       try {
         setData(await action());
       } catch (err) {
-        const code = err instanceof RoomError ? err.code : "unknown";
-        setActionError(
-          code === "seat-taken"
-            ? "That seat was just taken."
-            : code === "not-participant"
-              ? "Only a seated player can do that."
-              : fallbackMessage,
-        );
+        setActionError(roomErrorMessage(err, fallbackMessage));
       } finally {
         setPaused(false);
       }
@@ -187,10 +186,10 @@ export default function RoomGame({ id }: RoomGameProps) {
     room.mode === "ai" ? "AI (O)" : mySeat === "O" ? "You (O)" : "Player O";
 
   let statusMessage: string;
-  let statusTone: "x" | "o" | "draw" | "neutral";
+  let statusTone: StatusTone;
   if (winner) {
     statusMessage = `${winner} wins!`;
-    statusTone = winner === "X" ? "x" : "o";
+    statusTone = playerTone(winner);
   } else if (gameOver) {
     statusMessage = "Draw";
     statusTone = "draw";
@@ -199,10 +198,10 @@ export default function RoomGame({ id }: RoomGameProps) {
     statusTone = "neutral";
   } else if (mySeat) {
     statusMessage = currentTurn === mySeat ? "Your turn" : "Opponent's turn";
-    statusTone = currentTurn === "X" ? "x" : "o";
+    statusTone = playerTone(currentTurn);
   } else {
     statusMessage = `${currentTurn} to move`;
-    statusTone = currentTurn === "X" ? "x" : "o";
+    statusTone = playerTone(currentTurn);
   }
 
   const boardDisabled =
@@ -215,9 +214,7 @@ export default function RoomGame({ id }: RoomGameProps) {
           ← Lobby
         </Link>
         <h1 className={styles.title}>{room.name}</h1>
-        <span className={styles.modeTag}>
-          {room.mode === "ai" ? "vs AI" : "2 Player"}
-        </span>
+        <span className={styles.modeTag}>{modeLabel(room.mode)}</span>
       </header>
 
       <Status message={statusMessage} tone={statusTone} />

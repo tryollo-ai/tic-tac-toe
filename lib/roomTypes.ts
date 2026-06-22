@@ -46,3 +46,8 @@ export interface RoomSummary {
 
 /** Sentinel playerId for the AI seat; no human can ever match it. */
 export const AI_SEAT = "__AI__";
+
+/** Short human-readable label for a room's mode. */
+export function modeLabel(mode: RoomMode): string {
+  return mode === "ai" ? "vs AI" : "2 Player";
+}

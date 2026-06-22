@@ -22,6 +22,8 @@ const ROOM_IDLE_MS = 6 * 60 * 60 * 1000;
 
 const EMPTY_BOARD: Board = Array(9).fill(null);
 const INITIAL_SCORES: Scores = { X: 0, O: 0, draws: 0 };
+/** The two human-claimable seats, in turn order. */
+const SEATS = ["X", "O"] as const;
 
 // Stash the map on globalThis so Next.js dev hot-reload doesn't wipe rooms.
 const g = globalThis as unknown as {
@@ -57,7 +59,7 @@ function recomputeStatus(room: Room): void {
 /** Release any human seat whose heartbeat is older than the TTL. */
 function sweepSeats(room: Room): void {
   const cutoff = now() - SEAT_TTL_MS;
-  (["X", "O"] as const).forEach((seat) => {
+  SEATS.forEach((seat) => {
     const holder = room.seats[seat];
     if (holder === null || holder === AI_SEAT) return;
     const seen = room.seatSeen[seat];
@@ -93,6 +95,23 @@ function placeMark(room: Room, index: number, mark: Player): void {
   if (isGameOver(room.board)) {
     applyOutcome(room);
   }
+}
+
+/** Stamp the room's activity, refresh its status, and return a success result. */
+function touched(room: Room): StoreResult {
+  room.lastActivity = now();
+  recomputeStatus(room);
+  return { ok: true, room };
+}
+
+/** Look up a room by id, returning a not-found error if it is missing. */
+function withRoom(
+  id: string,
+  fn: (room: Room) => StoreResult,
+): StoreResult {
+  const room = store.rooms.get(id);
+  if (!room) return { ok: false, error: "room-not-found" };
+  return fn(room);
 }
 
 export function listRooms(): RoomSummary[] {
@@ -150,7 +169,7 @@ export function getRoom(id: string, heartbeatPlayerId?: string): Room | null {
   if (!room) return null;
   sweepSeats(room);
   if (heartbeatPlayerId) {
-    (["X", "O"] as const).forEach((seat) => {
+    SEATS.forEach((seat) => {
       if (room.seats[seat] === heartbeatPlayerId) {
         room.seatSeen[seat] = now();
       }
@@ -170,42 +189,35 @@ export function claimSeat(
   seat: "X" | "O",
   playerId: string,
 ): StoreResult {
-  const room = store.rooms.get(id);
-  if (!room) return { ok: false, error: "room-not-found" };
-  sweepSeats(room);
+  return withRoom(id, (room) => {
+    sweepSeats(room);
 
-  const holder = room.seats[seat];
-  if (holder === playerId) {
-    // Idempotent re-claim of a seat you already hold.
+    const holder = room.seats[seat];
+    if (holder === playerId) {
+      // Idempotent re-claim of a seat you already hold.
+      room.seatSeen[seat] = now();
+      return touched(room);
+    }
+    if (holder !== null) {
+      return { ok: false, error: "seat-taken" };
+    }
+
+    room.seats[seat] = playerId;
     room.seatSeen[seat] = now();
-    room.lastActivity = now();
-    recomputeStatus(room);
-    return { ok: true, room };
-  }
-  if (holder !== null) {
-    return { ok: false, error: "seat-taken" };
-  }
-
-  room.seats[seat] = playerId;
-  room.seatSeen[seat] = now();
-  room.lastActivity = now();
-  recomputeStatus(room);
-  return { ok: true, room };
+    return touched(room);
+  });
 }
 
 export function leaveSeat(id: string, playerId: string): StoreResult {
-  const room = store.rooms.get(id);
-  if (!room) return { ok: false, error: "room-not-found" };
-
-  (["X", "O"] as const).forEach((seat) => {
-    if (room.seats[seat] === playerId) {
-      room.seats[seat] = null;
-      room.seatSeen[seat] = null;
-    }
+  return withRoom(id, (room) => {
+    SEATS.forEach((seat) => {
+      if (room.seats[seat] === playerId) {
+        room.seats[seat] = null;
+        room.seatSeen[seat] = null;
+      }
+    });
+    return touched(room);
   });
-  room.lastActivity = now();
-  recomputeStatus(room);
-  return { ok: true, room };
 }
 
 export function makeMove(
@@ -213,55 +225,51 @@ export function makeMove(
   index: number,
   playerId: string,
 ): StoreResult {
-  const room = store.rooms.get(id);
-  if (!room) return { ok: false, error: "room-not-found" };
-  sweepSeats(room);
+  return withRoom(id, (room) => {
+    sweepSeats(room);
 
-  if (isGameOver(room.board)) {
-    return { ok: false, error: "game-over" };
-  }
-  if (index < 0 || index >= room.board.length) {
-    return { ok: false, error: "invalid-index" };
-  }
+    if (isGameOver(room.board)) {
+      return { ok: false, error: "game-over" };
+    }
+    if (index < 0 || index >= room.board.length) {
+      return { ok: false, error: "invalid-index" };
+    }
 
-  const turn: Player = room.xIsNext ? "X" : "O";
-  if (room.seats[turn] !== playerId) {
-    return { ok: false, error: "not-your-turn" };
-  }
-  if (room.board[index] !== null) {
-    return { ok: false, error: "cell-taken" };
-  }
+    const turn: Player = room.xIsNext ? "X" : "O";
+    if (room.seats[turn] !== playerId) {
+      return { ok: false, error: "not-your-turn" };
+    }
+    if (room.board[index] !== null) {
+      return { ok: false, error: "cell-taken" };
+    }
 
-  placeMark(room, index, turn);
+    placeMark(room, index, turn);
 
-  // Server-side AI follow-up so spectators see the move too.
-  if (
-    room.mode === "ai" &&
-    !room.xIsNext &&
-    !isGameOver(room.board) &&
-    room.seats.O === AI_SEAT
-  ) {
-    const aiMove = getBestMove(room.board, "O");
-    if (aiMove !== -1) placeMark(room, aiMove, "O");
-  }
+    // Server-side AI follow-up so spectators see the move too.
+    if (
+      room.mode === "ai" &&
+      !room.xIsNext &&
+      !isGameOver(room.board) &&
+      room.seats.O === AI_SEAT
+    ) {
+      const aiMove = getBestMove(room.board, "O");
+      if (aiMove !== -1) placeMark(room, aiMove, "O");
+    }
 
-  room.lastActivity = now();
-  recomputeStatus(room);
-  return { ok: true, room };
+    return touched(room);
+  });
 }
 
 export function resetGame(id: string, playerId: string): StoreResult {
-  const room = store.rooms.get(id);
-  if (!room) return { ok: false, error: "room-not-found" };
-  sweepSeats(room);
-  if (room.seats.X !== playerId && room.seats.O !== playerId) {
-    return { ok: false, error: "not-participant" };
-  }
-  room.board = EMPTY_BOARD.slice();
-  room.xIsNext = true;
-  room.lastActivity = now();
-  recomputeStatus(room);
-  return { ok: true, room };
+  return withRoom(id, (room) => {
+    sweepSeats(room);
+    if (room.seats.X !== playerId && room.seats.O !== playerId) {
+      return { ok: false, error: "not-participant" };
+    }
+    room.board = EMPTY_BOARD.slice();
+    room.xIsNext = true;
+    return touched(room);
+  });
 }
 
 /** Maps a store error code to an HTTP status. */

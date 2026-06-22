@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { claimSeat, errorStatus, leaveSeat, toView } from "@/lib/roomStore";
+import { claimSeat, leaveSeat } from "@/lib/roomStore";
+import { badRequest, parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
 
 export const dynamic = "force-dynamic";
 
@@ -8,29 +8,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  let body: { playerId?: unknown; seat?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid-body" }, { status: 400 });
-  }
+  const parsed = await parsePlayerBody(request);
+  if (parsed.error) return parsed.error;
 
-  const playerId = typeof body.playerId === "string" ? body.playerId : "";
-  if (!playerId) {
-    return NextResponse.json({ error: "invalid-body" }, { status: 400 });
-  }
-  if (body.seat !== "X" && body.seat !== "O") {
-    return NextResponse.json({ error: "invalid-seat" }, { status: 400 });
-  }
+  const { seat } = parsed.body;
+  if (seat !== "X" && seat !== "O") return badRequest("invalid-seat");
 
-  const result = claimSeat(id, body.seat, playerId);
-  if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: errorStatus(result.error) },
-    );
-  }
-  return NextResponse.json({ room: toView(result.room) });
+  return storeResponse(claimSeat(id, seat, parsed.playerId));
 }
 
 export async function DELETE(
@@ -38,24 +22,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  let body: { playerId?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid-body" }, { status: 400 });
-  }
+  const parsed = await parsePlayerBody(request);
+  if (parsed.error) return parsed.error;
 
-  const playerId = typeof body.playerId === "string" ? body.playerId : "";
-  if (!playerId) {
-    return NextResponse.json({ error: "invalid-body" }, { status: 400 });
-  }
-
-  const result = leaveSeat(id, playerId);
-  if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: errorStatus(result.error) },
-    );
-  }
-  return NextResponse.json({ room: toView(result.room) });
+  return storeResponse(leaveSeat(id, parsed.playerId));
 }

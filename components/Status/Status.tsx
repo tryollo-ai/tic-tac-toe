@@ -1,22 +1,26 @@
 import styles from "./styles.module.scss";
 
+export type StatusTone = "x" | "o" | "draw" | "neutral";
+
+/** Maps a player to their status tone. */
+export const playerTone = (player: "X" | "O"): StatusTone =>
+  player === "X" ? "x" : "o";
+
 interface StatusProps {
   message: string;
-  tone: "x" | "o" | "draw" | "neutral";
+  tone: StatusTone;
 }
 
 export default function Status({ message, tone }: StatusProps) {
-  const toneClass =
-    tone === "x"
-      ? styles.x
-      : tone === "o"
-        ? styles.o
-        : tone === "draw"
-          ? styles.draw
-          : "";
+  const toneClass: Record<StatusTone, string> = {
+    x: styles.x,
+    o: styles.o,
+    draw: styles.draw,
+    neutral: "",
+  };
 
   return (
-    <div className={`${styles.status} ${toneClass}`} role="status" aria-live="polite">
+    <div className={`${styles.status} ${toneClass[tone]}`} role="status" aria-live="polite">
       {message}
     </div>
   );
