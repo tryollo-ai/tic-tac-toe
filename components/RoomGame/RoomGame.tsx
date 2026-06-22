@@ -48,7 +48,8 @@ export default function RoomGame({ id }: RoomGameProps) {
     return null;
   }, [room, playerId]);
 
-  // Best-effort instant seat release on tab close; the 30s TTL is the backstop.
+  // Best-effort instant seat release: on tab close via `pagehide`, and on
+  // in-app navigation (unmount) via the cleanup. The 30s TTL is the backstop.
   useEffect(() => {
     if (!playerId || !mySeat) return;
     const release = () => {
@@ -60,7 +61,10 @@ export default function RoomGame({ id }: RoomGameProps) {
       }).catch(() => {});
     };
     window.addEventListener("pagehide", release);
-    return () => window.removeEventListener("pagehide", release);
+    return () => {
+      window.removeEventListener("pagehide", release);
+      release();
+    };
   }, [id, playerId, mySeat]);
 
   const handleMove = useCallback(
@@ -114,7 +118,11 @@ export default function RoomGame({ id }: RoomGameProps) {
       } catch (err) {
         const code = err instanceof RoomError ? err.code : "unknown";
         setActionError(
-          code === "seat-taken" ? "That seat was just taken." : fallbackMessage,
+          code === "seat-taken"
+            ? "That seat was just taken."
+            : code === "not-participant"
+              ? "Only a seated player can do that."
+              : fallbackMessage,
         );
       } finally {
         setPaused(false);
@@ -271,7 +279,7 @@ export default function RoomGame({ id }: RoomGameProps) {
         type="button"
         className={styles.newGame}
         onClick={handleNewGame}
-        disabled={paused}
+        disabled={paused || mySeat === null}
       >
         New Game
       </button>

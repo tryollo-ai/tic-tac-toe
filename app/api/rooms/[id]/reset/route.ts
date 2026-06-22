@@ -8,14 +8,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  // playerId is accepted for symmetry but reset is open to any participant.
+  let body: { playerId?: unknown };
   try {
-    await request.json();
+    body = await request.json();
   } catch {
-    // Body is optional for reset.
+    return NextResponse.json({ error: "invalid-body" }, { status: 400 });
   }
 
-  const result = resetGame(id);
+  const playerId = typeof body.playerId === "string" ? body.playerId : "";
+  if (!playerId) {
+    return NextResponse.json({ error: "invalid-body" }, { status: 400 });
+  }
+
+  const result = resetGame(id, playerId);
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error },

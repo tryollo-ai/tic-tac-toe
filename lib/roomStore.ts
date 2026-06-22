@@ -221,7 +221,7 @@ export function makeMove(
     return { ok: false, error: "game-over" };
   }
   if (index < 0 || index >= room.board.length) {
-    return { ok: false, error: "cell-taken" };
+    return { ok: false, error: "invalid-index" };
   }
 
   const turn: Player = room.xIsNext ? "X" : "O";
@@ -250,9 +250,13 @@ export function makeMove(
   return { ok: true, room };
 }
 
-export function resetGame(id: string): StoreResult {
+export function resetGame(id: string, playerId: string): StoreResult {
   const room = store.rooms.get(id);
   if (!room) return { ok: false, error: "room-not-found" };
+  sweepSeats(room);
+  if (room.seats.X !== playerId && room.seats.O !== playerId) {
+    return { ok: false, error: "not-participant" };
+  }
   room.board = EMPTY_BOARD.slice();
   room.xIsNext = true;
   room.lastActivity = now();
@@ -271,7 +275,9 @@ export function errorStatus(error: string): number {
     case "game-over":
       return 409;
     case "not-your-turn":
+    case "not-participant":
       return 403;
+    case "invalid-index":
     case "invalid-name":
       return 400;
     default:
