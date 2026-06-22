@@ -8,9 +8,9 @@ game.
 
 - **Game rooms & lobby:** the landing page lists open rooms with live status and
   a board preview; create a room as two-player or vs an AI.
-- **Seat claiming:** the first visitor to a room takes X, the second takes O, and
-  everyone else spectates. Your identity is stored per browser, and only the
-  seat-holder whose turn it is can move.
+- **Seat claiming:** visitors claim an open X or O seat, and everyone else
+  spectates. Your identity is stored per browser, and only the seat-holder whose
+  turn it is can move.
 - **Near-real-time play:** rooms poll the server, so moves, seat changes, and
   spectated games update within a couple of seconds. A seat auto-releases after
   30s without a heartbeat (for example, when its player closes the tab).
