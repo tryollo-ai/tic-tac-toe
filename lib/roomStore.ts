@@ -1,4 +1,5 @@
 import {
+  boardAfterMoves,
   calculateWinner,
   getBestMove,
   isGameOver,
@@ -7,6 +8,9 @@ import {
 } from "@/lib/gameLogic";
 import {
   AI_SEAT,
+  type CompletedGame,
+  type CompletedGameSummary,
+  type CompletedGameView,
   type Room,
   type RoomMode,
   type RoomStatus,
@@ -25,11 +29,19 @@ const INITIAL_SCORES: Scores = { X: 0, O: 0, draws: 0 };
 /** The two human-claimable seats, in turn order. */
 const SEATS = ["X", "O"] as const;
 
-// Stash the map on globalThis so Next.js dev hot-reload doesn't wipe rooms.
+// Stash the maps on globalThis so Next.js dev hot-reload doesn't wipe state.
 const g = globalThis as unknown as {
-  __tttStore?: { rooms: Map<string, Room>; seq: number };
+  __tttStore?: {
+    rooms: Map<string, Room>;
+    completed: Map<string, CompletedGame>;
+    seq: number;
+  };
 };
-const store = g.__tttStore ?? { rooms: new Map<string, Room>(), seq: 0 };
+const store = g.__tttStore ?? {
+  rooms: new Map<string, Room>(),
+  completed: new Map<string, CompletedGame>(),
+  seq: 0,
+};
 if (!g.__tttStore) g.__tttStore = store;
 
 export type StoreResult =
@@ -78,6 +90,27 @@ function reapIdleRooms(): void {
   }
 }
 
+/** Drop archived games older than the idle window, bounding memory. */
+function reapIdleCompleted(): void {
+  const cutoff = now() - ROOM_IDLE_MS;
+  for (const [id, game] of store.completed) {
+    if (game.completedAt < cutoff) store.completed.delete(id);
+  }
+}
+
+/** Snapshot a just-finished game into the completed-games archive. */
+function archiveCompletedGame(room: Room): void {
+  const game: CompletedGame = {
+    id: nextId(),
+    roomId: room.id,
+    name: room.name,
+    mode: room.mode,
+    moves: room.moves.slice(),
+    completedAt: now(),
+  };
+  store.completed.set(game.id, game);
+}
+
 /** Record a finished round in the scores exactly once. */
 function applyOutcome(room: Room): void {
   const result = calculateWinner(room.board);
@@ -91,6 +124,7 @@ function applyOutcome(room: Room): void {
 /** Apply a single move in place, scoring the round if it ends the game. */
 function placeMark(room: Room, index: number, mark: Player): void {
   room.board[index] = mark;
+  room.moves.push(index);
   room.xIsNext = !room.xIsNext;
   if (isGameOver(room.board)) {
     applyOutcome(room);
@@ -146,6 +180,7 @@ export function createRoom(name: string, mode: RoomMode): StoreResult {
     id: nextId(),
     name: trimmed,
     board: EMPTY_BOARD.slice(),
+    moves: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
     status: "waiting",
@@ -182,6 +217,41 @@ export function getRoom(id: string, heartbeatPlayerId?: string): Room | null {
 export function toView(room: Room): RoomView {
   const result = calculateWinner(room.board);
   return { ...room, winningLine: result ? result.line : null };
+}
+
+export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
+  const board = boardAfterMoves(game.moves, game.moves.length);
+  const result = calculateWinner(board);
+  return {
+    id: game.id,
+    name: game.name,
+    mode: game.mode,
+    board,
+    winner: result ? result.winner : null,
+    completedAt: game.completedAt,
+  };
+}
+
+export function toCompletedView(game: CompletedGame): CompletedGameView {
+  return {
+    id: game.id,
+    name: game.name,
+    mode: game.mode,
+    moves: game.moves,
+    completedAt: game.completedAt,
+  };
+}
+
+/** Archived finished games, newest first. */
+export function listCompletedGames(): CompletedGameSummary[] {
+  reapIdleCompleted();
+  return Array.from(store.completed.values())
+    .sort((a, b) => b.completedAt - a.completedAt)
+    .map(toCompletedSummary);
+}
+
+export function getCompletedGame(id: string): CompletedGame | null {
+  return store.completed.get(id) ?? null;
 }
 
 export function claimSeat(
@@ -256,6 +326,12 @@ export function makeMove(
       if (aiMove !== -1) placeMark(room, aiMove, "O");
     }
 
+    // The move (or the AI's reply) may have just ended the game; archive it once
+    // here, at the single point where a room transitions to finished.
+    if (isGameOver(room.board)) {
+      archiveCompletedGame(room);
+    }
+
     return touched(room);
   });
 }
@@ -267,6 +343,7 @@ export function resetGame(id: string, playerId: string): StoreResult {
       return { ok: false, error: "not-participant" };
     }
     room.board = EMPTY_BOARD.slice();
+    room.moves = [];
     room.xIsNext = true;
     return touched(room);
   });
