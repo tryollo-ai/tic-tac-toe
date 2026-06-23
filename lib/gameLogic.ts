@@ -47,6 +47,20 @@ export function otherPlayer(player: Player): Player {
 }
 
 /**
+ * Reconstruct the board after the first `count` moves of a game. `moves` is the
+ * list of played cell indices in turn order; X plays the even-numbered moves
+ * (0, 2, …) and O the odd ones, mirroring how a real game always alternates.
+ */
+export function boardAfterMoves(moves: readonly number[], count: number): Board {
+  const board: Board = Array(9).fill(null);
+  const upTo = Math.max(0, Math.min(count, moves.length));
+  for (let i = 0; i < upTo; i++) {
+    board[moves[i]] = i % 2 === 0 ? "X" : "O";
+  }
+  return board;
+}
+
+/**
  * Minimax with depth weighting so the AI prefers faster wins and slower losses.
  * Returns a score from the perspective of `aiPlayer`.
  */

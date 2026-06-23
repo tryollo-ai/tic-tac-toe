@@ -246,3 +246,58 @@
 .seatTaken {
   color: var(--text-muted);
 }
+
+.completedSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sectionHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.badge_x {
+  color: #06121f;
+  background: var(--x-color);
+}
+
+.badge_o {
+  color: #06121f;
+  background: var(--o-color);
+}
+
+.badge_draw {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.completedFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.replayHint {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.completedTime {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}

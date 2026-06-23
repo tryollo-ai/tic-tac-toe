@@ -1,4 +1,10 @@
-import type { RoomMode, RoomSummary, RoomView } from "@/lib/roomTypes";
+import type {
+  CompletedGameSummary,
+  CompletedGameView,
+  RoomMode,
+  RoomSummary,
+  RoomView,
+} from "@/lib/roomTypes";
 
 /** Error carrying the server's machine-readable error code. */
 export class RoomError extends Error {
@@ -81,4 +87,26 @@ export function makeMove(
 
 export function resetRoom(id: string, playerId: string): Promise<RoomView> {
   return sendJson(`/api/rooms/${id}/reset`, "POST", { playerId });
+}
+
+export async function fetchCompletedGames(
+  signal?: AbortSignal,
+): Promise<CompletedGameSummary[]> {
+  const res = await fetch("/api/completed", { cache: "no-store", signal });
+  if (!res.ok) throw new RoomError(`http-${res.status}`);
+  const body = await res.json();
+  return body.games as CompletedGameSummary[];
+}
+
+export async function fetchCompletedGame(
+  id: string,
+  signal?: AbortSignal,
+): Promise<CompletedGameView> {
+  const res = await fetch(`/api/completed/${id}`, { cache: "no-store", signal });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new RoomError(body.error ?? `http-${res.status}`);
+  }
+  const body = await res.json();
+  return body.game as CompletedGameView;
 }
