@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchCompletedGame, RoomError } from "@/lib/roomClient";
-import { boardAfterActions, calculateWinner, type Player } from "@/lib/gameLogic";
+import {
+  boardAfterActions,
+  calculateWinner,
+  INITIAL_SIZE,
+  type Player,
+} from "@/lib/gameLogic";
 import { modeLabel, type CompletedGameView } from "@/lib/roomTypes";
 import Board from "@/components/Board/Board";
 import Status, { type StatusTone, playerTone } from "@/components/Status/Status";
@@ -76,8 +81,8 @@ export default function Replay({ id }: ReplayProps) {
     );
   }
 
-  const { board, rows, cols } = boardAfterActions(game.actions, step);
-  const result = calculateWinner(board, rows, cols);
+  const board = boardAfterActions(game.actions, step);
+  const result = calculateWinner(board);
   const atStart = step === 0;
   const atEnd = step === total;
 
@@ -126,7 +131,7 @@ export default function Replay({ id }: ReplayProps) {
 
       <Board
         board={board}
-        cols={cols}
+        cols={INITIAL_SIZE}
         winningLine={result ? result.line : null}
         onSquareClick={() => {}}
         disabled
