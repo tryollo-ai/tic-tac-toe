@@ -1,6 +1,6 @@
 import { shiftBoardAction } from "@/lib/roomStore";
-import { badRequest, parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
-import { DIRECTIONS, type Direction } from "@/lib/gameLogic";
+import { badRequest, parsePlayerBody, storeResponse } from "@/utils/apiHelpers";
+import { DIRECTIONS, type Direction } from "@/utils/gameLogic";
 
 export const dynamic = "force-dynamic";
 

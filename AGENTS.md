@@ -8,7 +8,7 @@ A multiplayer tic-tac-toe app built with Next.js (App Router) and TypeScript.
 Players join game rooms from a lobby and play across browsers or spectate live.
 Rooms are kept in an in-memory server store (`lib/roomStore.ts`, a `Map` on
 `globalThis`) and surfaced to clients via polling. A room is either two-player or
-played against an AI (minimax, in `lib/gameLogic.ts`).
+played against an AI (minimax, in `utils/gameLogic.ts`).
 
 The board is a fixed 3x3, but the game is not plain tic-tac-toe: player O has one
 once-per-game "shift" action that slides the whole grid one cell
@@ -86,11 +86,15 @@ its own `styles.module.scss`. Do not share one stylesheet across components.
 
 - Reusable components live in `common/components/<Name>/` so they can be shared
   across the app.
-- `lib/` holds non-component code: pure game logic (no React) in
-  `lib/gameLogic.ts`, the in-memory room and completed-game store plus all
-  move/seat validation in `lib/roomStore.ts`, shared types in `lib/roomTypes.ts`,
-  browser fetch helpers in `lib/roomClient.ts`, shared request/response helpers
-  for the API routes in `lib/apiHelpers.ts`, and the client hooks
+- `utils/` holds stateless helper modules that can be shared anywhere: pure game
+  logic (no React) in `utils/gameLogic.ts`, browser fetch helpers in
+  `utils/roomClient.ts`, and shared request/response helpers for the API routes
+  in `utils/apiHelpers.ts`. Keep a helper's types colocated with it (e.g. the
+  `Board`/`Direction`/`GameAction` types live alongside the functions in
+  `utils/gameLogic.ts`).
+- `lib/` holds the remaining non-component code that is not a pure helper: the
+  in-memory room and completed-game store plus all move/seat validation in
+  `lib/roomStore.ts`, shared types in `lib/roomTypes.ts`, and the client hooks
   `usePolling`/`usePlayerId`.
 - Routes, pages, and API endpoints live in `app/` (App Router); the room REST
   endpoints are under `app/api/rooms/` and the read-only completed-game endpoints

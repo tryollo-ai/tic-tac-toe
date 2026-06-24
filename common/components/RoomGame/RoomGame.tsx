@@ -11,10 +11,10 @@ import {
   RoomError,
   roomErrorCode,
   shiftRoom,
-} from "@/lib/roomClient";
+} from "@/utils/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
 import { usePolling } from "@/lib/usePolling";
-import type { Direction, Player } from "@/lib/gameLogic";
+import type { Direction, Player } from "@/utils/gameLogic";
 import { modeLabel, type RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board/Board";
 import Status, { type StatusTone, playerTone } from "@/common/components/Status/Status";

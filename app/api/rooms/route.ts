@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRoom, listRooms } from "@/lib/roomStore";
-import { badRequest, parseJsonBody, storeResponse } from "@/lib/apiHelpers";
+import { badRequest, parseJsonBody, storeResponse } from "@/utils/apiHelpers";
 import type { RoomMode } from "@/lib/roomTypes";
 
 export const dynamic = "force-dynamic";

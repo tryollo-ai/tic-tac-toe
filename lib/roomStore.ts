@@ -8,7 +8,7 @@ import {
   type Board,
   type Direction,
   type Player,
-} from "@/lib/gameLogic";
+} from "@/utils/gameLogic";
 import {
   AI_SEAT,
   type CompletedGame,

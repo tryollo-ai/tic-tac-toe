@@ -7,7 +7,7 @@ import {
   fetchCompletedGames,
   fetchRooms,
   roomErrorCode,
-} from "@/lib/roomClient";
+} from "@/utils/roomClient";
 import { usePolling } from "@/lib/usePolling";
 import {
   modeLabel,

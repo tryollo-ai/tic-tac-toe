@@ -1,5 +1,5 @@
 import { makeMove } from "@/lib/roomStore";
-import { badRequest, parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
+import { badRequest, parsePlayerBody, storeResponse } from "@/utils/apiHelpers";
 
 export const dynamic = "force-dynamic";
 

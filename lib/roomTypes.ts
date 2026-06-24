@@ -1,4 +1,4 @@
-import type { Board, GameAction, Player } from "@/lib/gameLogic";
+import type { Board, GameAction, Player } from "@/utils/gameLogic";
 
 export type RoomMode = "two-player" | "ai";
 export type RoomStatus = "waiting" | "in-progress" | "finished";

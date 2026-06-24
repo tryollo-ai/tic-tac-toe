@@ -1,4 +1,4 @@
-import { INITIAL_SIZE, type Board } from "@/lib/gameLogic";
+import { INITIAL_SIZE, type Board } from "@/utils/gameLogic";
 import styles from "./styles.module.scss";
 
 interface MiniBoardProps {

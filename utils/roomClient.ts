@@ -1,4 +1,4 @@
-import type { Direction } from "@/lib/gameLogic";
+import type { Direction } from "@/utils/gameLogic";
 import type {
   CompletedGameSummary,
   CompletedGameView,

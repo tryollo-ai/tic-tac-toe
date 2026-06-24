@@ -1,4 +1,4 @@
-import type { Cell } from "@/lib/gameLogic";
+import type { Cell } from "@/utils/gameLogic";
 import styles from "./styles.module.scss";
 
 interface SquareProps {

@@ -6,7 +6,7 @@ import {
   getBestMove,
   isBoardFull,
   type Board as BoardState,
-} from "@/lib/gameLogic";
+} from "@/utils/gameLogic";
 import Board from "@/common/components/Board/Board";
 import { type Scores } from "@/common/components/Scoreboard/Scoreboard";
 import OverflowMenu from "@/common/components/OverflowMenu/OverflowMenu";

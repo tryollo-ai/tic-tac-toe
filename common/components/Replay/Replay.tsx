@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchCompletedGame, RoomError } from "@/lib/roomClient";
+import { fetchCompletedGame, RoomError } from "@/utils/roomClient";
 import {
   boardAfterActions,
   calculateWinner,
   type Player,
-} from "@/lib/gameLogic";
+} from "@/utils/gameLogic";
 import { modeLabel, type CompletedGameView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board/Board";
 import Status, { type StatusTone, playerTone } from "@/common/components/Status/Status";

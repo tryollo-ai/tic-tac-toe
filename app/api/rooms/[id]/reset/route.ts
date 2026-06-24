@@ -1,5 +1,5 @@
 import { resetGame } from "@/lib/roomStore";
-import { parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
+import { parsePlayerBody, storeResponse } from "@/utils/apiHelpers";
 
 export const dynamic = "force-dynamic";
 
