@@ -62,7 +62,7 @@ function nextId(): string {
 
 /** Recompute status from the board and seats. */
 function recomputeStatus(room: Room): void {
-  if (isGameOver(room.board, room.rows, room.cols)) {
+  if (isGameOver(room.board)) {
     room.status = "finished";
   } else if (room.board.some((cell) => cell !== null)) {
     room.status = "in-progress";
@@ -116,7 +116,7 @@ function archiveCompletedGame(room: Room): void {
 
 /** Record a finished round in the scores exactly once. */
 function applyOutcome(room: Room): void {
-  const result = calculateWinner(room.board, room.rows, room.cols);
+  const result = calculateWinner(room.board);
   if (result) {
     room.scores[result.winner] += 1;
   } else {
@@ -131,7 +131,7 @@ function applyOutcome(room: Room): void {
  * so the game is scored and archived exactly once however it ends.
  */
 function settle(room: Room): boolean {
-  if (isGameOver(room.board, room.rows, room.cols)) {
+  if (isGameOver(room.board)) {
     applyOutcome(room);
     archiveCompletedGame(room);
     return true;
@@ -147,14 +147,9 @@ function settle(room: Room): boolean {
  */
 function runAiTurn(room: Room): void {
   if (room.mode !== "ai" || room.xIsNext || room.seats.O !== AI_SEAT) return;
-  if (isGameOver(room.board, room.rows, room.cols)) return;
+  if (isGameOver(room.board)) return;
 
-  const action = chooseAiAction(
-    room.board,
-    room.rows,
-    room.cols,
-    !room.oShiftUsed,
-  );
+  const action = chooseAiAction(room.board, !room.oShiftUsed);
   if (!action) return;
 
   if (action.kind === "shift") {
@@ -170,7 +165,7 @@ function runAiTurn(room: Room): void {
 
 /** Slide the grid in place in the given direction, recording it for replay. */
 function applyShift(room: Room, direction: Direction): void {
-  room.board = shiftBoard(room.board, room.rows, room.cols, direction);
+  room.board = shiftBoard(room.board, direction);
   room.actions.push({ kind: "shift", dir: direction });
 }
 
@@ -263,23 +258,20 @@ export function getRoom(id: string, heartbeatPlayerId?: string): Room | null {
 }
 
 export function toView(room: Room): RoomView {
-  const result = calculateWinner(room.board, room.rows, room.cols);
+  const result = calculateWinner(room.board);
   return { ...room, winningLine: result ? result.line : null };
 }
 
 export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
-  const { board, rows, cols } = boardAfterActions(
-    game.actions,
-    game.actions.length,
-  );
-  const result = calculateWinner(board, rows, cols);
+  const board = boardAfterActions(game.actions, game.actions.length);
+  const result = calculateWinner(board);
   return {
     id: game.id,
     name: game.name,
     mode: game.mode,
     board,
-    rows,
-    cols,
+    rows: INITIAL_SIZE,
+    cols: INITIAL_SIZE,
     winner: result ? result.winner : null,
     completedAt: game.completedAt,
   };
@@ -351,7 +343,7 @@ export function makeMove(
   return withRoom(id, (room) => {
     sweepSeats(room);
 
-    if (isGameOver(room.board, room.rows, room.cols)) {
+    if (isGameOver(room.board)) {
       return { ok: false, error: "game-over" };
     }
     if (index < 0 || index >= room.board.length) {
@@ -389,7 +381,7 @@ export function shiftBoardAction(
   return withRoom(id, (room) => {
     sweepSeats(room);
 
-    if (isGameOver(room.board, room.rows, room.cols)) {
+    if (isGameOver(room.board)) {
       return { ok: false, error: "game-over" };
     }
     // The shift belongs to O, and only on O's turn (it is O's action for it).

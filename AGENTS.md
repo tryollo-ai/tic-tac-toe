@@ -20,12 +20,12 @@ still alternate strictly: on O's turn O either places (`makeMove`) or shifts
 (`shiftBoardAction`, guarded so only O, only on O's turn, only once via
 `oShiftUsed`).
 A shift can never complete a line (it only translates marks), so it never wins;
-win detection stays three in a row via `calculateWinner`/`winningLines`.
+win detection stays three in a row via `calculateWinner`.
 A room still carries `rows`/`cols` (always 3) and a flat `board` of `rows * cols`
 cells.
 Minimax is exact on 3x3; as O the AI weighs its best placement against shifting
 each turn via `chooseAiAction`.
-When changing the shift or win rules, keep `calculateWinner`, `winningLines`,
+When changing the shift or win rules, keep `calculateWinner`,
 `shiftBoard`, and the store's turn state machine in sync.
 
 Each room records its history as a single ordered `actions` log, where each
