@@ -66,7 +66,7 @@ app/                      # App Router: lobby, /room/[id], /replay/[id], styles
 app/api/rooms/            # REST endpoints: list/create rooms, seats, moves,
                           #   reset, shift
 app/api/completed/        # REST endpoints: list completed games + fetch one for replay
-common/components/<Name>/ # One folder per shared component, each with styles.module.scss
+common/components/<Name>/ # One folder per shared component: index.tsx entry + styles.module.scss
 utils/gameLogic.ts        # Pure game logic: winner detection, O's whole-grid
                           #   shift, and the minimax AI
 utils/roomClient.ts       # Browser fetch helpers for the room API
