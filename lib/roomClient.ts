@@ -90,16 +90,12 @@ export function resetRoom(id: string, playerId: string): Promise<RoomView> {
   return sendJson(`/api/rooms/${id}/reset`, "POST", { playerId });
 }
 
-export function extendRoom(
+export function shiftRoom(
   id: string,
   playerId: string,
   direction: Direction,
 ): Promise<RoomView> {
-  return sendJson(`/api/rooms/${id}/extend`, "POST", { playerId, direction });
-}
-
-export function skipExtend(id: string, playerId: string): Promise<RoomView> {
-  return sendJson(`/api/rooms/${id}/skip-extend`, "POST", { playerId });
+  return sendJson(`/api/rooms/${id}/shift`, "POST", { playerId, direction });
 }
 
 export async function fetchCompletedGames(

@@ -1,4 +1,4 @@
-import { extendBoardAction } from "@/lib/roomStore";
+import { shiftBoardAction } from "@/lib/roomStore";
 import { badRequest, parsePlayerBody, storeResponse } from "@/lib/apiHelpers";
 import { DIRECTIONS, type Direction } from "@/lib/gameLogic";
 
@@ -21,5 +21,5 @@ export async function POST(
   const { direction } = parsed.body;
   if (!isDirection(direction)) return badRequest("invalid-direction");
 
-  return storeResponse(extendBoardAction(id, direction, parsed.playerId));
+  return storeResponse(shiftBoardAction(id, direction, parsed.playerId));
 }

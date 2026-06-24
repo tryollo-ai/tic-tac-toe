@@ -2,7 +2,7 @@ export type Player = "X" | "O";
 export type Cell = Player | null;
 export type Board = Cell[];
 
-/** Directions a player can grow the board with their one-time extend action. */
+/** Directions O can slide the grid with its one-time shift action. */
 export type Direction = "top" | "bottom" | "left" | "right";
 export const DIRECTIONS: readonly Direction[] = [
   "top",
@@ -11,19 +11,21 @@ export const DIRECTIONS: readonly Direction[] = [
   "right",
 ];
 
-/** A board always starts as a square of this side length. */
+/** The board is a fixed square of this side length. */
 export const INITIAL_SIZE = 3;
-/** Marks in a line needed to win, on a board of any size. */
+/** Marks in a line needed to win. */
 export const WIN_LENGTH = 3;
 
 /**
- * A board extension applied mid-game. `at` is the number of moves that had been
- * played when it happened, which is what lets a replay slot it back in order.
+ * One turn's action. Players alternate strictly - X takes the even-indexed
+ * actions, O the odd ones - and on a turn a player either places a mark or, as
+ * O's once-per-game option, shifts the whole grid (which uses up the turn
+ * instead of placing). The ordered action list is a game's single source of
+ * truth, so replaying any prefix of it rebuilds the board exactly.
  */
-export interface ExtendEvent {
-  at: number;
-  dir: Direction;
-}
+export type GameAction =
+  | { kind: "place"; index: number }
+  | { kind: "shift"; dir: Direction };
 
 /** A reconstructed board together with its dimensions, used by replay. */
 export interface ReplayState {
@@ -116,65 +118,56 @@ export function otherPlayer(player: Player): Player {
 }
 
 /**
- * Grow the board by one row or column in the given direction, preserving the
- * relative position of every existing mark. Returns a fresh board and its new
- * dimensions; the input is not mutated.
+ * Slide the whole grid one cell in `direction`. Any marks pushed off the leading
+ * edge are removed and the trailing edge comes in empty; the dimensions are
+ * unchanged. Returns a fresh board; the input is not mutated. This is O's
+ * once-per-game shift action.
  */
-export function extendBoard(
+export function shiftBoard(
   board: Board,
   rows: number,
   cols: number,
   direction: Direction,
-): { board: Board; rows: number; cols: number } {
-  if (direction === "top") {
-    return { board: [...Array(cols).fill(null), ...board], rows: rows + 1, cols };
-  }
-  if (direction === "bottom") {
-    return { board: [...board, ...Array(cols).fill(null)], rows: rows + 1, cols };
-  }
-  // "left" / "right": insert one cell into each existing row.
-  const next: Board = [];
+): Board {
+  const next: Board = Array(rows * cols).fill(null);
   for (let r = 0; r < rows; r++) {
-    const row = board.slice(r * cols, r * cols + cols);
-    if (direction === "left") next.push(null, ...row);
-    else next.push(...row, null);
+    for (let c = 0; c < cols; c++) {
+      const value = board[r * cols + c];
+      if (value === null) continue;
+      let nr = r;
+      let nc = c;
+      if (direction === "top") nr -= 1;
+      else if (direction === "bottom") nr += 1;
+      else if (direction === "left") nc -= 1;
+      else nc += 1;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue; // rides off
+      next[nr * cols + nc] = value;
+    }
   }
-  return { board: next, rows, cols: cols + 1 };
+  return next;
 }
 
 /**
- * Reconstruct a game's board after its first `count` moves, replaying the
- * board extensions that happened along the way so the result has the correct
- * size and mark positions at that point. `moves` is the list of played cell
- * indices in turn order (X plays the even-numbered moves, O the odd ones); each
- * recorded index is relative to the board as it existed when that move was
- * played. `extensions` lists each extension's direction and the number of moves
- * that had been played when it was applied, so they slot back in at the same
- * spot. With no extensions this matches a plain 3×3 reconstruction.
+ * Reconstruct a game's board after its first `count` actions. Players alternate
+ * strictly (X takes the even-indexed actions, O the odd ones); each action
+ * either places that player's mark or applies O's whole-grid shift. The board is
+ * always 3×3, so the action list alone rebuilds any point in the game.
  */
-export function boardAfterMoves(
-  moves: readonly number[],
+export function boardAfterActions(
+  actions: readonly GameAction[],
   count: number,
-  extensions: readonly ExtendEvent[] = [],
 ): ReplayState {
   let board: Board = Array(INITIAL_SIZE * INITIAL_SIZE).fill(null);
-  let rows = INITIAL_SIZE;
-  let cols = INITIAL_SIZE;
-  const applyExtendsAfter = (movesPlayed: number) => {
-    for (const e of extensions) {
-      if (e.at === movesPlayed) {
-        const ext = extendBoard(board, rows, cols, e.dir);
-        board = ext.board;
-        rows = ext.rows;
-        cols = ext.cols;
-      }
-    }
-  };
-  const upTo = Math.max(0, Math.min(count, moves.length));
-  applyExtendsAfter(0);
+  const rows = INITIAL_SIZE;
+  const cols = INITIAL_SIZE;
+  const upTo = Math.max(0, Math.min(count, actions.length));
   for (let i = 0; i < upTo; i++) {
-    board[moves[i]] = i % 2 === 0 ? "X" : "O";
-    applyExtendsAfter(i + 1);
+    const action = actions[i];
+    if (action.kind === "place") {
+      board[action.index] = i % 2 === 0 ? "X" : "O";
+    } else {
+      board = shiftBoard(board, rows, cols, action.dir);
+    }
   }
   return { board, rows, cols };
 }
@@ -189,8 +182,6 @@ function countEmpty(board: Board): number {
 // search is depth-limited and falls back to a heuristic at the cutoff.
 const FULL_SEARCH_MAX_EMPTY = INITIAL_SIZE * INITIAL_SIZE;
 const DEPTH_LIMIT = 6;
-/** Shallower lookahead used when weighing the (optional) AI extend action. */
-const EXTEND_EVAL_DEPTH = 4;
 /** Terminal scores dwarf any heuristic value so a real win is always chosen. */
 const WIN_SCORE = 1_000_000;
 
@@ -306,39 +297,39 @@ export function getBestMove(
 }
 
 /**
- * Decide whether `aiPlayer` should spend its one-time extend action now, and in
- * which direction. Called right after the AI has moved (so it is the opponent's
- * turn). Returns the best direction only if it strictly improves the AI's
- * shallow-lookahead value, otherwise null so the AI saves the action for later.
+ * Choose O's action for the current turn when O is the AI: either its best
+ * placement, or - when `canShift` - its once-per-game whole-grid shift if that
+ * yields a strictly better position. Because shifting uses up the turn, the two
+ * options are weighed head to head by the same lookahead (the value of the
+ * resulting position with X to move). Returns null only if the board is full.
  */
-export function chooseAiExtend(
+export function chooseAiAction(
   board: Board,
   rows: number,
   cols: number,
-  aiPlayer: Player,
-): Direction | null {
-  const value = (b: Board, r: number, c: number) =>
-    minimax(
-      b.slice(),
-      r,
-      c,
-      otherPlayer(aiPlayer),
-      aiPlayer,
-      0,
-      EXTEND_EVAL_DEPTH,
-      -Infinity,
-      Infinity,
-    );
+  canShift: boolean,
+): GameAction | null {
+  const me: Player = "O";
+  const placeIndex = getBestMove(board, rows, cols, me);
+  if (placeIndex === -1) return null;
 
-  let bestScore = value(board, rows, cols);
-  let bestDir: Direction | null = null;
-  for (const dir of DIRECTIONS) {
-    const ext = extendBoard(board, rows, cols, dir);
-    const score = value(ext.board, ext.rows, ext.cols);
-    if (score > bestScore) {
-      bestScore = score;
-      bestDir = dir;
+  // Value of a position with X (the opponent) to move next, from O's view.
+  const value = (b: Board) =>
+    minimax(b, rows, cols, "X", me, 1, depthFor(b), -Infinity, Infinity);
+
+  const placed = board.slice();
+  placed[placeIndex] = me;
+  let best: GameAction = { kind: "place", index: placeIndex };
+  let bestScore = value(placed);
+
+  if (canShift) {
+    for (const dir of DIRECTIONS) {
+      const score = value(shiftBoard(board, rows, cols, dir));
+      if (score > bestScore) {
+        bestScore = score;
+        best = { kind: "shift", dir };
+      }
     }
   }
-  return bestDir;
+  return best;
 }

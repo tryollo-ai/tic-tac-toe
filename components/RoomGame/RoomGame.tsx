@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   claimSeat,
-  extendRoom,
   fetchRoom,
   leaveSeat,
   makeMove,
   resetRoom,
   RoomError,
   roomErrorCode,
-  skipExtend,
+  shiftRoom,
 } from "@/lib/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
 import { usePolling } from "@/lib/usePolling";
@@ -33,17 +32,15 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   "game-over": "The game is already over.",
   "seat-taken": "That seat was just taken.",
   "not-participant": "Only a seated player can do that.",
-  "awaiting-extend": "Resolve your board action first.",
-  "not-awaiting-extend": "There is no action to take right now.",
-  "extend-used": "You have already used your board action.",
+  "shift-used": "You have already used your shift.",
 };
 
-/** The four board-extend choices, in the order shown to the player. */
-const EXTEND_OPTIONS: { dir: Direction; label: string }[] = [
-  { dir: "top", label: "Add row ↑ top" },
-  { dir: "bottom", label: "Add row ↓ bottom" },
-  { dir: "left", label: "Add column ← left" },
-  { dir: "right", label: "Add column → right" },
+/** The four grid-shift choices, in the order shown to player O. */
+const SHIFT_OPTIONS: { dir: Direction; label: string }[] = [
+  { dir: "top", label: "Shift up ↑" },
+  { dir: "bottom", label: "Shift down ↓" },
+  { dir: "left", label: "Shift left ←" },
+  { dir: "right", label: "Shift right →" },
 ];
 
 /** Map a thrown error to a known room-error message, or the given fallback. */
@@ -102,7 +99,6 @@ export default function RoomGame({ id }: RoomGameProps) {
       if (
         room.status === "finished" ||
         currentTurn !== mySeat ||
-        room.awaitingExtend !== null ||
         room.board[index] !== null
       ) {
         return;
@@ -111,16 +107,12 @@ export default function RoomGame({ id }: RoomGameProps) {
       const snapshot = room;
       const optimisticBoard = room.board.slice();
       optimisticBoard[index] = mySeat;
-      // If this player still has their extend action, the server pauses on their
-      // turn for that choice rather than passing play to the opponent.
-      const willAwait = !room.extendUsed[mySeat];
       // Optimistically reflect the move and pause polling so a stale GET can't
       // clobber it; the authoritative response (incl. any AI move) wins.
       setData({
         ...room,
         board: optimisticBoard,
-        xIsNext: willAwait ? room.xIsNext : !room.xIsNext,
-        awaitingExtend: willAwait ? mySeat : null,
+        xIsNext: !room.xIsNext,
       });
       setPaused(true);
       setActionError(null);
@@ -173,24 +165,16 @@ export default function RoomGame({ id }: RoomGameProps) {
     void runAction(() => resetRoom(id, playerId), "Could not start a new game.");
   }, [id, playerId, runAction]);
 
-  const handleExtend = useCallback(
+  const handleShift = useCallback(
     (direction: Direction) => {
       if (!playerId) return;
       void runAction(
-        () => extendRoom(id, playerId, direction),
-        "Could not extend the board.",
+        () => shiftRoom(id, playerId, direction),
+        "Could not shift the grid.",
       );
     },
     [id, playerId, runAction],
   );
-
-  const handleSkipExtend = useCallback(() => {
-    if (!playerId) return;
-    void runAction(
-      () => skipExtend(id, playerId),
-      "Could not skip the action.",
-    );
-  }, [id, playerId, runAction]);
 
   if (notFound) {
     return (
@@ -221,9 +205,13 @@ export default function RoomGame({ id }: RoomGameProps) {
       ? (room.board[room.winningLine[0]] as Player)
       : null;
   const bothSeated = room.seats.X !== null && room.seats.O !== null;
-  const myExtendPending = mySeat !== null && room.awaitingExtend === mySeat;
-  const opponentExtendPending =
-    room.awaitingExtend !== null && room.awaitingExtend !== mySeat;
+  // O's shift is an alternative to placing on O's own turn, once per game.
+  const canShiftNow =
+    mySeat === "O" &&
+    !gameOver &&
+    bothSeated &&
+    currentTurn === "O" &&
+    !room.oShiftUsed;
 
   const xLabel = mySeat === "X" ? "You (X)" : "Player X";
   const oLabel =
@@ -240,14 +228,6 @@ export default function RoomGame({ id }: RoomGameProps) {
   } else if (!bothSeated) {
     statusMessage = "Waiting for opponent";
     statusTone = "neutral";
-  } else if (myExtendPending) {
-    statusMessage = "Extend the board or skip your action";
-    statusTone = playerTone(mySeat as Player);
-  } else if (opponentExtendPending) {
-    statusMessage = mySeat
-      ? "Opponent is choosing an action"
-      : `${room.awaitingExtend} is choosing an action`;
-    statusTone = playerTone(room.awaitingExtend as Player);
   } else if (mySeat) {
     statusMessage = currentTurn === mySeat ? "Your turn" : "Opponent's turn";
     statusTone = playerTone(currentTurn);
@@ -257,11 +237,7 @@ export default function RoomGame({ id }: RoomGameProps) {
   }
 
   const boardDisabled =
-    gameOver ||
-    mySeat === null ||
-    currentTurn !== mySeat ||
-    room.awaitingExtend !== null ||
-    paused;
+    gameOver || mySeat === null || currentTurn !== mySeat || paused;
 
   return (
     <div className={styles.room}>
@@ -325,40 +301,33 @@ export default function RoomGame({ id }: RoomGameProps) {
         disabled={boardDisabled}
       />
 
-      {myExtendPending && (
-        <div className={styles.extendPanel}>
-          <p className={styles.extendPrompt}>
-            Use your one board extension, or skip to pass your turn.
+      {canShiftNow && (
+        <div className={styles.shiftPanel}>
+          <p className={styles.shiftPrompt}>
+            Your one-time shift: slide the whole grid one cell. Marks pushed off
+            the edge are removed, and this uses your turn instead of placing.
           </p>
-          <div className={styles.extendGrid}>
-            {EXTEND_OPTIONS.map(({ dir, label }) => (
+          <div className={styles.shiftGrid}>
+            {SHIFT_OPTIONS.map(({ dir, label }) => (
               <button
                 key={dir}
                 type="button"
-                className={styles.extendButton}
-                onClick={() => handleExtend(dir)}
+                className={styles.shiftButton}
+                onClick={() => handleShift(dir)}
                 disabled={paused}
               >
                 {label}
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            className={styles.skipButton}
-            onClick={handleSkipExtend}
-            disabled={paused}
-          >
-            Skip action
-          </button>
         </div>
       )}
 
-      {mySeat && !gameOver && !myExtendPending && (
-        <p className={styles.extendHint}>
-          {room.extendUsed[mySeat]
-            ? "Board extension used"
-            : "Board extension available after your next move"}
+      {mySeat === "O" && !gameOver && !canShiftNow && (
+        <p className={styles.shiftHint}>
+          {room.oShiftUsed
+            ? "Grid shift used"
+            : "One-time grid shift available on your turn"}
         </p>
       )}
 

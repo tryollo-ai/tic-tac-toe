@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchCompletedGame, RoomError } from "@/lib/roomClient";
-import { boardAfterMoves, calculateWinner, type Player } from "@/lib/gameLogic";
+import { boardAfterActions, calculateWinner, type Player } from "@/lib/gameLogic";
 import { modeLabel, type CompletedGameView } from "@/lib/roomTypes";
 import Board from "@/components/Board/Board";
 import Status, { type StatusTone, playerTone } from "@/components/Status/Status";
@@ -40,7 +40,7 @@ export default function Replay({ id }: ReplayProps) {
     return () => controller.abort();
   }, [id]);
 
-  const total = game ? game.moves.length : 0;
+  const total = game ? game.actions.length : 0;
 
   // Advance one move at a time while playing; stop at the end.
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function Replay({ id }: ReplayProps) {
     );
   }
 
-  const { board, rows, cols } = boardAfterMoves(game.moves, step, game.extends);
+  const { board, rows, cols } = boardAfterActions(game.actions, step);
   const result = calculateWinner(board, rows, cols);
   const atStart = step === 0;
   const atEnd = step === total;
@@ -133,7 +133,7 @@ export default function Replay({ id }: ReplayProps) {
       />
 
       <div className={styles.progress}>
-        Move {step} / {total}
+        Turn {step} / {total}
       </div>
 
       <div className={styles.controls} role="group" aria-label="Replay controls">

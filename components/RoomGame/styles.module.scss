@@ -90,7 +90,7 @@
   }
 }
 
-.extendPanel {
+.shiftPanel {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -100,7 +100,7 @@
   border-radius: 14px;
 }
 
-.extendPrompt {
+.shiftPrompt {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 700;
@@ -108,13 +108,13 @@
   text-align: center;
 }
 
-.extendGrid {
+.shiftGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
-.extendButton {
+.shiftButton {
   padding: 10px 12px;
   font-size: 0.85rem;
   font-weight: 700;
@@ -138,28 +138,7 @@
   }
 }
 
-.skipButton {
-  padding: 8px 12px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    color: var(--text);
-    border-color: var(--text-muted);
-  }
-
-  &:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
-}
-
-.extendHint {
+.shiftHint {
   margin: 0;
   font-size: 0.8rem;
   color: var(--text-muted);

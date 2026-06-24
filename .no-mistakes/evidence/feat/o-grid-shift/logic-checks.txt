@@ -1,0 +1,70 @@
+=== shiftBoard: fall-off in every direction (board stays 3x3) ===
+
+ shift "top": kept 6/9 marks (3 rode off the leading edge)
+  before:           after:
+    X O X        O X O
+    O X O        X O X
+    X O X        · · ·
+
+ shift "bottom": kept 6/9 marks (3 rode off the leading edge)
+  before:           after:
+    X O X        · · ·
+    O X O        X O X
+    X O X        O X O
+
+ shift "left": kept 6/9 marks (3 rode off the leading edge)
+  before:           after:
+    X O X        O X ·
+    O X O        X O ·
+    X O X        O X ·
+
+ shift "right": kept 6/9 marks (3 rode off the leading edge)
+  before:           after:
+    X O X        · X O
+    O X O        · O X
+    X O X        · X O
+
+=== boardAfterActions: replay reconstruction incl. a shift ===
+
+ step 0 (empty):
+    · · ·
+    · · ·
+    · · ·
+
+ step 1 (after place 0):
+    X · ·
+    · · ·
+    · · ·
+
+ step 2 (after place 8):
+    X · ·
+    · · ·
+    · · O
+
+ step 3 (after place 1):
+    X X ·
+    · · ·
+    · · O
+
+ step 4 (after shift left):
+    X · ·
+    · · ·
+    · O ·
+
+ step 5 (after place 2):
+    X · X
+    · · ·
+    · O ·
+
+=== chooseAiAction: AI (O) picks the shift when it is strictly better ===
+Found an O-to-move position where the AI chooses to SHIFT:
+    X X ·
+    O · ·
+    · · ·
+  AI chose: shift "top" instead of placing a mark.
+  resulting board after the AI's shift:
+    O · ·
+    · · ·
+    · · ·
+
+LOGIC CHECKS COMPLETE.

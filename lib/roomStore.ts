@@ -1,11 +1,10 @@
 import {
-  boardAfterMoves,
+  boardAfterActions,
   calculateWinner,
-  chooseAiExtend,
-  extendBoard,
-  getBestMove,
+  chooseAiAction,
   INITIAL_SIZE,
   isGameOver,
+  shiftBoard,
   type Board,
   type Direction,
   type Player,
@@ -82,11 +81,6 @@ function sweepSeats(room: Room): void {
     if (seen === null || seen < cutoff) {
       room.seats[seat] = null;
       room.seatSeen[seat] = null;
-      // A player who vacated forfeits any pending extend choice.
-      if (room.awaitingExtend === seat) {
-        room.awaitingExtend = null;
-        room.xIsNext = !room.xIsNext;
-      }
     }
   });
 }
@@ -114,8 +108,7 @@ function archiveCompletedGame(room: Room): void {
     roomId: room.id,
     name: room.name,
     mode: room.mode,
-    moves: room.moves.slice(),
-    extends: room.extendLog.slice(),
+    actions: room.actions.slice(),
     completedAt: now(),
   };
   store.completed.set(game.id, game);
@@ -147,36 +140,38 @@ function settle(room: Room): boolean {
 }
 
 /**
- * Play the AI's move (and, if worthwhile, its one-time extend) in place. A
- * no-op unless it is the AI's turn in an AI room. Leaves it as the human's turn.
+ * Take the AI's single action for its turn in place: either place its best move
+ * or spend its one-time whole-grid shift, whichever the lookahead prefers. A
+ * no-op unless it is the AI's turn in an AI room. Leaves it as the human's turn
+ * (unless the AI's placement ended the game).
  */
 function runAiTurn(room: Room): void {
   if (room.mode !== "ai" || room.xIsNext || room.seats.O !== AI_SEAT) return;
   if (isGameOver(room.board, room.rows, room.cols)) return;
 
-  const move = getBestMove(room.board, room.rows, room.cols, "O");
-  if (move === -1) return;
-  room.board[move] = "O";
-  room.moves.push(move);
+  const action = chooseAiAction(
+    room.board,
+    room.rows,
+    room.cols,
+    !room.oShiftUsed,
+  );
+  if (!action) return;
 
-  if (!settle(room) && !room.extendUsed.O) {
-    const dir = chooseAiExtend(room.board, room.rows, room.cols, "O");
-    if (dir) {
-      applyExtend(room, dir);
-      room.extendUsed.O = true;
-    }
+  if (action.kind === "shift") {
+    applyShift(room, action.dir);
+    room.oShiftUsed = true;
+  } else {
+    room.board[action.index] = "O";
+    room.actions.push(action);
+    if (settle(room)) return; // AI's placement ended the game
   }
   room.xIsNext = true; // hand the turn back to the human
 }
 
-/** Grow the board in place in the given direction, recording it for replay. */
-function applyExtend(room: Room, direction: Direction): void {
-  const ext = extendBoard(room.board, room.rows, room.cols, direction);
-  room.board = ext.board;
-  room.rows = ext.rows;
-  room.cols = ext.cols;
-  // `at` = moves played so far, so a replay can re-apply it at the same point.
-  room.extendLog.push({ at: room.moves.length, dir: direction });
+/** Slide the grid in place in the given direction, recording it for replay. */
+function applyShift(room: Room, direction: Direction): void {
+  room.board = shiftBoard(room.board, room.rows, room.cols, direction);
+  room.actions.push({ kind: "shift", dir: direction });
 }
 
 /** Stamp the room's activity, refresh its status, and return a success result. */
@@ -232,16 +227,14 @@ export function createRoom(name: string, mode: RoomMode): StoreResult {
     board: EMPTY_BOARD.slice(),
     rows: INITIAL_SIZE,
     cols: INITIAL_SIZE,
-    moves: [],
+    actions: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
     status: "waiting",
     // In AI mode O is the computer and can never be claimed by a human.
     seats: { X: null, O: mode === "ai" ? AI_SEAT : null },
     mode,
-    extendUsed: { X: false, O: false },
-    awaitingExtend: null,
-    extendLog: [],
+    oShiftUsed: false,
     seatSeen: { X: null, O: null },
     createdAt: ts,
     lastActivity: ts,
@@ -275,10 +268,9 @@ export function toView(room: Room): RoomView {
 }
 
 export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
-  const { board, rows, cols } = boardAfterMoves(
-    game.moves,
-    game.moves.length,
-    game.extends,
+  const { board, rows, cols } = boardAfterActions(
+    game.actions,
+    game.actions.length,
   );
   const result = calculateWinner(board, rows, cols);
   return {
@@ -298,8 +290,7 @@ export function toCompletedView(game: CompletedGame): CompletedGameView {
     id: game.id,
     name: game.name,
     mode: game.mode,
-    moves: game.moves,
-    extends: game.extends,
+    actions: game.actions,
     completedAt: game.completedAt,
   };
 }
@@ -346,11 +337,6 @@ export function leaveSeat(id: string, playerId: string): StoreResult {
       if (room.seats[seat] === playerId) {
         room.seats[seat] = null;
         room.seatSeen[seat] = null;
-        // Vacating mid-turn forfeits any pending extend choice.
-        if (room.awaitingExtend === seat) {
-          room.awaitingExtend = null;
-          room.xIsNext = !room.xIsNext;
-        }
       }
     });
     return touched(room);
@@ -368,9 +354,6 @@ export function makeMove(
     if (isGameOver(room.board, room.rows, room.cols)) {
       return { ok: false, error: "game-over" };
     }
-    if (room.awaitingExtend !== null) {
-      return { ok: false, error: "awaiting-extend" };
-    }
     if (index < 0 || index >= room.board.length) {
       return { ok: false, error: "invalid-index" };
     }
@@ -384,15 +367,8 @@ export function makeMove(
     }
 
     room.board[index] = turn;
-    room.moves.push(index);
+    room.actions.push({ kind: "place", index });
     if (settle(room)) return touched(room);
-
-    // The mover still has their one extend action: pause for that choice
-    // (their move, then their action) before play passes to the opponent.
-    if (!room.extendUsed[turn]) {
-      room.awaitingExtend = turn;
-      return touched(room);
-    }
 
     room.xIsNext = !room.xIsNext;
     runAiTurn(room); // server-side AI follow-up so spectators see it too
@@ -400,8 +376,12 @@ export function makeMove(
   });
 }
 
-/** Apply the awaiting player's one-time board extension, then continue play. */
-export function extendBoardAction(
+/**
+ * Apply O's one-time whole-grid shift. Shifting is an alternative to placing a
+ * mark and uses up O's turn, so only O may call it, only on O's turn, and only
+ * once per game. A shift can never complete a line, so play simply passes to X.
+ */
+export function shiftBoardAction(
   id: string,
   direction: Direction,
   playerId: string,
@@ -409,43 +389,20 @@ export function extendBoardAction(
   return withRoom(id, (room) => {
     sweepSeats(room);
 
-    const player = room.awaitingExtend;
-    if (player === null) {
-      return { ok: false, error: "not-awaiting-extend" };
+    if (isGameOver(room.board, room.rows, room.cols)) {
+      return { ok: false, error: "game-over" };
     }
-    if (room.seats[player] !== playerId) {
+    // The shift belongs to O, and only on O's turn (it is O's action for it).
+    if (room.xIsNext || room.seats.O !== playerId) {
       return { ok: false, error: "not-your-turn" };
     }
-    if (room.extendUsed[player]) {
-      return { ok: false, error: "extend-used" };
+    if (room.oShiftUsed) {
+      return { ok: false, error: "shift-used" };
     }
 
-    applyExtend(room, direction);
-    room.extendUsed[player] = true;
-    room.awaitingExtend = null;
-    room.xIsNext = !room.xIsNext;
-    runAiTurn(room);
-    return touched(room);
-  });
-}
-
-/** Decline the optional extension for this turn, passing play to the opponent. */
-export function skipExtend(id: string, playerId: string): StoreResult {
-  return withRoom(id, (room) => {
-    sweepSeats(room);
-
-    const player = room.awaitingExtend;
-    if (player === null) {
-      return { ok: false, error: "not-awaiting-extend" };
-    }
-    if (room.seats[player] !== playerId) {
-      return { ok: false, error: "not-your-turn" };
-    }
-
-    // The action is kept for a later turn; only this turn's window is skipped.
-    room.awaitingExtend = null;
-    room.xIsNext = !room.xIsNext;
-    runAiTurn(room);
+    applyShift(room, direction);
+    room.oShiftUsed = true;
+    room.xIsNext = true; // the shift was O's whole turn; X plays next
     return touched(room);
   });
 }
@@ -459,11 +416,9 @@ export function resetGame(id: string, playerId: string): StoreResult {
     room.board = EMPTY_BOARD.slice();
     room.rows = INITIAL_SIZE;
     room.cols = INITIAL_SIZE;
-    room.moves = [];
+    room.actions = [];
     room.xIsNext = true;
-    room.extendUsed = { X: false, O: false };
-    room.awaitingExtend = null;
-    room.extendLog = [];
+    room.oShiftUsed = false;
     return touched(room);
   });
 }
@@ -477,9 +432,7 @@ export function errorStatus(error: string): number {
       return 409;
     case "cell-taken":
     case "game-over":
-    case "awaiting-extend":
-    case "not-awaiting-extend":
-    case "extend-used":
+    case "shift-used":
       return 409;
     case "not-your-turn":
     case "not-participant":

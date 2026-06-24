@@ -10,29 +10,35 @@ Rooms are kept in an in-memory server store (`lib/roomStore.ts`, a `Map` on
 `globalThis`) and surfaced to clients via polling. A room is either two-player or
 played against an AI (minimax, in `lib/gameLogic.ts`).
 
-The board is not fixed at 3x3: each player has one once-per-game "extend" action
-that adds a row (top/bottom) or column (left/right), so a room carries `rows`
-and `cols` and a flat `board` array of `rows * cols` cells. A move is always
-placed first; if the mover still has their extend action, the store sets
-`awaitingExtend` to that player and holds the turn until they extend
-(`extendBoardAction`) or skip (`skipExtend`). Win detection is three in a row on
-any board size, with the winning lines generated per dimension in
-`lib/gameLogic.ts`. Minimax is exact on 3x3 and depth-limited (with a heuristic)
-on larger boards; the AI decides whether to spend its own extend via
-`chooseAiExtend`. When changing board geometry or win rules, keep all of
-`calculateWinner`, `winningLines`, `extendBoard`, and the store's turn/extend
-state machine in sync.
+The board is a fixed 3x3, but the game is not plain tic-tac-toe: player O has one
+once-per-game "shift" action that slides the whole grid one cell
+(top/bottom/left/right), with any marks pushed off the leading edge removed.
+This is deliberate balance - on a solved 3x3 draw, X's first move is an edge, and
+O's single shift is the compensation that keeps the game fair against a human.
+The shift is an alternative to placing a mark and uses up O's turn, so players
+still alternate strictly: on O's turn O either places (`makeMove`) or shifts
+(`shiftBoardAction`, guarded so only O, only on O's turn, only once via
+`oShiftUsed`).
+A shift can never complete a line (it only translates marks), so it never wins;
+win detection stays three in a row via `calculateWinner`/`winningLines`.
+A room still carries `rows`/`cols` (always 3) and a flat `board` of `rows * cols`
+cells.
+Minimax is exact on 3x3; as O the AI weighs its best placement against shifting
+each turn via `chooseAiAction`.
+When changing the shift or win rules, keep `calculateWinner`, `winningLines`,
+`shiftBoard`, and the store's turn state machine in sync.
 
-Each room also records its history: `moves` (played cell indices in order) plus
-`extendLog` (each extension's direction and the move count it happened at). When
-a game finishes it is snapshotted into a separate completed-games archive (a
+Each room records its history as a single ordered `actions` log, where each
+action is either `{ kind: "place", index }` or `{ kind: "shift", dir }` and the
+player alternates strictly (X takes the even-indexed actions, O the odd ones).
+When a game finishes it is snapshotted into a separate completed-games archive (a
 second `Map` on `globalThis`), so it can be replayed turn by turn from
 `/replay/[id]` even after the room is reset for a new round or reaped for
-idleness. Replay reconstructs every step via `boardAfterMoves(moves, count,
-extends)`, which re-applies the extensions in order so the board grows exactly as
-it did live - so the move log and extend log together are the single source of
-truth, and anything that changes how moves or extensions are recorded must keep
-`boardAfterMoves` able to rebuild the board.
+idleness.
+Replay reconstructs every step via `boardAfterActions(actions, count)`, which
+replays the prefix of actions in order - so the action log is the single source
+of truth, and anything that changes how actions are recorded must keep
+`boardAfterActions` able to rebuild the board.
 
 ## Styling conventions
 
