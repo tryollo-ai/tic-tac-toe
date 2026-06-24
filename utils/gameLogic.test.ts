@@ -3,14 +3,14 @@ import {
   boardAfterActions,
   calculateWinner,
   DIRECTIONS,
-  INITIAL_SIZE,
   isBoardFull,
   shiftBoard,
   type Board,
   type Cell,
   type GameAction,
   type Player,
-} from "@/lib/gameLogic";
+} from "./gameLogic";
+import { INITIAL_SIZE } from "@/constants/game";
 
 const CELLS = INITIAL_SIZE * INITIAL_SIZE;
 

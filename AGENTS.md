@@ -128,7 +128,7 @@ its own `styles.module.scss`. Do not share one stylesheet across components.
 
 Unit tests use [Vitest](https://vitest.dev/) and run in the `node` environment
 (see `vitest.config.ts`, which mirrors the `@/*` path alias). Tests are
-co-located next to the code as `*.test.ts` (e.g. `lib/gameLogic.test.ts`,
+co-located next to the code as `*.test.ts` (e.g. `utils/gameLogic.test.ts`,
 `lib/roomStore.test.ts`) and cover the pure game-state logic and the store's
 turn/seat/shift validation. They are deterministic - no timers, network, or
 randomness - so prefer testing exported pure functions directly; the in-memory
