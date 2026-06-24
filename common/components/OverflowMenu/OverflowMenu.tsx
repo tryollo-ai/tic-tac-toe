@@ -14,14 +14,14 @@ interface OverflowMenuProps {
   onResetScores: () => void;
 }
 
-export default function OverflowMenu({
+const OverflowMenu = ({
   mode,
   onModeChange,
   scores,
   xLabel,
   oLabel,
   onResetScores,
-}: OverflowMenuProps) {
+}: OverflowMenuProps) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -123,4 +123,6 @@ export default function OverflowMenu({
       )}
     </div>
   );
-}
+};
+
+export default OverflowMenu;

@@ -6,14 +6,16 @@ export const metadata: Metadata = {
   description: "Play tic-tac-toe against a friend or an unbeatable AI.",
 };
 
-export default function RootLayout({
+const RootLayout = ({
   children,
 }: {
   children: React.ReactNode;
-}) {
+}) => {
   return (
     <html lang="en">
       <body>{children}</body>
     </html>
   );
-}
+};
+
+export default RootLayout;

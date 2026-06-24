@@ -41,7 +41,7 @@ function timeAgo(from: number, now: number): string {
 
 const PAGE_SIZE = 6;
 
-export default function Lobby() {
+const Lobby = () => {
   const router = useRouter();
   const { data: rooms, error } = usePolling<RoomSummary[]>(
     (signal) => fetchRooms(signal),
@@ -258,4 +258,6 @@ export default function Lobby() {
       )}
     </div>
   );
-}
+};
+
+export default Lobby;

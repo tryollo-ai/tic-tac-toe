@@ -73,6 +73,15 @@ of truth, and anything that changes how actions are recorded must keep
 When adding a new component, create a new folder with both the `.tsx` file and
 its own `styles.module.scss`. Do not share one stylesheet across components.
 
+## Component conventions
+
+- **Declare components as arrow-function consts**, not function declarations.
+  Use `const Name = (props: Props) => { ... }` followed by a separate
+  `export default Name;` at the bottom of the file, rather than
+  `export default function Name(...) { ... }`. This applies to shared components
+  in `common/components/` as well as the App Router `page.tsx`/`layout.tsx`
+  entry points.
+
 ## Layout conventions
 
 - Reusable components live in `common/components/<Name>/` so they can be shared

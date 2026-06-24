@@ -6,7 +6,7 @@ interface MiniBoardProps {
 }
 
 /** A small, read-only board preview used in lobby room cards. */
-export default function MiniBoard({ board }: MiniBoardProps) {
+const MiniBoard = ({ board }: MiniBoardProps) => {
   return (
     <div
       className={styles.mini}
@@ -32,4 +32,6 @@ export default function MiniBoard({ board }: MiniBoardProps) {
       ))}
     </div>
   );
-}
+};
+
+export default MiniBoard;

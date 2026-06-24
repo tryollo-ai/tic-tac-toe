@@ -48,7 +48,7 @@ function roomErrorMessage(err: unknown, fallback: string): string {
   return ROOM_ERROR_MESSAGES[roomErrorCode(err)] ?? fallback;
 }
 
-export default function RoomGame({ id }: RoomGameProps) {
+const RoomGame = ({ id }: RoomGameProps) => {
   const playerId = usePlayerId();
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -344,4 +344,6 @@ export default function RoomGame({ id }: RoomGameProps) {
       </button>
     </div>
   );
-}
+};
+
+export default RoomGame;

@@ -21,7 +21,7 @@ const AI_MOVE_DELAY_MS = 450;
 
 const INITIAL_SCORES: Scores = { X: 0, O: 0, draws: 0 };
 
-export default function Game() {
+const Game = () => {
   const [mode, setMode] = useState<GameMode>("two-player");
   const [board, setBoard] = useState<BoardState>(EMPTY_BOARD);
   const [xIsNext, setXIsNext] = useState(true);
@@ -139,4 +139,6 @@ export default function Game() {
       </button>
     </div>
   );
-}
+};
+
+export default Game;

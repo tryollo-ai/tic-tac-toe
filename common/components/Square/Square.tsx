@@ -9,13 +9,13 @@ interface SquareProps {
   index: number;
 }
 
-export default function Square({
+const Square = ({
   value,
   onClick,
   isWinning,
   disabled,
   index,
-}: SquareProps) {
+}: SquareProps) => {
   const classNames = [
     styles.square,
     value === "X" ? styles.x : "",
@@ -36,4 +36,6 @@ export default function Square({
       {value}
     </button>
   );
-}
+};
+
+export default Square;

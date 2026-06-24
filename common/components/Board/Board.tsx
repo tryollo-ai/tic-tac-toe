@@ -9,12 +9,12 @@ interface BoardProps {
   disabled: boolean;
 }
 
-export default function Board({
+const Board = ({
   board,
   winningLine,
   onSquareClick,
   disabled,
-}: BoardProps) {
+}: BoardProps) => {
   return (
     <div
       className={styles.board}
@@ -34,4 +34,6 @@ export default function Board({
       ))}
     </div>
   );
-}
+};
+
+export default Board;

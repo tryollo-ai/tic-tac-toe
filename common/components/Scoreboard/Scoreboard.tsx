@@ -12,7 +12,7 @@ interface ScoreboardProps {
   oLabel: string;
 }
 
-export default function Scoreboard({ scores, xLabel, oLabel }: ScoreboardProps) {
+const Scoreboard = ({ scores, xLabel, oLabel }: ScoreboardProps) => {
   return (
     <div className={styles.scoreboard}>
       <div className={`${styles.item} ${styles.x}`}>
@@ -29,4 +29,6 @@ export default function Scoreboard({ scores, xLabel, oLabel }: ScoreboardProps) 
       </div>
     </div>
   );
-}
+};
+
+export default Scoreboard;

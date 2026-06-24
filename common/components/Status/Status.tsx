@@ -11,7 +11,7 @@ interface StatusProps {
   tone: StatusTone;
 }
 
-export default function Status({ message, tone }: StatusProps) {
+const Status = ({ message, tone }: StatusProps) => {
   const toneClass: Record<StatusTone, string> = {
     x: styles.x,
     o: styles.o,
@@ -24,4 +24,6 @@ export default function Status({ message, tone }: StatusProps) {
       {message}
     </div>
   );
-}
+};
+
+export default Status;

@@ -20,7 +20,7 @@ interface ReplayProps {
 /** Milliseconds between moves while auto-playing. */
 const AUTOPLAY_MS = 800;
 
-export default function Replay({ id }: ReplayProps) {
+const Replay = ({ id }: ReplayProps) => {
   const [game, setGame] = useState<CompletedGameView | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -188,4 +188,6 @@ export default function Replay({ id }: ReplayProps) {
       </div>
     </div>
   );
-}
+};
+
+export default Replay;
