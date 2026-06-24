@@ -57,6 +57,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `npm run build` - create a production build
 - `npm run start` - run the production build
 - `npm run lint` - lint the codebase
+- `npm test` - run the Vitest unit suite once
 
 ## Project structure
 
