@@ -1,3 +1,4 @@
+import type { Direction } from "@/lib/gameLogic";
 import type {
   CompletedGameSummary,
   CompletedGameView,
@@ -87,6 +88,18 @@ export function makeMove(
 
 export function resetRoom(id: string, playerId: string): Promise<RoomView> {
   return sendJson(`/api/rooms/${id}/reset`, "POST", { playerId });
+}
+
+export function extendRoom(
+  id: string,
+  playerId: string,
+  direction: Direction,
+): Promise<RoomView> {
+  return sendJson(`/api/rooms/${id}/extend`, "POST", { playerId, direction });
+}
+
+export function skipExtend(id: string, playerId: string): Promise<RoomView> {
+  return sendJson(`/api/rooms/${id}/skip-extend`, "POST", { playerId });
 }
 
 export async function fetchCompletedGames(

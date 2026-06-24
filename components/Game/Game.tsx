@@ -30,7 +30,7 @@ export default function Game() {
   // Ensures each finished round is counted exactly once.
   const scoredRef = useRef(false);
 
-  const result = calculateWinner(board);
+  const result = calculateWinner(board, 3, 3);
   const boardFull = isBoardFull(board);
   const gameOver = result !== null || boardFull;
   const currentPlayer = xIsNext ? "X" : "O";
@@ -39,7 +39,7 @@ export default function Game() {
   const makeMove = useCallback(
     (index: number) => {
       setBoard((prev) => {
-        if (prev[index] !== null || calculateWinner(prev)) {
+        if (prev[index] !== null || calculateWinner(prev, 3, 3)) {
           return prev;
         }
         const next = prev.slice();
@@ -87,7 +87,7 @@ export default function Game() {
   useEffect(() => {
     if (!aiTurn || gameOver) return;
     const timer = setTimeout(() => {
-      const move = getBestMove(board, AI_PLAYER);
+      const move = getBestMove(board, 3, 3, AI_PLAYER);
       if (move !== -1) makeMove(move);
     }, AI_MOVE_DELAY_MS);
     return () => clearTimeout(timer);
@@ -130,6 +130,7 @@ export default function Game() {
       <Status message={statusMessage} tone={statusTone} />
       <Board
         board={board}
+        cols={3}
         winningLine={result?.line ?? null}
         onSquareClick={makeMove}
         disabled={gameOver || aiTurn}

@@ -4,6 +4,7 @@ import styles from "./styles.module.scss";
 
 interface BoardProps {
   board: BoardState;
+  cols: number;
   winningLine: readonly number[] | null;
   onSquareClick: (index: number) => void;
   disabled: boolean;
@@ -11,12 +12,18 @@ interface BoardProps {
 
 export default function Board({
   board,
+  cols,
   winningLine,
   onSquareClick,
   disabled,
 }: BoardProps) {
   return (
-    <div className={styles.board} role="grid" aria-label="Tic-tac-toe board">
+    <div
+      className={styles.board}
+      role="grid"
+      aria-label="Tic-tac-toe board"
+      style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+    >
       {board.map((value, index) => (
         <Square
           key={index}

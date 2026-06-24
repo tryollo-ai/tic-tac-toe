@@ -76,8 +76,8 @@ export default function Replay({ id }: ReplayProps) {
     );
   }
 
-  const board = boardAfterMoves(game.moves, step);
-  const result = calculateWinner(board);
+  const { board, rows, cols } = boardAfterMoves(game.moves, step, game.extends);
+  const result = calculateWinner(board, rows, cols);
   const atStart = step === 0;
   const atEnd = step === total;
 
@@ -126,6 +126,7 @@ export default function Replay({ id }: ReplayProps) {
 
       <Board
         board={board}
+        cols={cols}
         winningLine={result ? result.line : null}
         onSquareClick={() => {}}
         disabled

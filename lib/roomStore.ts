@@ -1,9 +1,13 @@
 import {
   boardAfterMoves,
   calculateWinner,
+  chooseAiExtend,
+  extendBoard,
   getBestMove,
+  INITIAL_SIZE,
   isGameOver,
   type Board,
+  type Direction,
   type Player,
 } from "@/lib/gameLogic";
 import {
@@ -24,7 +28,7 @@ const SEAT_TTL_MS = 30_000;
 /** Rooms idle longer than this are reaped lazily on list/create. */
 const ROOM_IDLE_MS = 6 * 60 * 60 * 1000;
 
-const EMPTY_BOARD: Board = Array(9).fill(null);
+const EMPTY_BOARD: Board = Array(INITIAL_SIZE * INITIAL_SIZE).fill(null);
 const INITIAL_SCORES: Scores = { X: 0, O: 0, draws: 0 };
 /** The two human-claimable seats, in turn order. */
 const SEATS = ["X", "O"] as const;
@@ -59,7 +63,7 @@ function nextId(): string {
 
 /** Recompute status from the board and seats. */
 function recomputeStatus(room: Room): void {
-  if (isGameOver(room.board)) {
+  if (isGameOver(room.board, room.rows, room.cols)) {
     room.status = "finished";
   } else if (room.board.some((cell) => cell !== null)) {
     room.status = "in-progress";
@@ -78,6 +82,11 @@ function sweepSeats(room: Room): void {
     if (seen === null || seen < cutoff) {
       room.seats[seat] = null;
       room.seatSeen[seat] = null;
+      // A player who vacated forfeits any pending extend choice.
+      if (room.awaitingExtend === seat) {
+        room.awaitingExtend = null;
+        room.xIsNext = !room.xIsNext;
+      }
     }
   });
 }
@@ -106,6 +115,7 @@ function archiveCompletedGame(room: Room): void {
     name: room.name,
     mode: room.mode,
     moves: room.moves.slice(),
+    extends: room.extendLog.slice(),
     completedAt: now(),
   };
   store.completed.set(game.id, game);
@@ -113,7 +123,7 @@ function archiveCompletedGame(room: Room): void {
 
 /** Record a finished round in the scores exactly once. */
 function applyOutcome(room: Room): void {
-  const result = calculateWinner(room.board);
+  const result = calculateWinner(room.board, room.rows, room.cols);
   if (result) {
     room.scores[result.winner] += 1;
   } else {
@@ -121,14 +131,52 @@ function applyOutcome(room: Room): void {
   }
 }
 
-/** Apply a single move in place, scoring the round if it ends the game. */
-function placeMark(room: Room, index: number, mark: Player): void {
-  room.board[index] = mark;
-  room.moves.push(index);
-  room.xIsNext = !room.xIsNext;
-  if (isGameOver(room.board)) {
+/**
+ * If the board is now in a terminal state, score the round and archive it for
+ * replay, reporting that the game ended. Does not advance the turn; callers
+ * handle turn flow. This is the single point every placement funnels through,
+ * so the game is scored and archived exactly once however it ends.
+ */
+function settle(room: Room): boolean {
+  if (isGameOver(room.board, room.rows, room.cols)) {
     applyOutcome(room);
+    archiveCompletedGame(room);
+    return true;
   }
+  return false;
+}
+
+/**
+ * Play the AI's move (and, if worthwhile, its one-time extend) in place. A
+ * no-op unless it is the AI's turn in an AI room. Leaves it as the human's turn.
+ */
+function runAiTurn(room: Room): void {
+  if (room.mode !== "ai" || room.xIsNext || room.seats.O !== AI_SEAT) return;
+  if (isGameOver(room.board, room.rows, room.cols)) return;
+
+  const move = getBestMove(room.board, room.rows, room.cols, "O");
+  if (move === -1) return;
+  room.board[move] = "O";
+  room.moves.push(move);
+
+  if (!settle(room) && !room.extendUsed.O) {
+    const dir = chooseAiExtend(room.board, room.rows, room.cols, "O");
+    if (dir) {
+      applyExtend(room, dir);
+      room.extendUsed.O = true;
+    }
+  }
+  room.xIsNext = true; // hand the turn back to the human
+}
+
+/** Grow the board in place in the given direction, recording it for replay. */
+function applyExtend(room: Room, direction: Direction): void {
+  const ext = extendBoard(room.board, room.rows, room.cols, direction);
+  room.board = ext.board;
+  room.rows = ext.rows;
+  room.cols = ext.cols;
+  // `at` = moves played so far, so a replay can re-apply it at the same point.
+  room.extendLog.push({ at: room.moves.length, dir: direction });
 }
 
 /** Stamp the room's activity, refresh its status, and return a success result. */
@@ -159,6 +207,8 @@ export function listRooms(): RoomSummary[] {
         id: room.id,
         name: room.name,
         board: room.board,
+        rows: room.rows,
+        cols: room.cols,
         status: room.status,
         mode: room.mode,
         seatsTaken: {
@@ -180,6 +230,8 @@ export function createRoom(name: string, mode: RoomMode): StoreResult {
     id: nextId(),
     name: trimmed,
     board: EMPTY_BOARD.slice(),
+    rows: INITIAL_SIZE,
+    cols: INITIAL_SIZE,
     moves: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
@@ -187,6 +239,9 @@ export function createRoom(name: string, mode: RoomMode): StoreResult {
     // In AI mode O is the computer and can never be claimed by a human.
     seats: { X: null, O: mode === "ai" ? AI_SEAT : null },
     mode,
+    extendUsed: { X: false, O: false },
+    awaitingExtend: null,
+    extendLog: [],
     seatSeen: { X: null, O: null },
     createdAt: ts,
     lastActivity: ts,
@@ -215,18 +270,24 @@ export function getRoom(id: string, heartbeatPlayerId?: string): Room | null {
 }
 
 export function toView(room: Room): RoomView {
-  const result = calculateWinner(room.board);
+  const result = calculateWinner(room.board, room.rows, room.cols);
   return { ...room, winningLine: result ? result.line : null };
 }
 
 export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
-  const board = boardAfterMoves(game.moves, game.moves.length);
-  const result = calculateWinner(board);
+  const { board, rows, cols } = boardAfterMoves(
+    game.moves,
+    game.moves.length,
+    game.extends,
+  );
+  const result = calculateWinner(board, rows, cols);
   return {
     id: game.id,
     name: game.name,
     mode: game.mode,
     board,
+    rows,
+    cols,
     winner: result ? result.winner : null,
     completedAt: game.completedAt,
   };
@@ -238,6 +299,7 @@ export function toCompletedView(game: CompletedGame): CompletedGameView {
     name: game.name,
     mode: game.mode,
     moves: game.moves,
+    extends: game.extends,
     completedAt: game.completedAt,
   };
 }
@@ -284,6 +346,11 @@ export function leaveSeat(id: string, playerId: string): StoreResult {
       if (room.seats[seat] === playerId) {
         room.seats[seat] = null;
         room.seatSeen[seat] = null;
+        // Vacating mid-turn forfeits any pending extend choice.
+        if (room.awaitingExtend === seat) {
+          room.awaitingExtend = null;
+          room.xIsNext = !room.xIsNext;
+        }
       }
     });
     return touched(room);
@@ -298,8 +365,11 @@ export function makeMove(
   return withRoom(id, (room) => {
     sweepSeats(room);
 
-    if (isGameOver(room.board)) {
+    if (isGameOver(room.board, room.rows, room.cols)) {
       return { ok: false, error: "game-over" };
+    }
+    if (room.awaitingExtend !== null) {
+      return { ok: false, error: "awaiting-extend" };
     }
     if (index < 0 || index >= room.board.length) {
       return { ok: false, error: "invalid-index" };
@@ -313,25 +383,69 @@ export function makeMove(
       return { ok: false, error: "cell-taken" };
     }
 
-    placeMark(room, index, turn);
+    room.board[index] = turn;
+    room.moves.push(index);
+    if (settle(room)) return touched(room);
 
-    // Server-side AI follow-up so spectators see the move too.
-    if (
-      room.mode === "ai" &&
-      !room.xIsNext &&
-      !isGameOver(room.board) &&
-      room.seats.O === AI_SEAT
-    ) {
-      const aiMove = getBestMove(room.board, "O");
-      if (aiMove !== -1) placeMark(room, aiMove, "O");
+    // The mover still has their one extend action: pause for that choice
+    // (their move, then their action) before play passes to the opponent.
+    if (!room.extendUsed[turn]) {
+      room.awaitingExtend = turn;
+      return touched(room);
     }
 
-    // The move (or the AI's reply) may have just ended the game; archive it once
-    // here, at the single point where a room transitions to finished.
-    if (isGameOver(room.board)) {
-      archiveCompletedGame(room);
+    room.xIsNext = !room.xIsNext;
+    runAiTurn(room); // server-side AI follow-up so spectators see it too
+    return touched(room);
+  });
+}
+
+/** Apply the awaiting player's one-time board extension, then continue play. */
+export function extendBoardAction(
+  id: string,
+  direction: Direction,
+  playerId: string,
+): StoreResult {
+  return withRoom(id, (room) => {
+    sweepSeats(room);
+
+    const player = room.awaitingExtend;
+    if (player === null) {
+      return { ok: false, error: "not-awaiting-extend" };
+    }
+    if (room.seats[player] !== playerId) {
+      return { ok: false, error: "not-your-turn" };
+    }
+    if (room.extendUsed[player]) {
+      return { ok: false, error: "extend-used" };
     }
 
+    applyExtend(room, direction);
+    room.extendUsed[player] = true;
+    room.awaitingExtend = null;
+    room.xIsNext = !room.xIsNext;
+    runAiTurn(room);
+    return touched(room);
+  });
+}
+
+/** Decline the optional extension for this turn, passing play to the opponent. */
+export function skipExtend(id: string, playerId: string): StoreResult {
+  return withRoom(id, (room) => {
+    sweepSeats(room);
+
+    const player = room.awaitingExtend;
+    if (player === null) {
+      return { ok: false, error: "not-awaiting-extend" };
+    }
+    if (room.seats[player] !== playerId) {
+      return { ok: false, error: "not-your-turn" };
+    }
+
+    // The action is kept for a later turn; only this turn's window is skipped.
+    room.awaitingExtend = null;
+    room.xIsNext = !room.xIsNext;
+    runAiTurn(room);
     return touched(room);
   });
 }
@@ -343,8 +457,13 @@ export function resetGame(id: string, playerId: string): StoreResult {
       return { ok: false, error: "not-participant" };
     }
     room.board = EMPTY_BOARD.slice();
+    room.rows = INITIAL_SIZE;
+    room.cols = INITIAL_SIZE;
     room.moves = [];
     room.xIsNext = true;
+    room.extendUsed = { X: false, O: false };
+    room.awaitingExtend = null;
+    room.extendLog = [];
     return touched(room);
   });
 }
@@ -358,11 +477,15 @@ export function errorStatus(error: string): number {
       return 409;
     case "cell-taken":
     case "game-over":
+    case "awaiting-extend":
+    case "not-awaiting-extend":
+    case "extend-used":
       return 409;
     case "not-your-turn":
     case "not-participant":
       return 403;
     case "invalid-index":
+    case "invalid-direction":
     case "invalid-name":
       return 400;
     default:

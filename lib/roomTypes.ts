@@ -1,4 +1,4 @@
-import type { Board, Player } from "@/lib/gameLogic";
+import type { Board, ExtendEvent, Player } from "@/lib/gameLogic";
 
 export type RoomMode = "two-player" | "ai";
 export type RoomStatus = "waiting" | "in-progress" | "finished";
@@ -19,6 +19,9 @@ export interface Room {
   id: string;
   name: string;
   board: Board;
+  /** Board dimensions; both start at 3 and grow via the extend action. */
+  rows: number;
+  cols: number;
   /** Cell indices played this round, in order; X plays even moves, O odd. */
   moves: number[];
   xIsNext: boolean;
@@ -26,6 +29,15 @@ export interface Room {
   status: RoomStatus;
   seats: Seats;
   mode: RoomMode;
+  /** Whether each player has spent their one-time board-extend action. */
+  extendUsed: { X: boolean; O: boolean };
+  /**
+   * The player who just moved and may now optionally extend the board before
+   * play passes to their opponent, or null when no extend choice is pending.
+   */
+  awaitingExtend: Player | null;
+  /** Board extensions applied this round, in order, for faithful replay. */
+  extendLog: ExtendEvent[];
   /** Last-heartbeat timestamp per seat, used for TTL auto-release. */
   seatSeen: { X: number | null; O: number | null };
   createdAt: number;
@@ -41,6 +53,8 @@ export interface RoomSummary {
   id: string;
   name: string;
   board: Board;
+  rows: number;
+  cols: number;
   status: RoomStatus;
   mode: RoomMode;
   seatsTaken: { X: boolean; O: boolean };
@@ -49,9 +63,10 @@ export interface RoomSummary {
 /**
  * An archived game that has finished and can no longer be played, only replayed
  * turn by turn. Stored independently of its originating room, so it survives the
- * room being reset for a new game or reaped for idleness. The move list is the
- * single source of truth; the board, winner, and winning line are all derived
- * from it via `boardAfterMoves`/`calculateWinner`.
+ * room being reset for a new game or reaped for idleness. The move list plus
+ * the extension log are the single source of truth; the board (of any size),
+ * winner, and winning line are all derived from them via
+ * `boardAfterMoves`/`calculateWinner`.
  */
 export interface CompletedGame {
   id: string;
@@ -61,6 +76,8 @@ export interface CompletedGame {
   mode: RoomMode;
   /** Cell indices in play order; X plays even moves, O odd. */
   moves: number[];
+  /** Board extensions applied during the game, in order, for replay. */
+  extends: ExtendEvent[];
   completedAt: number;
 }
 
@@ -69,8 +86,11 @@ export interface CompletedGameSummary {
   id: string;
   name: string;
   mode: RoomMode;
-  /** Final board, for a preview. */
+  /** Final board (post-extensions), for a preview. */
   board: Board;
+  /** Final board dimensions, for rendering the preview grid. */
+  rows: number;
+  cols: number;
   /** Winning player, or null for a draw. */
   winner: Player | null;
   completedAt: number;
@@ -82,6 +102,8 @@ export interface CompletedGameView {
   name: string;
   mode: RoomMode;
   moves: number[];
+  /** Board extensions applied during the game, in order, for replay. */
+  extends: ExtendEvent[];
   completedAt: number;
 }
 

@@ -147,7 +147,7 @@ export default function Lobby() {
                 className={styles.roomCard}
                 onClick={() => router.push(`/room/${room.id}`)}
               >
-                <MiniBoard board={room.board} />
+                <MiniBoard board={room.board} rows={room.rows} cols={room.cols} />
                 <div className={styles.roomInfo}>
                   <span className={styles.roomName}>{room.name}</span>
                   <div className={styles.roomMeta}>
@@ -190,7 +190,7 @@ export default function Lobby() {
                   className={styles.roomCard}
                   onClick={() => router.push(`/replay/${game.id}`)}
                 >
-                  <MiniBoard board={game.board} />
+                  <MiniBoard board={game.board} rows={game.rows} cols={game.cols} />
                   <div className={styles.roomInfo}>
                     <span className={styles.roomName}>{game.name}</span>
                     <div className={styles.roomMeta}>

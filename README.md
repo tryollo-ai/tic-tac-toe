@@ -14,8 +14,15 @@ game.
 - **Near-real-time play:** rooms poll the server, so moves, seat changes, and
   spectated games update within a couple of seconds. A seat auto-releases after
   30s without a heartbeat (for example, when its player closes the tab).
-- **Unbeatable AI:** in a vs-AI room the computer plays O server-side using the
-  minimax algorithm, so the best you can do against it is draw.
+- **Board-extend action:** in addition to their move, each player gets one
+  once-per-game action that grows the board by a row (top/bottom) or a column
+  (left/right). The player must move first; after their move they may extend or
+  skip (keeping the action for a later turn). A win is always three in a row on
+  the resulting board, of any size.
+- **AI opponent:** in a vs-AI room the computer plays O server-side with
+  minimax - unbeatable on the classic 3x3 board, and depth-limited on larger
+  boards. The AI may also spend its own one-time board-extend action when its
+  lookahead judges it worthwhile.
 - **Scoreboard** tracking wins for each side and draws across rounds.
 - **Win-line highlight** and a clear turn/winner status indicator.
 - **Completed games & replay:** every finished game is archived and listed on the
@@ -49,11 +56,13 @@ Then open [http://localhost:3000](http://localhost:3000).
 ## Project structure
 
 ```
-app/                      # App Router: lobby page, /room/[id], /replay/[id], styles
-app/api/rooms/            # REST endpoints: list/create rooms, seats, moves, reset
+app/                      # App Router: lobby, /room/[id], /replay/[id], styles
+app/api/rooms/            # REST endpoints: list/create rooms, seats, moves,
+                          #   reset, extend, skip-extend
 app/api/completed/        # REST endpoints: list completed games + fetch one for replay
 components/<Name>/         # One folder per component, each with styles.module.scss
-lib/gameLogic.ts          # Pure game logic: winner detection + minimax AI
+lib/gameLogic.ts          # Pure game logic: dynamic-size winner detection,
+                          #   board extension, and the (depth-limited) minimax AI
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
 lib/roomClient.ts         # Browser fetch helpers for the room API
