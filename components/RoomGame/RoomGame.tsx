@@ -295,7 +295,6 @@ export default function RoomGame({ id }: RoomGameProps) {
 
       <Board
         board={room.board}
-        cols={room.cols}
         winningLine={room.winningLine}
         onSquareClick={handleMove}
         disabled={boardDisabled}

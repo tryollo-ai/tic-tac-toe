@@ -21,8 +21,8 @@ still alternate strictly: on O's turn O either places (`makeMove`) or shifts
 `oShiftUsed`).
 A shift can never complete a line (it only translates marks), so it never wins;
 win detection stays three in a row via `calculateWinner`.
-A room still carries `rows`/`cols` (always 3) and a flat `board` of `rows * cols`
-cells.
+A room carries a flat `board` of 9 cells; the grid is a fixed 3x3 square derived
+from `INITIAL_SIZE`.
 Minimax is exact on 3x3; as O the AI weighs its best placement against shifting
 each turn via `chooseAiAction`.
 When changing the shift or win rules, keep `calculateWinner`,

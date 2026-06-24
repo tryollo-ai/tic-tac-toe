@@ -197,8 +197,6 @@ export function listRooms(): RoomSummary[] {
         id: room.id,
         name: room.name,
         board: room.board,
-        rows: room.rows,
-        cols: room.cols,
         status: room.status,
         mode: room.mode,
         seatsTaken: {
@@ -220,8 +218,6 @@ export function createRoom(name: string, mode: RoomMode): StoreResult {
     id: nextId(),
     name: trimmed,
     board: EMPTY_BOARD.slice(),
-    rows: INITIAL_SIZE,
-    cols: INITIAL_SIZE,
     actions: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
@@ -270,8 +266,6 @@ export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
     name: game.name,
     mode: game.mode,
     board,
-    rows: INITIAL_SIZE,
-    cols: INITIAL_SIZE,
     winner: result ? result.winner : null,
     completedAt: game.completedAt,
   };
@@ -406,8 +400,6 @@ export function resetGame(id: string, playerId: string): StoreResult {
       return { ok: false, error: "not-participant" };
     }
     room.board = EMPTY_BOARD.slice();
-    room.rows = INITIAL_SIZE;
-    room.cols = INITIAL_SIZE;
     room.actions = [];
     room.xIsNext = true;
     room.oShiftUsed = false;

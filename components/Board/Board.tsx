@@ -1,10 +1,9 @@
-import type { Board as BoardState } from "@/lib/gameLogic";
+import { INITIAL_SIZE, type Board as BoardState } from "@/lib/gameLogic";
 import Square from "@/components/Square/Square";
 import styles from "./styles.module.scss";
 
 interface BoardProps {
   board: BoardState;
-  cols: number;
   winningLine: readonly number[] | null;
   onSquareClick: (index: number) => void;
   disabled: boolean;
@@ -12,7 +11,6 @@ interface BoardProps {
 
 export default function Board({
   board,
-  cols,
   winningLine,
   onSquareClick,
   disabled,
@@ -22,7 +20,7 @@ export default function Board({
       className={styles.board}
       role="grid"
       aria-label="Tic-tac-toe board"
-      style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+      style={{ gridTemplateColumns: `repeat(${INITIAL_SIZE}, 1fr)` }}
     >
       {board.map((value, index) => (
         <Square

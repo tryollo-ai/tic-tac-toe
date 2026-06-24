@@ -19,9 +19,6 @@ export interface Room {
   id: string;
   name: string;
   board: Board;
-  /** Board dimensions; fixed at 3×3 (the shift action never resizes the grid). */
-  rows: number;
-  cols: number;
   /** Every action this round, in turn order; X takes even indices, O odd. */
   actions: GameAction[];
   xIsNext: boolean;
@@ -46,8 +43,6 @@ export interface RoomSummary {
   id: string;
   name: string;
   board: Board;
-  rows: number;
-  cols: number;
   status: RoomStatus;
   mode: RoomMode;
   seatsTaken: { X: boolean; O: boolean };
@@ -78,9 +73,6 @@ export interface CompletedGameSummary {
   mode: RoomMode;
   /** Final board, for a preview. */
   board: Board;
-  /** Final board dimensions, for rendering the preview grid. */
-  rows: number;
-  cols: number;
   /** Winning player, or null for a draw. */
   winner: Player | null;
   completedAt: number;

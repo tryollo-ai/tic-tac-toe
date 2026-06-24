@@ -6,7 +6,6 @@ import { fetchCompletedGame, RoomError } from "@/lib/roomClient";
 import {
   boardAfterActions,
   calculateWinner,
-  INITIAL_SIZE,
   type Player,
 } from "@/lib/gameLogic";
 import { modeLabel, type CompletedGameView } from "@/lib/roomTypes";
@@ -131,7 +130,6 @@ export default function Replay({ id }: ReplayProps) {
 
       <Board
         board={board}
-        cols={INITIAL_SIZE}
         winningLine={result ? result.line : null}
         onSquareClick={() => {}}
         disabled

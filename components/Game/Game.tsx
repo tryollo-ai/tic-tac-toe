@@ -130,7 +130,6 @@ export default function Game() {
       <Status message={statusMessage} tone={statusTone} />
       <Board
         board={board}
-        cols={3}
         winningLine={result?.line ?? null}
         onSquareClick={makeMove}
         disabled={gameOver || aiTurn}
