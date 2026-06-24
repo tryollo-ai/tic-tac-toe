@@ -13,8 +13,6 @@ export const DIRECTIONS: readonly Direction[] = [
 
 /** The board is a fixed square of this side length. */
 export const INITIAL_SIZE = 3;
-/** Marks in a line needed to win. */
-export const WIN_LENGTH = 3;
 
 /**
  * One turn's action. Players alternate strictly - X takes the even-indexed
@@ -33,32 +31,19 @@ export interface WinnerResult {
 }
 
 /**
- * The winning triples are fixed for the 3×3 board, so compute them once. Each
- * entry is a triple of flat cell indices.
+ * The eight winning triples of the fixed 3×3 board, as flat cell indices: the
+ * three rows, the three columns, then the two diagonals.
  */
-const WINNING_LINES: readonly [number, number, number][] = (() => {
-  const lines: [number, number, number][] = [];
-  const size = INITIAL_SIZE;
-  const k = WIN_LENGTH;
-  const at = (r: number, c: number) => r * size + c;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (c + k - 1 < size) {
-        lines.push([at(r, c), at(r, c + 1), at(r, c + 2)]);
-      }
-      if (r + k - 1 < size) {
-        lines.push([at(r, c), at(r + 1, c), at(r + 2, c)]);
-      }
-      if (r + k - 1 < size && c + k - 1 < size) {
-        lines.push([at(r, c), at(r + 1, c + 1), at(r + 2, c + 2)]);
-      }
-      if (r + k - 1 < size && c - (k - 1) >= 0) {
-        lines.push([at(r, c), at(r + 1, c - 1), at(r + 2, c - 2)]);
-      }
-    }
-  }
-  return lines;
-})();
+const WINNING_LINES: readonly [number, number, number][] = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
+];
 
 /**
  * Returns the winning player and the line that won, or null if there is no
