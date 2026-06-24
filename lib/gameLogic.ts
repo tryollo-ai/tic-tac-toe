@@ -260,15 +260,16 @@ function depthFor(board: Board): number {
 }
 
 /**
- * Returns the index of the best move for `aiPlayer`, or -1 if the board is
- * full. Exact (unbeatable) on a 3×3 board; depth-limited on larger boards.
+ * Best placement for `aiPlayer` together with its minimax score (the value of
+ * the resulting position with the opponent to move, from `aiPlayer`'s view).
+ * `index` is -1 and `score` is -Infinity when the board is full.
  */
-export function getBestMove(
+function bestPlacement(
   board: Board,
   rows: number,
   cols: number,
   aiPlayer: Player,
-): number {
+): { index: number; score: number } {
   const work = board.slice();
   const maxDepth = depthFor(work);
   let bestScore = -Infinity;
@@ -293,7 +294,20 @@ export function getBestMove(
       bestMove = i;
     }
   }
-  return bestMove;
+  return { index: bestMove, score: bestScore };
+}
+
+/**
+ * Returns the index of the best move for `aiPlayer`, or -1 if the board is
+ * full. Exact (unbeatable) on a 3×3 board; depth-limited on larger boards.
+ */
+export function getBestMove(
+  board: Board,
+  rows: number,
+  cols: number,
+  aiPlayer: Player,
+): number {
+  return bestPlacement(board, rows, cols, aiPlayer).index;
 }
 
 /**
@@ -310,17 +324,22 @@ export function chooseAiAction(
   canShift: boolean,
 ): GameAction | null {
   const me: Player = "O";
-  const placeIndex = getBestMove(board, rows, cols, me);
+  const { index: placeIndex, score: placeScore } = bestPlacement(
+    board,
+    rows,
+    cols,
+    me,
+  );
   if (placeIndex === -1) return null;
 
   // Value of a position with X (the opponent) to move next, from O's view.
+  // The best placement's value is already known from bestPlacement, so only
+  // the shift candidates need a fresh lookahead.
   const value = (b: Board) =>
     minimax(b, rows, cols, "X", me, 1, depthFor(b), -Infinity, Infinity);
 
-  const placed = board.slice();
-  placed[placeIndex] = me;
   let best: GameAction = { kind: "place", index: placeIndex };
-  let bestScore = value(placed);
+  let bestScore = placeScore;
 
   if (canShift) {
     for (const dir of DIRECTIONS) {
