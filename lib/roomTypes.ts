@@ -23,7 +23,6 @@ export interface Room {
   actions: GameAction[];
   xIsNext: boolean;
   scores: Scores;
-  status: RoomStatus;
   seats: Seats;
   mode: RoomMode;
   /** Whether O has spent its one-time whole-grid shift this round. */
@@ -35,6 +34,8 @@ export interface Room {
 }
 
 export interface RoomView extends Room {
+  /** Derived at serialization time from the board, never stored. */
+  status: RoomStatus;
   /** Derived at serialization time via calculateWinner, never stored. */
   winningLine: [number, number, number] | null;
 }

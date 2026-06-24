@@ -60,15 +60,11 @@ function nextId(): string {
   return `r${store.seq.toString(36)}${now().toString(36)}`;
 }
 
-/** Recompute status from the board and seats. */
-function recomputeStatus(room: Room): void {
-  if (isGameOver(room.board)) {
-    room.status = "finished";
-  } else if (room.board.some((cell) => cell !== null)) {
-    room.status = "in-progress";
-  } else {
-    room.status = "waiting";
-  }
+/** Derive the room's status from its board. */
+function computeStatus(board: Board): RoomStatus {
+  if (isGameOver(board)) return "finished";
+  if (board.some((cell) => cell !== null)) return "in-progress";
+  return "waiting";
 }
 
 /** Release any human seat whose heartbeat is older than the TTL. */
@@ -169,10 +165,9 @@ function applyShift(room: Room, direction: Direction): void {
   room.actions.push({ kind: "shift", dir: direction });
 }
 
-/** Stamp the room's activity, refresh its status, and return a success result. */
+/** Stamp the room's activity and return a success result. */
 function touched(room: Room): StoreResult {
   room.lastActivity = now();
-  recomputeStatus(room);
   return { ok: true, room };
 }
 
@@ -192,12 +187,11 @@ export function listRooms(): RoomSummary[] {
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((room) => {
       sweepSeats(room);
-      recomputeStatus(room);
       return {
         id: room.id,
         name: room.name,
         board: room.board,
-        status: room.status,
+        status: computeStatus(room.board),
         mode: room.mode,
         seatsTaken: {
           X: room.seats.X !== null,
@@ -221,7 +215,6 @@ export function createRoom(name: string, mode: RoomMode): StoreResult {
     actions: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
-    status: "waiting",
     // In AI mode O is the computer and can never be claimed by a human.
     seats: { X: null, O: mode === "ai" ? AI_SEAT : null },
     mode,
@@ -249,13 +242,16 @@ export function getRoom(id: string, heartbeatPlayerId?: string): Room | null {
       }
     });
   }
-  recomputeStatus(room);
   return room;
 }
 
 export function toView(room: Room): RoomView {
   const result = calculateWinner(room.board);
-  return { ...room, winningLine: result ? result.line : null };
+  return {
+    ...room,
+    status: computeStatus(room.board),
+    winningLine: result ? result.line : null,
+  };
 }
 
 export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
