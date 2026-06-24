@@ -1,3 +1,4 @@
+import classNames from "classnames";
 import styles from "./styles.module.scss";
 
 export type StatusTone = "x" | "o" | "draw" | "neutral";
@@ -20,7 +21,7 @@ const Status = ({ message, tone }: StatusProps) => {
   };
 
   return (
-    <div className={`${styles.root} ${toneClass[tone]}`} role="status" aria-live="polite">
+    <div className={classNames(styles.root, toneClass[tone])} role="status" aria-live="polite">
       {message}
     </div>
   );

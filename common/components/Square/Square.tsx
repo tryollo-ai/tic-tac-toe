@@ -1,3 +1,4 @@
+import classNames from "classnames";
 import type { Cell } from "@/utils/gameLogic";
 import styles from "./styles.module.scss";
 
@@ -16,19 +17,14 @@ const Square = ({
   disabled,
   index,
 }: SquareProps) => {
-  const classNames = [
-    styles.square,
-    value === "X" ? styles.x : "",
-    value === "O" ? styles.o : "",
-    isWinning ? styles.winning : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
     <button
       type="button"
-      className={classNames}
+      className={classNames(styles.square, {
+        [styles.x]: value === "X",
+        [styles.o]: value === "O",
+        [styles.winning]: isWinning,
+      })}
       onClick={onClick}
       disabled={disabled || value !== null}
       aria-label={`Square ${index + 1}${value ? `, ${value}` : ", empty"}`}

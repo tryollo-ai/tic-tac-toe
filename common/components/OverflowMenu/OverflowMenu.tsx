@@ -1,5 +1,6 @@
 "use client";
 
+import classNames from "classnames";
 import { useEffect, useId, useRef, useState } from "react";
 import type { GameMode } from "@/common/components/Game/Game";
 import Scoreboard, { type Scores } from "@/common/components/Scoreboard/Scoreboard";
@@ -87,7 +88,7 @@ const OverflowMenu = ({
             >
               <button
                 type="button"
-                className={mode === "two-player" ? styles.active : ""}
+                className={classNames({ [styles.active]: mode === "two-player" })}
                 onClick={() => onModeChange("two-player")}
                 aria-pressed={mode === "two-player"}
               >
@@ -95,7 +96,7 @@ const OverflowMenu = ({
               </button>
               <button
                 type="button"
-                className={mode === "ai" ? styles.active : ""}
+                className={classNames({ [styles.active]: mode === "ai" })}
                 onClick={() => onModeChange("ai")}
                 aria-pressed={mode === "ai"}
               >

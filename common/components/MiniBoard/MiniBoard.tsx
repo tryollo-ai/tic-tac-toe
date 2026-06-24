@@ -1,3 +1,4 @@
+import classNames from "classnames";
 import { INITIAL_SIZE } from "@/constants/game";
 import { type Board } from "@/utils/gameLogic";
 import styles from "./styles.module.scss";
@@ -20,13 +21,10 @@ const MiniBoard = ({ board }: MiniBoardProps) => {
       {board.map((value, index) => (
         <div
           key={index}
-          className={[
-            styles.cell,
-            value === "X" ? styles.x : "",
-            value === "O" ? styles.o : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          className={classNames(styles.cell, {
+            [styles.x]: value === "X",
+            [styles.o]: value === "O",
+          })}
         >
           {value}
         </div>

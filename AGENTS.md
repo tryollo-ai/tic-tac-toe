@@ -70,8 +70,15 @@ of truth, and anything that changes how actions are recorded must keep
   Alternate full-screen states reached via early returns (e.g. loading/not-found
   branches) keep their own semantic class; only the primary render's root uses
   `styles.root`.
-- Compose multiple/conditional classes by joining them, e.g.
-  `[styles.square, isWinning ? styles.winning : ""].filter(Boolean).join(" ")`.
+- Compose multiple/conditional classes with the
+  [`classnames`](https://www.npmjs.com/package/classnames) package, imported as
+  `import classNames from "classnames"`. Use the object form for conditional
+  classes and positional args for unconditional joins, e.g.
+  `classNames(styles.square, { [styles.winning]: isWinning })` or
+  `classNames(styles.root, toneClass[tone])`. Do not hand-roll
+  `[...].filter(Boolean).join(" ")` or `cond ? styles.x : ""` className strings.
+  (`classnames` only builds a class string from conditions; it is not a utility
+  CSS framework, so it does not conflict with the no-Tailwind rule above.)
 - **Only global styles** (CSS variables, resets, `body` defaults) live in
   `app/globals.scss`. Do not add component-specific rules there.
 - Shared design tokens (colors) are defined as CSS custom properties in
