@@ -56,6 +56,8 @@ The same per-ticket job ends with a park step that always runs.
 If the job finishes without an open PR for `fm/issue-<number>` - a failed run, a risky finding the agent stopped on, or no change needed - the ticket is moved to `claude:needs-captain` and a comment is left, so it parks for you instead of being stranded in `claude:in-progress`.
 The park step is deliberately resilient: it only skips parking on a *confirmed* open PR, and parks on any uncertainty (the PR check errored or returned nothing).
 When a PR is open, the claim stays in place and the PR waits for you.
+Each per-ticket job also carries a 30-minute `timeout-minutes`, so a hung agent run is cut off rather than holding a runner indefinitely; because the park step runs with `if: always()`, it still fires on a timeout and the ticket is parked instead of stranded in `claude:in-progress`.
+The responder job (`agent-respond.yml`) has the same 30-minute bound.
 
 ## One-time setup
 

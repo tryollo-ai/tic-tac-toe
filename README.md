@@ -69,6 +69,8 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `npm run start` - run the production build
 - `npm run lint` - lint the codebase
 - `npm test` - run the Vitest unit suite once
+- `npm run select-tickets` - agent-loop ticket selector CLI (reads `gh issue list`
+  JSON on stdin, prints the chosen issue numbers; see [docs/agent-loop.md](./docs/agent-loop.md))
 
 ## Project structure
 
