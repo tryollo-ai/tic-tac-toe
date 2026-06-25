@@ -13,17 +13,11 @@
   border-radius: 14px;
   cursor: pointer;
   transition:
-    transform 0.08s ease,
-    background 0.15s ease,
+    background 0.18s ease,
     box-shadow 0.15s ease;
 
   &:hover:not(:disabled) {
     background: #2f405c;
-    transform: translateY(-2px);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0);
   }
 
   &:disabled {
