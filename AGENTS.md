@@ -70,11 +70,29 @@ client component built on [`@radix-ui/react-dialog`](https://www.radix-ui.com/pr
 (with the `react-icons` `IoMdClose` close icon). It takes an `isOpen`/`close`
 pair plus `title`/`description`/`children`, renders into `document.body` via
 `Dialog.Portal` (no custom container), and dismisses on overlay click, the close
-button, or Escape. `RoomGame` uses it for the shift help dialog: a small circular
-"?" button (`react-icons` `IoHelpCircleOutline`) sits in a `shiftPromptRow` flex
-row next to the shift prompt copy and opens a `UIDialog` (kept in local
-`shiftHelpOpen` state) explaining O's once-per-game grid shift. Reuse `UIDialog`
-for any future modal rather than hand-rolling one.
+button, or Escape. The home page (`common/components/Lobby/`) uses it for the
+"How to play" dialog: a "How to play" button (`react-icons` `IoHelpCircleOutline`)
+sits in a `titleRow` next to the lobby title and opens a `UIDialog` (kept in local
+`howToOpen` state) that explains the rules - X moves first, O moves second and
+gets the once-per-game grid shift, and what the shift does. The rules explanation
+lives on the home page so players learn them before entering a room; `RoomGame`
+has no help dialog. Reuse `UIDialog` for any future modal rather than hand-rolling
+one.
+
+`RoomGame` lays the board out centered between two side indicators (one per
+player) in a `boardArea` grid (`minmax(0,1fr) minmax(0,300px) minmax(0,1fr)`,
+collapsing to a single stacked column under 640px). Each `sidePanel` shows that
+player's mark, name, and turn highlight (`sideActive`); the O panel additionally
+shows `Grid shift: available`/`used`, visible to both players and spectators. On
+player O's own screen, when it is O's turn and the shift is unused (`canShiftNow`),
+the O panel also renders the `SHIFT_OPTIONS` direction buttons so O activates the
+shift directly from the indicator - X and spectators see the status but no
+controls. `canShiftNow` mirrors the store's `shiftBoardAction` guard
+(`mySeat === "O"`, O's turn, both seated, shift unused). There is no manual "New
+Game" button: a finished game auto-resets after `AUTO_RESET_MS` via a single
+seated scheduler (the X seat, falling back to O if X is empty) guarded by a ref so
+the many polling clients/spectators do not double-reset, with a "Next game
+starting…" line shown while it counts down.
 
 Each room records its history as a single ordered `actions` log, where each
 action is either `{ kind: "place", index }` or `{ kind: "shift", dir }` and the

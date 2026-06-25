@@ -90,82 +90,101 @@
   }
 }
 
-.shiftPanel {
+.boardArea {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  width: 100%;
+}
+
+.sidePanel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 10px;
   background: var(--bg-elevated);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: 14px;
-}
-
-.shiftPromptRow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 8px;
-}
-
-.shiftPrompt {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text);
   text-align: center;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.shiftHelpButton {
-  flex: 0 0 auto;
+.sideActive {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.sideMark {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  margin-top: -1px;
-  width: 22px;
-  height: 22px;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: color 0.15s ease;
-
-  &:hover {
-    color: var(--accent);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+  width: 34px;
+  height: 34px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  border-radius: 10px;
 }
 
-.shiftHelpIcon {
-  width: 20px;
-  height: 20px;
+.sideMarkX {
+  color: var(--x-color);
+  background: color-mix(in srgb, var(--x-color) 16%, transparent);
 }
 
-.shiftHelpParagraph {
-  margin: 0 0 12px;
-  font-size: 0.95rem;
-  line-height: 1.55;
+.sideMarkO {
+  color: var(--o-color);
+  background: color-mix(in srgb, var(--o-color) 16%, transparent);
+}
+
+.sideName {
+  font-size: 0.85rem;
+  font-weight: 700;
   color: var(--text);
+}
 
-  &:last-child {
-    margin-bottom: 0;
-  }
+.sideAbility {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.shiftStatus {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.shiftStatusUsed {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.shiftControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.shiftControlsHint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .shiftGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .shiftButton {
-  padding: 10px 12px;
-  font-size: 0.85rem;
+  padding: 8px 6px;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text);
   background: var(--surface);
@@ -187,11 +206,31 @@
   }
 }
 
-.shiftHint {
+.nextGame {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-muted);
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .boardArea {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .sidePanel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .shiftControls {
+    flex-basis: 100%;
+  }
 }
 
 .actionError {
@@ -199,38 +238,6 @@
   color: var(--o-color);
   font-size: 0.9rem;
   text-align: center;
-}
-
-.newGame {
-  padding: 12px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #06121f;
-  background: linear-gradient(120deg, var(--x-color), #7dd3fc);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition:
-    transform 0.08s ease,
-    filter 0.15s ease;
-
-  &:hover:not(:disabled) {
-    filter: brightness(1.05);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(1px);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
 }
 
 .loading,

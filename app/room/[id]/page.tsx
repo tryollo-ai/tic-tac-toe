@@ -8,7 +8,7 @@ type Props = {
 const RoomPage = async (props: Props) => {
   const { id } = await props.params;
   return (
-    <main className={styles.main}>
+    <main className={styles.roomMain}>
       <RoomGame id={id} />
     </main>
   );

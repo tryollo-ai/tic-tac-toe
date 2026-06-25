@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { IoHelpCircleOutline } from "react-icons/io5";
 import {
   createRoom,
   fetchCompletedGames,
@@ -16,6 +17,7 @@ import {
   type RoomSummary,
 } from "@/lib/roomTypes";
 import MiniBoard from "@/common/components/MiniBoard";
+import UIDialog from "@/common/components/UIDialog";
 import styles from "./styles.module.scss";
 
 const STATUS_LABEL: Record<RoomSummary["status"], string> = {
@@ -57,6 +59,7 @@ const Lobby = () => {
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [howToOpen, setHowToOpen] = useState(false);
 
   const totalRooms = rooms?.length ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRooms / PAGE_SIZE));
@@ -101,9 +104,20 @@ const Lobby = () => {
   return (
     <div className={styles.root}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Tic-Tac-Toe</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>Tic-Tac-Toe</h1>
+          <button
+            type="button"
+            className={styles.howToButton}
+            onClick={() => setHowToOpen(true)}
+          >
+            <IoHelpCircleOutline className={styles.howToIcon} />
+            How to play
+          </button>
+        </div>
         <p className={styles.subtitle}>
-          Join a room to play or spectate a live game.
+          A twist on tic-tac-toe: player O goes second but gets a one-time grid
+          shift. Join a room to play or spectate a live game.
         </p>
       </header>
 
@@ -256,6 +270,32 @@ const Lobby = () => {
           </ul>
         </section>
       )}
+
+      <UIDialog
+        isOpen={howToOpen}
+        close={() => setHowToOpen(false)}
+        title="How to play"
+        description="Tic-tac-toe, with a twist for player O."
+      >
+        <p className={styles.howToParagraph}>
+          The board is a 3x3 grid. Player X always moves first and player O
+          moves second; you take turns placing your mark, and the first to line
+          up three in a row - across, down, or diagonally - wins.
+        </p>
+        <p className={styles.howToParagraph}>
+          To balance going second, player O gets one special ability: a
+          once-per-game <strong>grid shift</strong>. On O&apos;s turn, instead of
+          placing a mark, O can slide the whole grid one cell - up, down, left,
+          or right. Any marks pushed off the leading edge fall off the board and
+          are removed.
+        </p>
+        <p className={styles.howToParagraph}>
+          The shift uses up O&apos;s turn, so players still alternate strictly, and
+          O only gets it once per game. A shift only translates marks, so it can
+          never complete a line and never wins on its own - it is purely O&apos;s
+          compensation for moving second.
+        </p>
+      </UIDialog>
     </div>
   );
 };

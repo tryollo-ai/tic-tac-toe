@@ -6,3 +6,9 @@
   max-width: 480px;
   margin: 0 auto;
 }
+
+/* The room view flanks the board with side panels, so it needs more room. */
+.roomMain {
+  composes: main;
+  max-width: 720px;
+}

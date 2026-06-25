@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { IoHelpCircleOutline } from "react-icons/io5";
+import classNames from "classnames";
 import {
   claimSeat,
   fetchRoom,
@@ -20,7 +20,6 @@ import { modeLabel, type RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
 import Status, { type StatusTone, playerTone } from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
-import UIDialog from "@/common/components/UIDialog";
 import styles from "./styles.module.scss";
 
 type Props = {
@@ -39,11 +38,17 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
 
 /** The four grid-shift choices, in the order shown to player O. */
 const SHIFT_OPTIONS: { dir: Direction; label: string }[] = [
-  { dir: "top", label: "Shift up ↑" },
-  { dir: "bottom", label: "Shift down ↓" },
-  { dir: "left", label: "Shift left ←" },
-  { dir: "right", label: "Shift right →" },
+  { dir: "top", label: "↑ Up" },
+  { dir: "bottom", label: "↓ Down" },
+  { dir: "left", label: "← Left" },
+  { dir: "right", label: "→ Right" },
 ];
+
+/**
+ * How long a finished game stays on screen before the room auto-resets to a
+ * fresh game. Long enough to read the result, short enough to keep play moving.
+ */
+const AUTO_RESET_MS = 4500;
 
 /** Map a thrown error to a known room-error message, or the given fallback. */
 function roomErrorMessage(err: unknown, fallback: string): string {
@@ -54,7 +59,6 @@ const RoomGame = (props: Props) => {
   const playerId = usePlayerId();
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [shiftHelpOpen, setShiftHelpOpen] = useState(false);
 
   const fetcher = useCallback(
     (signal: AbortSignal) => fetchRoom(props.id, playerId, signal),
@@ -166,14 +170,6 @@ const RoomGame = (props: Props) => {
     );
   }, [props.id, playerId, runAction]);
 
-  const handleNewGame = useCallback(() => {
-    if (!playerId) return;
-    void runAction(
-      () => resetRoom(props.id, playerId),
-      "Could not start a new game.",
-    );
-  }, [props.id, playerId, runAction]);
-
   const handleShift = useCallback(
     (direction: Direction) => {
       if (!playerId) return;
@@ -184,6 +180,32 @@ const RoomGame = (props: Props) => {
     },
     [props.id, playerId, runAction],
   );
+
+  // Auto-reset a finished game after a short delay instead of a manual button.
+  // Many clients poll the same room, so exactly one seated player schedules the
+  // reset (X, falling back to O if the X seat is empty) and a ref guards against
+  // re-scheduling while the same finished game is on screen.
+  const resetScheduledRef = useRef(false);
+  useEffect(() => {
+    const finished = room?.status === "finished";
+    if (!finished) {
+      resetScheduledRef.current = false;
+      return;
+    }
+    if (!playerId || !mySeat || resetScheduledRef.current) return;
+    const iSchedule =
+      mySeat === "X" || (mySeat === "O" && room.seats.X === null);
+    if (!iSchedule) return;
+
+    resetScheduledRef.current = true;
+    const timer = setTimeout(() => {
+      void runAction(
+        () => resetRoom(props.id, playerId),
+        "Could not start a new game.",
+      );
+    }, AUTO_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [room?.status, room?.seats.X, mySeat, playerId, props.id, runAction]);
 
   if (notFound) {
     return (
@@ -247,6 +269,8 @@ const RoomGame = (props: Props) => {
 
   const boardDisabled =
     gameOver || mySeat === null || currentTurn !== mySeat || paused;
+  const turnActive = (seat: Player) =>
+    !gameOver && bothSeated && currentTurn === seat;
 
   return (
     <div className={styles.root}>
@@ -302,89 +326,71 @@ const RoomGame = (props: Props) => {
         )}
       </div>
 
-      <Board
-        board={room.board}
-        winningLine={room.winningLine}
-        onSquareClick={handleMove}
-        disabled={boardDisabled}
-      />
+      <div className={styles.boardArea}>
+        <aside
+          className={classNames(styles.sidePanel, {
+            [styles.sideActive]: turnActive("X"),
+          })}
+        >
+          <span className={classNames(styles.sideMark, styles.sideMarkX)}>
+            X
+          </span>
+          <span className={styles.sideName}>{xLabel}</span>
+          <span className={styles.sideAbility}>Plays first</span>
+        </aside>
 
-      {canShiftNow && (
-        <div className={styles.shiftPanel}>
-          <div className={styles.shiftPromptRow}>
-            <p className={styles.shiftPrompt}>
-              Your one-time shift: slide the whole grid one cell. Marks pushed
-              off the edge are removed, and this uses your turn instead of
-              placing.
-            </p>
-            <button
-              type="button"
-              className={styles.shiftHelpButton}
-              onClick={() => setShiftHelpOpen(true)}
-              aria-label="What is the grid shift?"
-            >
-              <IoHelpCircleOutline className={styles.shiftHelpIcon} />
-            </button>
-          </div>
-          <div className={styles.shiftGrid}>
-            {SHIFT_OPTIONS.map(({ dir, label }) => (
-              <button
-                key={dir}
-                type="button"
-                className={styles.shiftButton}
-                onClick={() => handleShift(dir)}
-                disabled={paused}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        <Board
+          board={room.board}
+          winningLine={room.winningLine}
+          onSquareClick={handleMove}
+          disabled={boardDisabled}
+        />
 
-      {mySeat === "O" && !gameOver && !canShiftNow && (
-        <p className={styles.shiftHint}>
-          {room.oShiftUsed
-            ? "Grid shift used"
-            : "One-time grid shift available on your turn"}
-        </p>
-      )}
+        <aside
+          className={classNames(styles.sidePanel, {
+            [styles.sideActive]: turnActive("O"),
+          })}
+        >
+          <span className={classNames(styles.sideMark, styles.sideMarkO)}>
+            O
+          </span>
+          <span className={styles.sideName}>{oLabel}</span>
+          <span
+            className={classNames(styles.shiftStatus, {
+              [styles.shiftStatusUsed]: room.oShiftUsed,
+            })}
+          >
+            Grid shift: {room.oShiftUsed ? "used" : "available"}
+          </span>
+
+          {canShiftNow && (
+            <div className={styles.shiftControls}>
+              <p className={styles.shiftControlsHint}>
+                Slide the grid (uses your turn):
+              </p>
+              <div className={styles.shiftGrid}>
+                {SHIFT_OPTIONS.map(({ dir, label }) => (
+                  <button
+                    key={dir}
+                    type="button"
+                    className={styles.shiftButton}
+                    onClick={() => handleShift(dir)}
+                    disabled={paused}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {gameOver && <p className={styles.nextGame}>Next game starting…</p>}
 
       {actionError && <p className={styles.actionError}>{actionError}</p>}
 
       <Scoreboard scores={room.scores} xLabel={xLabel} oLabel={oLabel} />
-
-      <button
-        type="button"
-        className={styles.newGame}
-        onClick={handleNewGame}
-        disabled={paused || mySeat === null}
-      >
-        New Game
-      </button>
-
-      <UIDialog
-        isOpen={shiftHelpOpen}
-        close={() => setShiftHelpOpen(false)}
-        title="Player O's grid shift"
-        description="A once-per-game move that only player O can make."
-      >
-        <p className={styles.shiftHelpParagraph}>
-          On your turn as O you can shift the grid instead of placing a mark.
-          The shift uses up your turn, so players still alternate strictly, and
-          you only get it once per game.
-        </p>
-        <p className={styles.shiftHelpParagraph}>
-          A shift slides the whole 3x3 grid one cell - up, down, left, or right.
-          Any marks pushed off the leading edge fall off the board and are
-          removed. A shift only translates marks, so it can never complete a
-          line and never wins on its own.
-        </p>
-        <p className={styles.shiftHelpParagraph}>
-          It exists to balance the game: X moves first, and O&apos;s single shift is
-          the compensation that keeps things fair.
-        </p>
-      </UIDialog>
     </div>
   );
 };

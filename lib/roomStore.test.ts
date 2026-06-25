@@ -112,4 +112,34 @@ describe("shiftBoardAction validation", () => {
       error: "shift-used",
     });
   });
+
+  // Locks in the exact availability/turn behaviour the room UI gates its shift
+  // controls on (canShiftNow): O may shift only on O's turn, exactly once, the
+  // shift consumes the turn, and it translates marks (pushing off the edge).
+  it("makes the shift available only on O's turn, once, and translates the board", () => {
+    const { id } = seatedRoom();
+
+    // X's turn: the shift is not yet available to O.
+    let room = getRoom(id);
+    expect(room?.xIsNext).toBe(true);
+    expect(room?.oShiftUsed).toBe(false);
+    expect(shiftBoardAction(id, "left", PO)).toEqual({
+      ok: false,
+      error: "not-your-turn",
+    });
+
+    // X plays the top-left corner, handing the turn to O.
+    expect(makeMove(id, 0, PX).ok).toBe(true);
+    room = getRoom(id);
+    expect(room?.xIsNext).toBe(false); // now O's turn -> shift is available
+    expect(room?.board[0]).toBe("X");
+
+    // O shifts the grid left: every mark slides one cell toward the left edge,
+    // and the X in column 0 is pushed off the board and removed.
+    expect(shiftBoardAction(id, "left", PO).ok).toBe(true);
+    room = getRoom(id);
+    expect(room?.board.every((cell) => cell === null)).toBe(true);
+    expect(room?.oShiftUsed).toBe(true);
+    expect(room?.xIsNext).toBe(true); // the shift used up O's whole turn
+  });
 });
