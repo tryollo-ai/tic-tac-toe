@@ -8,12 +8,12 @@ import {
 const SIXTH = 100 / 6; // center of an edge cell on a 3-column board
 const HALF = 50; // center of the middle cell/row
 
-// Endpoints are pushed 0.8 of a half-cell (100/6) past each end cell's center
-// toward its outer edge, i.e. a 0.8 * 100/6 ≈ 13.33 shift. So an edge cell's
-// endpoint moves from 100/6 to either ~3.33 (toward the near edge) or, mirrored
-// at the far end, to ~96.67.
-const NEAR = 100 / 30; // 3.333 - edge-cell endpoint pushed toward the near edge
-const FAR = 100 - 100 / 30; // 96.667 - the opposite end
+// Endpoints are pushed 0.7 of a half-cell (100/6) past each end cell's center
+// toward its outer edge, i.e. a 0.7 * 100/6 ≈ 11.67 shift. So an edge cell's
+// endpoint moves from 100/6 to either 5 (toward the near edge) or, mirrored at
+// the far end, to 95.
+const NEAR = 5; // edge-cell endpoint pushed toward the near edge
+const FAR = 95; // the opposite end
 
 function expectCoords(actual: WinningLineCoords, expected: WinningLineCoords) {
   expect(actual.x1).toBeCloseTo(expected.x1, 6);
