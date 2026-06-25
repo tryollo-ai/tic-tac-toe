@@ -4,19 +4,14 @@ import Square from "@/common/components/Square";
 import WinningLine from "@/common/components/WinningLine";
 import styles from "./styles.module.scss";
 
-interface BoardProps {
+type Props = {
   board: BoardState;
   winningLine: readonly number[] | null;
   onSquareClick: (index: number) => void;
   disabled: boolean;
-}
+};
 
-const Board = ({
-  board,
-  winningLine,
-  onSquareClick,
-  disabled,
-}: BoardProps) => {
+const Board = (props: Props) => {
   return (
     <div
       className={styles.root}
@@ -24,17 +19,17 @@ const Board = ({
       aria-label="Tic-tac-toe board"
       style={{ gridTemplateColumns: `repeat(${INITIAL_SIZE}, 1fr)` }}
     >
-      {board.map((value, index) => (
+      {props.board.map((value, index) => (
         <Square
           key={index}
           index={index}
           value={value}
-          isWinning={winningLine?.includes(index) ?? false}
-          onClick={() => onSquareClick(index)}
-          disabled={disabled}
+          isWinning={props.winningLine?.includes(index) ?? false}
+          onClick={() => props.onSquareClick(index)}
+          disabled={props.disabled}
         />
       ))}
-      {winningLine && <WinningLine line={winningLine} />}
+      {props.winningLine && <WinningLine line={props.winningLine} />}
     </div>
   );
 };

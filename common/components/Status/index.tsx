@@ -7,12 +7,12 @@ export type StatusTone = "x" | "o" | "draw" | "neutral";
 export const playerTone = (player: "X" | "O"): StatusTone =>
   player === "X" ? "x" : "o";
 
-interface StatusProps {
+type Props = {
   message: string;
   tone: StatusTone;
-}
+};
 
-const Status = ({ message, tone }: StatusProps) => {
+const Status = (props: Props) => {
   const toneClass: Record<StatusTone, string> = {
     x: styles.x,
     o: styles.o,
@@ -21,8 +21,8 @@ const Status = ({ message, tone }: StatusProps) => {
   };
 
   return (
-    <div className={classNames(styles.root, toneClass[tone])} role="status" aria-live="polite">
-      {message}
+    <div className={classNames(styles.root, toneClass[props.tone])} role="status" aria-live="polite">
+      {props.message}
     </div>
   );
 };

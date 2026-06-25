@@ -21,9 +21,9 @@ import Status, { type StatusTone, playerTone } from "@/common/components/Status"
 import Scoreboard from "@/common/components/Scoreboard";
 import styles from "./styles.module.scss";
 
-interface RoomGameProps {
+type Props = {
   id: string;
-}
+};
 
 /** User-facing copy for the room error codes the UI can surface. */
 const ROOM_ERROR_MESSAGES: Record<string, string> = {
@@ -48,14 +48,14 @@ function roomErrorMessage(err: unknown, fallback: string): string {
   return ROOM_ERROR_MESSAGES[roomErrorCode(err)] ?? fallback;
 }
 
-const RoomGame = ({ id }: RoomGameProps) => {
+const RoomGame = (props: Props) => {
   const playerId = usePlayerId();
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const fetcher = useCallback(
-    (signal: AbortSignal) => fetchRoom(id, playerId, signal),
-    [id, playerId],
+    (signal: AbortSignal) => fetchRoom(props.id, playerId, signal),
+    [props.id, playerId],
   );
   const { data: room, error, setData } = usePolling<RoomView>(
     fetcher,
@@ -78,7 +78,7 @@ const RoomGame = ({ id }: RoomGameProps) => {
   useEffect(() => {
     if (!playerId || !mySeat) return;
     const release = () => {
-      fetch(`/api/rooms/${id}/seat`, {
+      fetch(`/api/rooms/${props.id}/seat`, {
         method: "DELETE",
         keepalive: true,
         headers: { "Content-Type": "application/json" },
@@ -90,7 +90,7 @@ const RoomGame = ({ id }: RoomGameProps) => {
       window.removeEventListener("pagehide", release);
       release();
     };
-  }, [id, playerId, mySeat]);
+  }, [props.id, playerId, mySeat]);
 
   const handleMove = useCallback(
     async (index: number) => {
@@ -117,7 +117,7 @@ const RoomGame = ({ id }: RoomGameProps) => {
       setPaused(true);
       setActionError(null);
       try {
-        const updated = await makeMove(id, playerId, index);
+        const updated = await makeMove(props.id, playerId, index);
         setData(updated);
       } catch (err) {
         setData(snapshot);
@@ -126,7 +126,7 @@ const RoomGame = ({ id }: RoomGameProps) => {
         setPaused(false);
       }
     },
-    [room, playerId, mySeat, id, setData],
+    [room, playerId, mySeat, props.id, setData],
   );
 
   const runAction = useCallback(
@@ -148,32 +148,38 @@ const RoomGame = ({ id }: RoomGameProps) => {
     (seat: Player) => {
       if (!playerId) return;
       void runAction(
-        () => claimSeat(id, playerId, seat),
+        () => claimSeat(props.id, playerId, seat),
         "Could not claim that seat.",
       );
     },
-    [id, playerId, runAction],
+    [props.id, playerId, runAction],
   );
 
   const handleLeave = useCallback(() => {
     if (!playerId) return;
-    void runAction(() => leaveSeat(id, playerId), "Could not leave the seat.");
-  }, [id, playerId, runAction]);
+    void runAction(
+      () => leaveSeat(props.id, playerId),
+      "Could not leave the seat.",
+    );
+  }, [props.id, playerId, runAction]);
 
   const handleNewGame = useCallback(() => {
     if (!playerId) return;
-    void runAction(() => resetRoom(id, playerId), "Could not start a new game.");
-  }, [id, playerId, runAction]);
+    void runAction(
+      () => resetRoom(props.id, playerId),
+      "Could not start a new game.",
+    );
+  }, [props.id, playerId, runAction]);
 
   const handleShift = useCallback(
     (direction: Direction) => {
       if (!playerId) return;
       void runAction(
-        () => shiftRoom(id, playerId, direction),
+        () => shiftRoom(props.id, playerId, direction),
         "Could not shift the grid.",
       );
     },
-    [id, playerId, runAction],
+    [props.id, playerId, runAction],
   );
 
   if (notFound) {

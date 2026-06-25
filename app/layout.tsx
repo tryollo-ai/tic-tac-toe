@@ -6,14 +6,14 @@ export const metadata: Metadata = {
   description: "Play tic-tac-toe against a friend or an unbeatable AI.",
 };
 
-const RootLayout = ({
-  children,
-}: {
+type Props = {
   children: React.ReactNode;
-}) => {
+};
+
+const RootLayout = (props: Props) => {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>{props.children}</body>
     </html>
   );
 };
