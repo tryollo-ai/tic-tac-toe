@@ -60,6 +60,15 @@ Keeping the claim per-ticket makes each ticket's lifecycle self-contained - one 
 
 The same per-ticket job ends with a park step that always runs.
 If the job finishes without an open PR for `fm/issue-<number>` - a failed run, a risky finding the agent stopped on, or no change needed - the ticket is moved to `claude:needs-captain` and a comment is left, so it parks for you instead of being stranded in `claude:in-progress`.
+The park comment is not a fixed string: it diagnoses what actually happened, quoting the agent's own final message (its reason for stopping) on a run that finished, or a "failed or timed out" message otherwise, and always links back to the run.
+
+## Run transcript and parking diagnostics
+
+The dispatch job reads the `execution_file` output that `claude-code-action@v1` writes (a JSON log of the run) and turns it into something readable, via the pure `agentRunReport` helper (`scripts/agent-loop/agentRunReport.ts`, covered by `agentRunReport.test.ts`, CLI `agentRunReport.cli.ts` / `npm run agent-run-report`):
+
+- **Run Summary.** A `Summarize the agent run` step renders the run as a clean Claude-and-tools conversation - assistant text plus one compact line per tool call - on the run's **Summary** tab. The noisy tool-result blocks are dropped, which is both more readable than `show_full_output` and safer (those tool-result blocks were the secret-leak vector). It is `continue-on-error` and runs on `if: always()`, so it never fails the job and still summarizes a failed run.
+- **Park comment.** The park step builds its comment from `extractResult(...)` (the agent's final message) plus the agent step's `outcome` and a link to the run, posting it with `gh issue comment --body-file` (the agent text is never interpolated into a shell line). A missing or partial `execution_file` (e.g. from a hard timeout) degrades to a generic message, never an empty comment.
+
 The park step is deliberately resilient: it only skips parking on a *confirmed* open PR, and parks on any uncertainty (the PR check errored or returned nothing).
 When a PR is open, the claim stays in place and the PR waits for you.
 Each per-ticket job also carries a 30-minute `timeout-minutes`, so a hung agent run is cut off rather than holding a runner indefinitely; because the park step runs with `if: always()`, it still fires on a timeout and the ticket is parked instead of stranded in `claude:in-progress`.

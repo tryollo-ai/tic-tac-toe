@@ -289,6 +289,20 @@ Conventions worth preserving when touching this code:
   job never mutates labels; each `work` job claims as its first step and, with
   `if: always()`, parks to `claude:needs-captain` unless a PR for its branch is
   *confirmed* open (park on any uncertainty - never strand a claim).
+- **Run diagnostics from the execution_file, in tested TS.** The dispatch job
+  reads `claude-code-action@v1`'s `execution_file` output through the pure
+  `agentRunReport` helper (`scripts/agent-loop/agentRunReport.ts`, tested by
+  `agentRunReport.test.ts`, CLI `agentRunReport.cli.ts` / `npm run
+  agent-run-report`): `formatTranscript` renders a clean Claude-and-tools
+  conversation (tool-result blocks dropped) onto the run Summary, and
+  `extractResult` + `formatParkComment` build the park comment from the agent's
+  own final message (its reason for stopping) keyed off the agent step's
+  `outcome`, posted via `--body-file`. All of it is defensive: a missing,
+  partial, or malformed `execution_file` (e.g. a timed-out run) degrades to a
+  generic message, never an error or an empty comment. There is no `conclusion`
+  output in v1 - detect success/failure via `steps.<id>.outcome`. Do not bring
+  back `show_full_output`; the transcript replaces it and avoids leaking the
+  secrets those tool-result blocks could carry.
 - **No event data in shell.** Never interpolate `github.event.*` (or `matrix.*`)
   into a `run:` line; pass it through `env:` and reference the quoted variable, to
   avoid Actions script injection. Validate the numeric `max` input in the CLI.
