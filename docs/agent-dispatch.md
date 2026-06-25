@@ -1,4 +1,4 @@
-# Trigger Coder Agent
+# Trigger - issue agent
 
 An opt-in, scheduled loop that turns Kanban tickets into reviewable pull requests.
 

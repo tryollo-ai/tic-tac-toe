@@ -1,4 +1,4 @@
-name: Trigger Coder Agent
+name: Trigger - issue agent
 
 # Twice a day (and on demand), pick up to 3 opt-in tickets by priority, claim
 # them so a later run won't re-pull them, and run one agent per ticket. Each
