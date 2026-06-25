@@ -23,7 +23,7 @@ Both installer workflows authenticate with the `CLAUDE_CODE_OAUTH_TOKEN` secret 
 
 ## Opt-in: label **and** Ready column
 
-A ticket is eligible **only** when both of these hold, and it is not already `claude:in-progress` or `claude:needs-captain`:
+A ticket is eligible **only** when both of these hold, and it is not already `claude:in-progress` or `claude:needs-help`:
 
 1. **It carries the `agent:ready` label.** This marks the ticket as *automatable* - something the loop is allowed to touch at all.
 2. **Its card sits in the board's "Ready" column** (Projects v2 Status = `Ready`, matched case-insensitively). This says *work it now*.
@@ -75,7 +75,7 @@ That is the claim lock: a later run will not re-pull a ticket that is already in
 Keeping the claim per-ticket makes each ticket's lifecycle self-contained - one ticket failing to claim or run can never strand another.
 
 The same per-ticket job ends with a park step that always runs.
-If the job finishes without an open PR for `fm/issue-<number>` - a failed run, a risky finding the agent stopped on, or no change needed - the ticket is moved to `claude:needs-captain` and a comment is left, so it parks for you instead of being stranded in `claude:in-progress`.
+If the job finishes without an open PR for `fm/issue-<number>` - a failed run, a risky finding the agent stopped on, or no change needed - the ticket is moved to `claude:needs-help` and a comment is left, so it parks for you instead of being stranded in `claude:in-progress`.
 The park comment is not a fixed string: it diagnoses what actually happened, quoting the agent's own final message (its reason for stopping) on a run that finished, or a "failed or timed out" message otherwise, and always links back to the run.
 
 ## Run transcript and parking diagnostics
@@ -106,7 +106,7 @@ which auto-detects the runner's platform build and puts `no-mistakes` on `PATH` 
 
 ## Board sync and the Ready-column gate
 
-The agent loop drives issue **labels** (`claude:in-progress`, `claude:needs-captain`).
+The agent loop drives issue **labels** (`claude:in-progress`, `claude:needs-help`).
 On a GitHub Projects v2 board, the *column* a card sits in is driven by the project's single-select **Status** field, not by labels.
 The board's Status field is used in two directions, both via a `PROJECTS_TOKEN` minted at runtime from the `PROJECTS_APP` GitHub App:
 
@@ -124,7 +124,7 @@ Once set up, the workflows move the card automatically:
 
 - **Claimed** -> `In Progress` (dispatch, right after `claude:in-progress` is added).
 - **PR opened** -> `In Review` (dispatch, when an open PR exists for the branch).
-- **Parked** -> `Needs captain` (dispatch, alongside the `claude:needs-captain` label when no PR was opened).
+- **Parked** -> `Needs captain` (dispatch, alongside the `claude:needs-help` label when no PR was opened).
 
 `@claude` follow-ups on an existing PR (via the installer's `claude.yml`) do not move the card; the PR is already in `In Review` and stays there until you merge it.
 
@@ -146,4 +146,4 @@ The loop is built so you can prove it before trusting the schedule:
 - Nothing merges automatically - the captain merges every PR.
 - PR follow-ups only fire on an explicit `@claude` mention (the installer's `claude.yml`), so the agent acts when you ask it to rather than on every comment.
 - Event data (the dispatch `max` input, PR numbers) is never interpolated into a shell `run:` line; it is passed through `env:` and referenced as a quoted variable, which avoids GitHub Actions script injection.
-- no-mistakes runs in full; routine findings are auto-approved, and genuinely risky or irreversible ones stop the run cleanly. Any run that ends without an open PR - a clean risky stop or an outright failure - parks the ticket to `claude:needs-captain` rather than leaving it stuck in `claude:in-progress`.
+- no-mistakes runs in full; routine findings are auto-approved, and genuinely risky or irreversible ones stop the run cleanly. Any run that ends without an open PR - a clean risky stop or an outright failure - parks the ticket to `claude:needs-help` rather than leaving it stuck in `claude:in-progress`.

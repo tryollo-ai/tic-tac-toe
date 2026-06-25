@@ -306,7 +306,7 @@ Conventions worth preserving when touching this code:
   loop selects nothing rather than falling back to label-only.
 - **Read-only select, per-ticket claim, resilient park.** The dispatch `select`
   job never mutates labels; each `work` job claims as its first step and, with
-  `if: always()`, parks to `claude:needs-captain` unless a PR for its branch is
+  `if: always()`, parks to `claude:needs-help` unless a PR for its branch is
   *confirmed* open (park on any uncertainty - never strand a claim).
 - **Run diagnostics from the execution_file, in tested TS.** The dispatch job
   reads `claude-code-action@v1`'s `execution_file` output through the pure

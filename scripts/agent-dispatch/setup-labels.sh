@@ -9,7 +9,7 @@
 #   priority:med
 #   priority:low          ordering: worked last among eligible tickets
 #   claude:in-progress    claim lock written when a run starts a ticket
-#   claude:needs-captain  parked for the captain (a risky finding, or a failed run)
+#   claude:needs-help     parked for the captain (a risky finding, or a failed run)
 #   type:tracking         optional marker for non-deliverable / tracking tickets
 #
 # Uses plain `gh` (present on GitHub runners and locally). NOT gh-axi: its
@@ -56,7 +56,7 @@ ensure_label "priority:high"        "d93f0b" "Agent loop: high priority"
 ensure_label "priority:med"         "fbca04" "Agent loop: medium priority"
 ensure_label "priority:low"         "0e8a16" "Agent loop: low priority"
 ensure_label "claude:in-progress"   "1d76db" "Agent loop: claimed and in flight"
-ensure_label "claude:needs-captain" "5319e7" "Agent loop: parked for the captain's decision"
+ensure_label "claude:needs-help"    "5319e7" "Agent loop: parked for the captain's decision"
 ensure_label "type:tracking"        "c5def5" "Tracking / non-deliverable; not for the agent"
 
 if [ "$failures" -gt 0 ]; then
