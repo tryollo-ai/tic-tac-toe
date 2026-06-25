@@ -1,0 +1,30 @@
+.overlay {
+  position: absolute;
+  // Cover exactly the grid's cell area, inside the board's 14px padding, so the
+  // percentage-based endpoints line up with the cell centers. The size must be
+  // explicit: a bare <svg> keeps its intrinsic 300x150 size under `inset` alone
+  // (replaced elements don't stretch), which would skew the percentages.
+  top: 14px;
+  left: 14px;
+  width: calc(100% - 28px);
+  height: calc(100% - 28px);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.line {
+  stroke: var(--win);
+  stroke-width: 8;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.6));
+  animation: draw 0.35s ease-out;
+}
+
+@keyframes draw {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

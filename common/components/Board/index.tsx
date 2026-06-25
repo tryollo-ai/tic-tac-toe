@@ -1,6 +1,7 @@
 import { INITIAL_SIZE } from "@/constants/game";
 import { type Board as BoardState } from "@/utils/gameLogic";
 import Square from "@/common/components/Square";
+import WinningLine from "@/common/components/WinningLine";
 import styles from "./styles.module.scss";
 
 interface BoardProps {
@@ -33,6 +34,7 @@ const Board = ({
           disabled={disabled}
         />
       ))}
+      {winningLine && <WinningLine line={winningLine} />}
     </div>
   );
 };
