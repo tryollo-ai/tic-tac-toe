@@ -204,7 +204,10 @@ const RoomGame = (props: Props) => {
         "Could not start a new game.",
       );
     }, AUTO_RESET_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      resetScheduledRef.current = false;
+    };
   }, [room?.status, room?.seats.X, mySeat, playerId, props.id, runAction]);
 
   if (notFound) {
