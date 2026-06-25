@@ -39,6 +39,9 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Pin Opus 4.8 with the 1M-token context window. Single-quoted so the
+          # shell that splits claude_args does not glob-expand the [1m] brackets.
+          claude_args: "--model 'claude-opus-4-8[1m]'"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 

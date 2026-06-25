@@ -150,7 +150,6 @@ jobs:
           # credential the installer-provided claude.yml / claude-code-review.yml use.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
-          show_full_output: true
           prompt: |
             You are working ticket #${{ matrix.number }} in this repository.
             The full ticket (title, body, url) is in ticket.json at the repo root - read it first.
@@ -166,7 +165,10 @@ jobs:
             4. The no-mistakes pipeline opens the PR. Make sure the PR body says
                "Closes #${{ matrix.number }}".
             Never merge anything. The captain merges.
-          claude_args: "--allowedTools Bash,Edit,Write,Read,Glob,Grep"
+          # Pin Opus 4.8 with the 1M-token context window ([1m] is Claude Code's
+          # context-window selector). Single-quoted so the shell that splits
+          # claude_args does not glob-expand the brackets.
+          claude_args: "--model 'claude-opus-4-8[1m]' --allowedTools Bash,Edit,Write,Read,Glob,Grep"
 
       - name: Park ticket if no PR was opened
         if: always()
