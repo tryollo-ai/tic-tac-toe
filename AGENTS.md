@@ -270,11 +270,11 @@ An opt-in, scheduled "issue -> PR" loop lives under `.github/workflows/` and
 issues `agent:ready` (plus a `priority:*`); twice daily `agent-dispatch.yml`
 selects up to three, claims each (`claude:in-progress`, drop `agent:ready`),
 runs one `anthropics/claude-code-action@v1` agent per ticket on branch
-`fm/issue-<n>`, and lets `/no-mistakes` open the PR. `agent-respond.yml` wakes an
-agent when the repo OWNER requests changes or `@claude`-mentions on an
-`fm/issue-*` PR; the owner-only guard is what prevents the loop from reacting to
-its own bot activity. Nothing is ever merged automatically. Full operator
-docs are in `docs/agent-loop.md`.
+`fm/issue-<n>`, and lets `/no-mistakes` open the PR. PR follow-ups are handled by
+the Claude Code GitHub installer's own workflows (`claude.yml`, which wakes an
+agent on an `@claude` mention, and `claude-code-review.yml`), not by a workflow we
+own. Nothing is ever merged automatically. Full operator docs are in
+`docs/agent-loop.md`.
 
 Conventions worth preserving when touching this code:
 
@@ -292,24 +292,25 @@ Conventions worth preserving when touching this code:
 - **No event data in shell.** Never interpolate `github.event.*` (or `matrix.*`)
   into a `run:` line; pass it through `env:` and reference the quoted variable, to
   avoid Actions script injection. Validate the numeric `max` input in the CLI.
-- **Static-key auth, no OIDC.** `anthropics/claude-code-action@v1` is authenticated
-  with the `ANTHROPIC_API_KEY` secret and the workflow's default `GITHUB_TOKEN`
-  (passed as `github_token: ${{ github.token }}`); the Claude GitHub App is not
-  installed. Each job that runs the action grants it `actions: read` alongside the
-  existing `contents`/`issues`/`pull-requests: write`. Never add `id-token: write` -
-  there is no App to consume the OIDC token, so it would only move the failure
-  rather than fix it.
-- The `no-mistakes` CLI is installed on the runner by each workflow's "Install
-  no-mistakes CLI" step (the hardcoded `docs/install.sh` curl one-liner); the only
-  one-time setup is the `ANTHROPIC_API_KEY` secret and running
-  `scripts/agent-loop/setup-labels.sh` (idempotent, plain `gh`) to create labels.
+- **OAuth-token auth (subscription).** `agent-dispatch.yml` authenticates
+  `anthropics/claude-code-action@v1` with the `CLAUDE_CODE_OAUTH_TOKEN` secret (a
+  Claude subscription token, added by the Claude Code GitHub installer and shared
+  with the installer's `claude.yml` / `claude-code-review.yml`) plus the workflow's
+  default `GITHUB_TOKEN` (passed as `github_token: ${{ github.token }}`). Each job
+  that runs the action grants it `actions: read` alongside the existing
+  `contents`/`issues`/`pull-requests: write`.
+- The `no-mistakes` CLI is installed on the runner by the dispatch workflow's
+  "Install no-mistakes CLI" step (the hardcoded `docs/install.sh` curl one-liner);
+  the only one-time setup is the `CLAUDE_CODE_OAUTH_TOKEN` secret (from the Claude
+  Code GitHub installer) and running `scripts/agent-loop/setup-labels.sh`
+  (idempotent, plain `gh`) to create labels.
 - **Board sync is best-effort and label-independent.** Projects v2 columns are
   driven by the project's single-select `Status` field, not by labels, so the
   workflows also call the pure `setProjectStatus(...)` helper
   (`scripts/agent-loop/setProjectStatus.ts`, tested by `setProjectStatus.test.ts`,
   CLI `setProjectStatus.cli.ts` / `npm run set-project-status`) to move the card:
-  `In Progress` after claim, `In Review` when a PR is open (dispatch and respond),
-  `Needs captain` on the park path. It authenticates with a separate
+  `In Progress` after claim, `In Review` when a PR is open, `Needs captain` on the
+  park path. It authenticates with a separate
   `PROJECTS_TOKEN` PAT (the default `GITHUB_TOKEN` cannot write user/org Projects
   v2) and matches the `Status` option name case-insensitively. The helper, its CLI,
   and the workflow steps (`continue-on-error: true`) are all non-fatal: a missing

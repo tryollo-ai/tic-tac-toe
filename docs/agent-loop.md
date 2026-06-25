@@ -7,13 +7,19 @@ An opt-in, scheduled loop that turns Kanban tickets into reviewable pull request
 You open tickets on the repository's GitHub issues / Project board and mark the ones you want worked.
 Twice a day a workflow picks up to three of those tickets by priority, claims them, and runs one agent per ticket.
 Each agent implements its ticket, validates with no-mistakes, and opens a pull request.
-When you ask for changes on one of those PRs, a second workflow wakes an agent to address the feedback.
+When you want changes on one of those PRs, you `@claude`-mention it in a comment and the Claude Code app wakes an agent to address the feedback.
 Nothing is ever merged automatically; every PR waits for you.
 
-Two workflows make this up:
+The dispatch loop is one workflow we own:
 
 - `.github/workflows/agent-dispatch.yml` - scheduled (00:00 and 12:00 UTC) and manual; selects, claims, and fans out work.
-- `.github/workflows/agent-respond.yml` - event-driven; wakes an agent when you request changes on an agent PR.
+
+PR follow-ups are handled by the workflows the [Claude Code GitHub installer](https://code.claude.com/docs/en/github-actions) adds, not by this loop:
+
+- `.github/workflows/claude.yml` - event-driven; wakes an agent when you `@claude`-mention an issue or PR.
+- `.github/workflows/claude-code-review.yml` - event-driven; runs an automated review when a PR is opened or updated.
+
+Both installer workflows authenticate with the `CLAUDE_CODE_OAUTH_TOKEN` secret (your Claude subscription), and `agent-dispatch.yml` uses that same token.
 
 ## Opt-in by label
 
@@ -57,14 +63,13 @@ If the job finishes without an open PR for `fm/issue-<number>` - a failed run, a
 The park step is deliberately resilient: it only skips parking on a *confirmed* open PR, and parks on any uncertainty (the PR check errored or returned nothing).
 When a PR is open, the claim stays in place and the PR waits for you.
 Each per-ticket job also carries a 30-minute `timeout-minutes`, so a hung agent run is cut off rather than holding a runner indefinitely; because the park step runs with `if: always()`, it still fires on a timeout and the ticket is parked instead of stranded in `claude:in-progress`.
-The responder job (`agent-respond.yml`) has the same 30-minute bound.
 
 ## One-time setup
 
 1. **Labels.** Run `scripts/agent-loop/setup-labels.sh` (optionally `--repo owner/name`) to create the labels idempotently.
-2. **API key.** Add an `ANTHROPIC_API_KEY` repository secret (Settings -> Secrets and variables -> Actions).
-   The workflows authenticate `anthropics/claude-code-action@v1` with this static key and pass the workflow's default `GITHUB_TOKEN` as `github_token`, so the Claude GitHub App is not required and the action never fetches an OIDC token.
-   The action's GitHub work runs under that default token, so each job that runs the action grants it `contents`/`issues`/`pull-requests: write` plus `actions: read` (no `id-token: write`).
+2. **Claude Code OAuth token.** Install the Claude GitHub app and run the [Claude Code GitHub installer](https://code.claude.com/docs/en/github-actions) (`/install-github-app` from the Claude Code CLI), which adds the `claude.yml` / `claude-code-review.yml` workflows and stores a `CLAUDE_CODE_OAUTH_TOKEN` repository secret (Settings -> Secrets and variables -> Actions).
+   `agent-dispatch.yml` authenticates `anthropics/claude-code-action@v1` with that same token (your Claude subscription) rather than a metered API key, and passes the workflow's default `GITHUB_TOKEN` as `github_token`.
+   The action's GitHub work runs under that default token, so each job that runs the action grants it `contents`/`issues`/`pull-requests: write` plus `actions: read`.
 
 That is the whole setup. The workflows install the `no-mistakes` CLI on the runner automatically, via
 
@@ -91,8 +96,10 @@ To enable it:
 Once set up, the workflows move the card automatically:
 
 - **Claimed** -> `In Progress` (dispatch, right after `claude:in-progress` is added).
-- **PR opened** -> `In Review` (dispatch, when an open PR exists for the branch; and respond, after the agent pushes an update for requested changes).
+- **PR opened** -> `In Review` (dispatch, when an open PR exists for the branch).
 - **Parked** -> `Needs captain` (dispatch, alongside the `claude:needs-captain` label when no PR was opened).
+
+`@claude` follow-ups on an existing PR (via the installer's `claude.yml`) do not move the card; the PR is already in `In Review` and stays there until you merge it.
 
 The mechanics live in the pure `setProjectStatus(...)` helper (`scripts/agent-loop/setProjectStatus.ts`, covered by `setProjectStatus.test.ts`), called by the thin CLI `setProjectStatus.cli.ts` (also `npm run set-project-status`).
 Both the CLI and the helper are non-fatal by design - a missing `PROJECTS_TOKEN`, an issue on no project, a missing `Status` field or option, or any API error logs a clear message and exits `0`.
@@ -102,14 +109,14 @@ The workflow steps additionally carry `continue-on-error: true`, so board sync c
 
 The loop is built so you can prove it before trusting the schedule:
 
-1. Run `scripts/agent-loop/setup-labels.sh` and add the `ANTHROPIC_API_KEY` secret.
+1. Run `scripts/agent-loop/setup-labels.sh` and make sure the `CLAUDE_CODE_OAUTH_TOKEN` secret is in place (added by the Claude Code GitHub installer).
 2. Create one disposable ticket, label it `agent:ready` + `priority:low`, and trigger `agent-dispatch` manually (Actions -> Agent issue dispatch -> Run workflow).
-3. Confirm it implements, runs no-mistakes, and opens a PR. Then request changes on that PR and confirm `agent-respond` wakes and updates it.
+3. Confirm it implements, runs no-mistakes, and opens a PR. Then `@claude`-mention that PR with a change request and confirm `claude.yml` wakes and updates it.
 4. Once the dry-run is clean, the twice-daily schedule is already wired; the loop runs on its own from there.
 
 ## Safety
 
 - Nothing merges automatically - the captain merges every PR.
-- The responder only reacts to the repository owner, so it never loops on its own bot comments or pushes.
+- PR follow-ups only fire on an explicit `@claude` mention (the installer's `claude.yml`), so the agent acts when you ask it to rather than on every comment.
 - Event data (the dispatch `max` input, PR numbers) is never interpolated into a shell `run:` line; it is passed through `env:` and referenced as a quoted variable, which avoids GitHub Actions script injection.
 - no-mistakes runs in full; routine findings are auto-approved, and genuinely risky or irreversible ones stop the run cleanly. Any run that ends without an open PR - a clean risky stop or an outright failure - parks the ticket to `claude:needs-captain` rather than leaving it stuck in `claude:in-progress`.

@@ -94,7 +94,7 @@ lib/usePolling.ts         # Client hook: poll the server on an interval
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 constants/game.ts         # Cross-cutting domain constants (board size, AI seat sentinel)
 scripts/agent-loop/       # Opt-in CI "issue -> PR" loop: ticket selector, label setup, board sync
-.github/workflows/        # Agent loop dispatch + PR responder workflows (see docs/agent-loop.md)
+.github/workflows/        # Agent loop dispatch + Claude Code app workflows (see docs/agent-loop.md)
 ```
 
 See [AGENTS.md](./AGENTS.md) for contribution conventions (notably the styling

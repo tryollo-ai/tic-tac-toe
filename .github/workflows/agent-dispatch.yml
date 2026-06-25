@@ -144,7 +144,11 @@ jobs:
       - name: Run agent (implement + no-mistakes -> PR)
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Authenticate with the Claude Code OAuth token (your Claude subscription)
+          # rather than a metered ANTHROPIC_API_KEY. Set up by the Claude Code GitHub
+          # installer and stored as the CLAUDE_CODE_OAUTH_TOKEN secret - the same
+          # credential the installer-provided claude.yml / claude-code-review.yml use.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           show_full_output: true
           prompt: |
