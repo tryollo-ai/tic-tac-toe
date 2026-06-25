@@ -123,6 +123,27 @@ components.
   `export default function Name(...) { ... }`. This applies to shared components
   in `common/components/` as well as the App Router `page.tsx`/`layout.tsx`
   entry points.
+- **Type props as a local `type Props` and read them through a single `props`
+  argument.** Every component that takes props declares its prop type as a local
+  `type Props = { ... }` (a `type` alias named exactly `Props`, not an
+  `interface` and not `<Name>Props`), accepts one parameter `(props: Props)`
+  without destructuring it in the parameter list, and accesses each field as
+  `props.<field>` in the body and JSX. This applies to shared components and to
+  App Router `page.tsx`/`layout.tsx` entry points alike. For example:
+
+  ```tsx
+  type Props = {
+    board: Board;
+  };
+
+  const MiniBoard = (props: Props) => {
+    return <div>{props.board.length}</div>;
+  };
+  ```
+
+  Non-prop types a component also exports (e.g. `Scores`, `StatusTone`) keep
+  their own descriptive names and `export`; only the props object uses the local
+  `type Props` name.
 
 ## Layout conventions
 

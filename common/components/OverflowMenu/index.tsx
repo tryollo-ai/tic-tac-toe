@@ -6,23 +6,16 @@ import type { GameMode } from "@/common/components/Game";
 import Scoreboard, { type Scores } from "@/common/components/Scoreboard";
 import styles from "./styles.module.scss";
 
-interface OverflowMenuProps {
+type Props = {
   mode: GameMode;
   onModeChange: (mode: GameMode) => void;
   scores: Scores;
   xLabel: string;
   oLabel: string;
   onResetScores: () => void;
-}
+};
 
-const OverflowMenu = ({
-  mode,
-  onModeChange,
-  scores,
-  xLabel,
-  oLabel,
-  onResetScores,
-}: OverflowMenuProps) => {
+const OverflowMenu = (props: Props) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -76,7 +69,11 @@ const OverflowMenu = ({
         <div className={styles.popover} id={menuId} role="menu">
           <section className={styles.section}>
             <h2 className={styles.heading}>Scores</h2>
-            <Scoreboard scores={scores} xLabel={xLabel} oLabel={oLabel} />
+            <Scoreboard
+              scores={props.scores}
+              xLabel={props.xLabel}
+              oLabel={props.oLabel}
+            />
           </section>
 
           <section className={styles.section}>
@@ -88,17 +85,19 @@ const OverflowMenu = ({
             >
               <button
                 type="button"
-                className={classNames({ [styles.active]: mode === "two-player" })}
-                onClick={() => onModeChange("two-player")}
-                aria-pressed={mode === "two-player"}
+                className={classNames({
+                  [styles.active]: props.mode === "two-player",
+                })}
+                onClick={() => props.onModeChange("two-player")}
+                aria-pressed={props.mode === "two-player"}
               >
                 2 Players
               </button>
               <button
                 type="button"
-                className={classNames({ [styles.active]: mode === "ai" })}
-                onClick={() => onModeChange("ai")}
-                aria-pressed={mode === "ai"}
+                className={classNames({ [styles.active]: props.mode === "ai" })}
+                onClick={() => props.onModeChange("ai")}
+                aria-pressed={props.mode === "ai"}
               >
                 vs AI
               </button>
@@ -109,7 +108,7 @@ const OverflowMenu = ({
             type="button"
             className={styles.reset}
             onClick={() => {
-              onResetScores();
+              props.onResetScores();
               setOpen(false);
             }}
           >

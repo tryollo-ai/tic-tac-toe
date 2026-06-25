@@ -1,13 +1,13 @@
 import { winningLineCoords } from "@/utils/winningLineGeometry";
 import styles from "./styles.module.scss";
 
-interface WinningLineProps {
+type Props = {
   /** The three winning cell indices, ordered along the line. */
   line: readonly number[];
-}
+};
 
-const WinningLine = ({ line }: WinningLineProps) => {
-  const { x1, y1, x2, y2 } = winningLineCoords(line);
+const WinningLine = (props: Props) => {
+  const { x1, y1, x2, y2 } = winningLineCoords(props.line);
   return (
     <svg
       className={styles.overlay}

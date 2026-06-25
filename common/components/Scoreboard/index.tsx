@@ -6,26 +6,26 @@ export interface Scores {
   draws: number;
 }
 
-interface ScoreboardProps {
+type Props = {
   scores: Scores;
   xLabel: string;
   oLabel: string;
-}
+};
 
-const Scoreboard = ({ scores, xLabel, oLabel }: ScoreboardProps) => {
+const Scoreboard = (props: Props) => {
   return (
     <div className={styles.root}>
       <div className={`${styles.item} ${styles.x}`}>
-        <span className={styles.label}>{xLabel}</span>
-        <span className={styles.value}>{scores.X}</span>
+        <span className={styles.label}>{props.xLabel}</span>
+        <span className={styles.value}>{props.scores.X}</span>
       </div>
       <div className={styles.item}>
         <span className={styles.label}>Draws</span>
-        <span className={styles.value}>{scores.draws}</span>
+        <span className={styles.value}>{props.scores.draws}</span>
       </div>
       <div className={`${styles.item} ${styles.o}`}>
-        <span className={styles.label}>{oLabel}</span>
-        <span className={styles.value}>{scores.O}</span>
+        <span className={styles.label}>{props.oLabel}</span>
+        <span className={styles.value}>{props.scores.O}</span>
       </div>
     </div>
   );

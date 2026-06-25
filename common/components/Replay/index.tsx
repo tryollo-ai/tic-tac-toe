@@ -13,14 +13,14 @@ import Board from "@/common/components/Board";
 import Status, { type StatusTone, playerTone } from "@/common/components/Status";
 import styles from "./styles.module.scss";
 
-interface ReplayProps {
+type Props = {
   id: string;
-}
+};
 
 /** Milliseconds between moves while auto-playing. */
 const AUTOPLAY_MS = 800;
 
-const Replay = ({ id }: ReplayProps) => {
+const Replay = (props: Props) => {
   const [game, setGame] = useState<CompletedGameView | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -31,7 +31,7 @@ const Replay = ({ id }: ReplayProps) => {
   // Completed games are immutable, so fetch once instead of polling.
   useEffect(() => {
     const controller = new AbortController();
-    fetchCompletedGame(id, controller.signal)
+    fetchCompletedGame(props.id, controller.signal)
       .then(setGame)
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
@@ -42,7 +42,7 @@ const Replay = ({ id }: ReplayProps) => {
         }
       });
     return () => controller.abort();
-  }, [id]);
+  }, [props.id]);
 
   const total = game ? game.actions.length : 0;
 

@@ -2,34 +2,28 @@ import classNames from "classnames";
 import type { Cell } from "@/utils/gameLogic";
 import styles from "./styles.module.scss";
 
-interface SquareProps {
+type Props = {
   value: Cell;
   onClick: () => void;
   isWinning: boolean;
   disabled: boolean;
   index: number;
-}
+};
 
-const Square = ({
-  value,
-  onClick,
-  isWinning,
-  disabled,
-  index,
-}: SquareProps) => {
+const Square = (props: Props) => {
   return (
     <button
       type="button"
       className={classNames(styles.square, {
-        [styles.x]: value === "X",
-        [styles.o]: value === "O",
-        [styles.winning]: isWinning,
+        [styles.x]: props.value === "X",
+        [styles.o]: props.value === "O",
+        [styles.winning]: props.isWinning,
       })}
-      onClick={onClick}
-      disabled={disabled || value !== null}
-      aria-label={`Square ${index + 1}${value ? `, ${value}` : ", empty"}`}
+      onClick={props.onClick}
+      disabled={props.disabled || props.value !== null}
+      aria-label={`Square ${props.index + 1}${props.value ? `, ${props.value}` : ", empty"}`}
     >
-      {value}
+      {props.value}
     </button>
   );
 };

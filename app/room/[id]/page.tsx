@@ -1,12 +1,12 @@
 import RoomGame from "@/common/components/RoomGame";
 import styles from "@/app/page.module.scss";
 
-const RoomPage = async ({
-  params,
-}: {
+type Props = {
   params: Promise<{ id: string }>;
-}) => {
-  const { id } = await params;
+};
+
+const RoomPage = async (props: Props) => {
+  const { id } = await props.params;
   return (
     <main className={styles.main}>
       <RoomGame id={id} />
