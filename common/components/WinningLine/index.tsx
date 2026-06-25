@@ -11,7 +11,6 @@ const WinningLine = ({ line }: WinningLineProps) => {
   return (
     <svg
       className={styles.overlay}
-      preserveAspectRatio="none"
       aria-hidden="true"
     >
       <line

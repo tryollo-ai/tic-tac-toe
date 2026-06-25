@@ -33,9 +33,13 @@ winning cells via the `WinningLine` component (`common/components/WinningLine/`)
 an absolutely-positioned SVG overlay rendered as the board's last child (the
 board root is `position: relative`). Endpoints come from the pure
 `winningLineCoords(line)` helper, which maps the first and last cell indices of
-the winning triple to center percentages (`(col + 0.5) / size`,
+the winning triple to exact-thirds percentages (`(col + 0.5) / size`,
 `(row + 0.5) / size`); since `calculateWinner` returns each triple ordered along
-its line, those two ends are correct for all eight wins. The overlay is sized to
+its line, those two ends are correct for all eight wins. These percentages are
+deliberately gap-agnostic: with the board's `gap: 10px`, corner-cell endpoints
+land ~3px (`gap / 3`) short of the true cell centers, an accepted approximation
+kept well within the round-capped stroke in exchange for resize-safety (the
+endpoints stay correct at any board size since they are pure percentages). The overlay is sized to
 the grid's cell area (`top/left: 14px; width/height: calc(100% - 28px)`, matching
 the board padding) with explicit dimensions - a bare `<svg>` keeps its intrinsic
 300x150 size under `inset` alone, which would skew the percentages - and is
