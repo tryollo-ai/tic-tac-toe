@@ -142,6 +142,7 @@ jobs:
           no-mistakes --version
 
       - name: Run agent (implement + no-mistakes -> PR)
+        id: agent
         uses: anthropics/claude-code-action@v1
         with:
           # Authenticate with the Claude Code OAuth token (your Claude subscription)
@@ -170,10 +171,33 @@ jobs:
           # claude_args does not glob-expand the brackets.
           claude_args: "--model 'claude-opus-4-8[1m]' --allowedTools Bash,Edit,Write,Read,Glob,Grep"
 
+      # Render the agent's run as a clean Claude <-> tools conversation on the
+      # run's Summary tab (assistant text + one line per tool call, tool-result
+      # metadata dropped). Cosmetic, so continue-on-error keeps a summary hiccup
+      # from failing the job; runs on always() so a failed/timed-out run is still
+      # summarized. The CLI treats a missing/partial execution_file as no events.
+      - name: Summarize the agent run
+        if: always()
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          set -u
+          npx tsx scripts/agent-loop/agentRunReport.cli.ts \
+            --mode transcript \
+            --execution-file "$EXECUTION_FILE" \
+            --title "Agent run - issue #$ISSUE_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Park ticket if no PR was opened
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          # The agent step's result and run log, routed through env (never
+          # interpolated into a shell line) so the park comment can say what
+          # actually happened instead of a fixed string.
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -u
           # Resilient by design: park on ANY uncertainty. The only branch that
@@ -187,8 +211,16 @@ jobs:
           gh issue edit "$ISSUE_NUMBER" \
             --remove-label "claude:in-progress" \
             --add-label "claude:needs-captain" || true
-          gh issue comment "$ISSUE_NUMBER" \
-            --body "The agent finished without opening a PR (a failed run, a risky finding it stopped on, or no change needed). Parked for the captain." || true
+          # Build the diagnostic comment from the agent's own final message; fall
+          # back to a generic body if the reporter itself ever fails, so the
+          # comment is never empty.
+          npx tsx scripts/agent-loop/agentRunReport.cli.ts \
+            --mode comment \
+            --execution-file "$EXECUTION_FILE" \
+            --outcome "$AGENT_OUTCOME" \
+            --run-url "$RUN_URL" > park-comment.md \
+            || printf '%s\n' "The agent finished without opening a PR. Parked for the captain - see the run logs: $RUN_URL" > park-comment.md
+          gh issue comment "$ISSUE_NUMBER" --body-file park-comment.md || true
 
       # Best-effort board sync mirroring the park decision: an open PR moves the
       # card to "In Review"; otherwise it moves to "Needs captain" alongside the
