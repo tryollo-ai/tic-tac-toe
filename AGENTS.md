@@ -51,6 +51,17 @@ and is `pointer-events: none` so it never blocks clicks. The same overlay appear
 in replay automatically because `/replay/[id]` renders the same `Board` with
 `winningLine`.
 
+Modals use a shared `UIDialog` component (`common/components/UIDialog/`), a
+client component built on [`@radix-ui/react-dialog`](https://www.radix-ui.com/primitives/docs/components/dialog)
+(with the `react-icons` `IoMdClose` close icon). It takes an `isOpen`/`close`
+pair plus `title`/`description`/`children`, renders into `document.body` via
+`Dialog.Portal` (no custom container), and dismisses on overlay click, the close
+button, or Escape. `RoomGame` uses it for the shift help dialog: a small circular
+"?" button (`react-icons` `IoHelpCircleOutline`) sits in a `shiftPromptRow` flex
+row next to the shift prompt copy and opens a `UIDialog` (kept in local
+`shiftHelpOpen` state) explaining O's once-per-game grid shift. Reuse `UIDialog`
+for any future modal rather than hand-rolling one.
+
 Each room records its history as a single ordered `actions` log, where each
 action is either `{ kind: "place", index }` or `{ kind: "shift", dir }` and the
 player alternates strictly (X takes the even-indexed actions, O the odd ones).

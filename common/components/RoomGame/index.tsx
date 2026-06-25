@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { IoHelpCircleOutline } from "react-icons/io5";
 import {
   claimSeat,
   fetchRoom,
@@ -19,6 +20,7 @@ import { modeLabel, type RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
 import Status, { type StatusTone, playerTone } from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
+import UIDialog from "@/common/components/UIDialog";
 import styles from "./styles.module.scss";
 
 type Props = {
@@ -52,6 +54,7 @@ const RoomGame = (props: Props) => {
   const playerId = usePlayerId();
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [shiftHelpOpen, setShiftHelpOpen] = useState(false);
 
   const fetcher = useCallback(
     (signal: AbortSignal) => fetchRoom(props.id, playerId, signal),
@@ -308,10 +311,21 @@ const RoomGame = (props: Props) => {
 
       {canShiftNow && (
         <div className={styles.shiftPanel}>
-          <p className={styles.shiftPrompt}>
-            Your one-time shift: slide the whole grid one cell. Marks pushed off
-            the edge are removed, and this uses your turn instead of placing.
-          </p>
+          <div className={styles.shiftPromptRow}>
+            <p className={styles.shiftPrompt}>
+              Your one-time shift: slide the whole grid one cell. Marks pushed
+              off the edge are removed, and this uses your turn instead of
+              placing.
+            </p>
+            <button
+              type="button"
+              className={styles.shiftHelpButton}
+              onClick={() => setShiftHelpOpen(true)}
+              aria-label="What is the grid shift?"
+            >
+              <IoHelpCircleOutline className={styles.shiftHelpIcon} />
+            </button>
+          </div>
           <div className={styles.shiftGrid}>
             {SHIFT_OPTIONS.map(({ dir, label }) => (
               <button
@@ -348,6 +362,29 @@ const RoomGame = (props: Props) => {
       >
         New Game
       </button>
+
+      <UIDialog
+        isOpen={shiftHelpOpen}
+        close={() => setShiftHelpOpen(false)}
+        title="Player O's grid shift"
+        description="A once-per-game move that only player O can make."
+      >
+        <p className={styles.shiftHelpParagraph}>
+          On your turn as O you can shift the grid instead of placing a mark.
+          The shift uses up your turn, so players still alternate strictly, and
+          you only get it once per game.
+        </p>
+        <p className={styles.shiftHelpParagraph}>
+          A shift slides the whole 3x3 grid one cell - up, down, left, or right.
+          Any marks pushed off the leading edge fall off the board and are
+          removed. A shift only translates marks, so it can never complete a
+          line and never wins on its own.
+        </p>
+        <p className={styles.shiftHelpParagraph}>
+          It exists to balance the game: X moves first, and O's single shift is
+          the compensation that keeps things fair.
+        </p>
+      </UIDialog>
     </div>
   );
 };

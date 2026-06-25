@@ -1,0 +1,156 @@
+$ui-dialog-animation-duration: 300ms;
+$ui-dialog-animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+
+.overlay {
+  background-color: rgba(2, 6, 23, 0.6);
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  z-index: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+
+  &[data-state="open"] {
+    animation: fadeIn $ui-dialog-animation-duration $ui-dialog-animation-timing-function forwards;
+  }
+
+  &[data-state="closed"] {
+    animation: fadeOut $ui-dialog-animation-duration $ui-dialog-animation-timing-function forwards;
+  }
+}
+
+.contentInner {
+  position: relative;
+  z-index: 2;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow:
+    hsl(206 22% 7% / 55%) 0px 10px 38px -10px,
+    hsl(206 22% 7% / 40%) 0px 10px 20px -15px;
+  width: 480px;
+  max-width: 100%;
+  max-height: 90%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+
+  &[data-state="open"] {
+    animation: fadeInSlideUp $ui-dialog-animation-duration $ui-dialog-animation-timing-function forwards;
+  }
+
+  &[data-state="closed"] {
+    animation: fadeOutSlideDown $ui-dialog-animation-duration $ui-dialog-animation-timing-function forwards;
+  }
+}
+
+.contentInnerHeader {
+  flex: 0 0 auto;
+  margin: 24px 24px 0 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.contentInnerMiddle {
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 16px 24px;
+  flex: 1;
+  scrollbar-gutter: stable;
+}
+
+.contentInnerBottom {
+  flex: 0 0 auto;
+  padding-top: 24px;
+  margin: 0 24px 24px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.contentInner:focus {
+  outline: none;
+}
+
+.title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 22px;
+  width: calc(100% - 25px);
+
+  &.centered {
+    text-align: center;
+  }
+}
+
+.description {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.closeButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 10px;
+  display: flex;
+  background: none;
+  color: var(--text-muted);
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  z-index: 2;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.closeIcon {
+  font-size: 28px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOutSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
