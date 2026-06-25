@@ -8,7 +8,7 @@ $ui-dialog-animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   left: 0;
   bottom: 0;
   right: 0;
-  z-index: auto;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
