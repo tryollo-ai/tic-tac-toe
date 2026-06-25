@@ -9,7 +9,8 @@ game.
 - **Game rooms & lobby:** the landing page lists open rooms with live status and
   a board preview; create a room as two-player or vs an AI. The list is paginated
   (6 rooms per page) with Previous/Next navigation once there is more than one
-  page.
+  page. A "How to play" button by the title opens a dialog explaining the rules,
+  including player O's grid shift, before you enter a room.
 - **Seat claiming:** visitors claim an open X or O seat, and everyone else
   spectates. Your identity is stored per browser, and only the seat-holder whose
   turn it is can move.
@@ -39,7 +40,9 @@ game.
   turn (step forward/back, jump to start/end, or auto-play) on its own
   `/replay/[id]` page.
   The archive survives the room being reset for a new round, so a single room can
-  accumulate a history of games.
+  accumulate a history of games. A finished game auto-resets to a fresh round
+  after a short delay (no manual button), with a "Next game starting…" note shown
+  during the countdown.
 - Responsive, dark-themed UI styled with **SCSS CSS Modules** (no Tailwind).
 
 Room and completed-game state lives in an in-memory server store with no external

@@ -82,8 +82,9 @@ one.
 `RoomGame` lays the board out centered between two side indicators (one per
 player) in a `boardArea` grid (`minmax(0,1fr) minmax(0,300px) minmax(0,1fr)`,
 collapsing to a single stacked column under 640px). Each `sidePanel` shows that
-player's mark, name, and turn highlight (`sideActive`); the O panel additionally
-shows `Grid shift: available`/`used`, visible to both players and spectators. On
+player's mark, name, and turn highlight (`sideActive`); the X panel adds a static
+`Plays first` ability line and the O panel additionally shows `Grid shift:
+available`/`used`, visible to both players and spectators. On
 player O's own screen, when it is O's turn and the shift is unused (`canShiftNow`),
 the O panel also renders the `SHIFT_OPTIONS` direction buttons so O activates the
 shift directly from the indicator - X and spectators see the status but no
