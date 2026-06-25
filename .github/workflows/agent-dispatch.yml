@@ -88,6 +88,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      actions: read
     env:
       # Derived from our own selector (validated integers), not raw event data;
       # still routed through env so no value is interpolated into a shell line.
@@ -133,6 +134,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           prompt: |
             You are working ticket #${{ matrix.number }} in this repository.
             The full ticket (title, body, url) is in ticket.json at the repo root - read it first.

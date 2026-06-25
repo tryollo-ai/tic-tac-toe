@@ -63,6 +63,8 @@ The responder job (`agent-respond.yml`) has the same 30-minute bound.
 
 1. **Labels.** Run `scripts/agent-loop/setup-labels.sh` (optionally `--repo owner/name`) to create the labels idempotently.
 2. **API key.** Add an `ANTHROPIC_API_KEY` repository secret (Settings -> Secrets and variables -> Actions).
+   The workflows authenticate `anthropics/claude-code-action@v1` with this static key and pass the workflow's default `GITHUB_TOKEN` as `github_token`, so the Claude GitHub App is not required and the action never fetches an OIDC token.
+   The action's GitHub work runs under that default token, so each job that runs the action grants it `contents`/`issues`/`pull-requests: write` plus `actions: read` (no `id-token: write`).
 
 That is the whole setup. The workflows install the `no-mistakes` CLI on the runner automatically, via
 

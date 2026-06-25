@@ -1,0 +1,12 @@
+Run: github.com/puopg/tic-tac-toe/actions/runs/28192896440 (workflow=Agent issue dispatch, branch=main, PRE-FIX)
+  "anthropic_api_key": "***",
+  "claude_code_oauth_token": "",
+  "github_token": "",
+2026-06-25T18:48:49.5124031Z Requesting OIDC token...
+2026-06-25T18:48:49.5139981Z error: Error message: Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable
+2026-06-25T18:48:49.5153732Z Attempt 1 failed: Could not fetch an OIDC token. Did you remember to add `id-token: write` to your workflow permissions?
+2026-06-25T18:48:54.5154252Z error: Error message: Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable
+2026-06-25T18:48:54.5164093Z Attempt 2 failed: Could not fetch an OIDC token. Did you remember to add `id-token: write` to your workflow permissions?
+2026-06-25T18:49:04.5163549Z error: Error message: Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable
+2026-06-25T18:49:04.5181208Z Attempt 3 failed: Could not fetch an OIDC token. Did you remember to add `id-token: write` to your workflow permissions?
+2026-06-25T18:49:04.5209718Z ##[error]Action failed with error: Could not fetch an OIDC token. Did you remember to add `id-token: write` to your workflow permissions?

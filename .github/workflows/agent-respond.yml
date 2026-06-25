@@ -23,6 +23,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: read
 
 jobs:
   respond:
@@ -95,6 +96,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           prompt: |
             You previously opened PR #${{ steps.pr.outputs.number }} on branch
             ${{ steps.pr.outputs.branch }}. The captain has asked for changes.

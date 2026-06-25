@@ -290,6 +290,13 @@ Conventions worth preserving when touching this code:
 - **No event data in shell.** Never interpolate `github.event.*` (or `matrix.*`)
   into a `run:` line; pass it through `env:` and reference the quoted variable, to
   avoid Actions script injection. Validate the numeric `max` input in the CLI.
+- **Static-key auth, no OIDC.** `anthropics/claude-code-action@v1` is authenticated
+  with the `ANTHROPIC_API_KEY` secret and the workflow's default `GITHUB_TOKEN`
+  (passed as `github_token: ${{ github.token }}`); the Claude GitHub App is not
+  installed. Each job that runs the action grants it `actions: read` alongside the
+  existing `contents`/`issues`/`pull-requests: write`. Never add `id-token: write` -
+  there is no App to consume the OIDC token, so it would only move the failure
+  rather than fix it.
 - The `no-mistakes` CLI is installed on the runner by each workflow's "Install
   no-mistakes CLI" step (the hardcoded `docs/install.sh` curl one-liner); the only
   one-time setup is the `ANTHROPIC_API_KEY` secret and running
