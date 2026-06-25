@@ -1,4 +1,10 @@
 .root {
+  // `relative` so the WinningLine SVG overlay anchors to this preview, and the
+  // overlay variables shrink its inset/stroke to match this board's 4px padding
+  // and tiny scale (the full Board's 14px/8 defaults would overshoot here).
+  position: relative;
+  --win-overlay-inset: 4px;
+  --win-line-width: 3;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);

@@ -1,6 +1,7 @@
 import classNames from "classnames";
 import { INITIAL_SIZE } from "@/constants/game";
-import { type Board } from "@/utils/gameLogic";
+import { calculateWinner, type Board } from "@/utils/gameLogic";
+import WinningLine from "@/common/components/WinningLine";
 import styles from "./styles.module.scss";
 
 type Props = {
@@ -9,6 +10,8 @@ type Props = {
 
 /** A small, read-only board preview used in lobby room cards. */
 const MiniBoard = (props: Props) => {
+  const winningLine = calculateWinner(props.board)?.line ?? null;
+
   return (
     <div
       className={styles.root}
@@ -29,6 +32,7 @@ const MiniBoard = (props: Props) => {
           {value}
         </div>
       ))}
+      {winningLine && <WinningLine line={winningLine} />}
     </div>
   );
 };

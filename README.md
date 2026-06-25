@@ -31,7 +31,8 @@ game.
 - **Scoreboard** tracking wins for each side and draws across rounds.
 - **Win-line highlight:** the three winning cells are highlighted and a green
   line is drawn connecting them, alongside a clear turn/winner status indicator.
-  The same overlay appears in replay.
+  The same overlay appears in replay and over a completed three-in-a-row in the
+  lobby and completed-game board previews.
 - **Completed games & replay:** every finished game is archived and listed on the
   lobby below the active rooms.
   Archived games can no longer be played, but each one can be replayed turn by

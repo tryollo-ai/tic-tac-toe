@@ -1,20 +1,25 @@
 .overlay {
   position: absolute;
-  // Cover exactly the grid's cell area, inside the board's 14px padding, so the
+  // Cover exactly the grid's cell area, inside the board's padding, so the
   // percentage-based endpoints line up with the cell centers. The size must be
   // explicit: a bare <svg> keeps its intrinsic 300x150 size under `inset` alone
-  // (replaced elements don't stretch), which would skew the percentages.
-  top: 14px;
-  left: 14px;
-  width: calc(100% - 28px);
-  height: calc(100% - 28px);
+  // (replaced elements don't stretch), which would skew the percentages. The
+  // inset defaults to the full Board's 14px padding but a smaller host (e.g.
+  // MiniBoard) can override `--win-overlay-inset` so the overlay still hugs its
+  // cell area.
+  top: var(--win-overlay-inset, 14px);
+  left: var(--win-overlay-inset, 14px);
+  width: calc(100% - 2 * var(--win-overlay-inset, 14px));
+  height: calc(100% - 2 * var(--win-overlay-inset, 14px));
   pointer-events: none;
   overflow: visible;
 }
 
 .line {
   stroke: var(--win);
-  stroke-width: 8;
+  // Defaults to the full board's stroke; a smaller host can scale it down via
+  // `--win-line-width` so the line stays proportional on tiny previews.
+  stroke-width: var(--win-line-width, 8);
   stroke-linecap: round;
   opacity: 0.95;
   animation: draw 0.35s ease-out;

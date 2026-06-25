@@ -51,6 +51,20 @@ and is `pointer-events: none` so it never blocks clicks. The same overlay appear
 in replay automatically because `/replay/[id]` renders the same `Board` with
 `winningLine`.
 
+The lobby/completed-game `MiniBoard` previews
+(`common/components/MiniBoard/`) reuse this exact same `WinningLine` component
+rather than duplicating geometry: `MiniBoard` derives the line itself by calling
+`calculateWinner(props.board)?.line` (so `Lobby` and the API payloads stay
+unchanged) and renders `WinningLine` as its last child. To anchor the overlay,
+`MiniBoard`'s root is `position: relative`. Because the overlay's inset and
+stroke are sized for the full board (`14px` padding, stroke `8`), `WinningLine`
+reads both from CSS custom properties with those full-board values as
+fallbacks - `--win-overlay-inset` (used for `top`/`left` and the
+`calc(100% - 2 * inset)` width/height) and `--win-line-width` - and `MiniBoard`
+overrides them on its root (`--win-overlay-inset: 4px` to match its `4px`
+padding, `--win-line-width: 3` for its `84px` scale). A `MiniBoard` with no
+three-in-a-row computes a null line and renders no overlay.
+
 Modals use a shared `UIDialog` component (`common/components/UIDialog/`), a
 client component built on [`@radix-ui/react-dialog`](https://www.radix-ui.com/primitives/docs/components/dialog)
 (with the `react-icons` `IoMdClose` close icon). It takes an `isOpen`/`close`
