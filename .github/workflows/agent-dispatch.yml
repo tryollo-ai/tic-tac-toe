@@ -114,7 +114,9 @@ jobs:
     runs-on: ubuntu-latest
     # Bound a hung claude-code-action run so it cannot strand a ticket in
     # claude:in-progress (the if: always() park step below still runs on timeout).
-    timeout-minutes: 30
+    # 45 min, not 30: a full run now builds the app, captures screenshots, and
+    # drives no-mistakes through review/test and its CI watch on the opened PR.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -191,10 +193,62 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
           no-mistakes --version
+          # Set up the local gate (bare repo + post-receive hook + "no-mistakes"
+          # remote) for this run. Non-interactive; it needs only an "origin"
+          # remote, which the checkout above provides. The gate's config lives on
+          # the runner and is never committed, so every job initializes its own.
+          no-mistakes init
+
+      # Provision a headless Chrome so the agent can capture the visual evidence
+      # (screenshots) the no-mistakes review uses to verify UI changes. The agent
+      # drives the browser through the chrome-devtools-axi CLI; we launch a
+      # long-lived Chrome with remote debugging and point the CLI at it via
+      # CHROME_DEVTOOLS_AXI_BROWSER_URL rather than letting the CLI launch its own,
+      # so the browser flags (headless, no-sandbox) stay under our control in CI.
+      - name: Install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Launch headless Chrome for visual evidence
+        run: |
+          set -eu
+          npm i -g chrome-devtools-axi chrome-devtools-mcp
+          "${{ steps.chrome.outputs.chrome-path }}" \
+            --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu \
+            --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \
+            about:blank > /tmp/chrome.log 2>&1 &
+          # Wait for the DevTools endpoint before the agent (and chrome-devtools-axi)
+          # try to connect; fail loudly if it never comes up.
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1; then
+              echo "Chrome DevTools endpoint is up"; ok=1; break
+            fi
+            sleep 1
+          done
+          [ "${ok:-}" = 1 ] || { echo "Chrome never became reachable:"; cat /tmp/chrome.log; exit 1; }
+          # Export connection details for the agent step and the chrome-devtools-mcp
+          # bridge it spawns (the explicit MCP path skips a ~30s npx bootstrap).
+          mcp_path="$(npm prefix -g)/lib/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js"
+          {
+            echo "CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9222"
+            echo "CHROME_DEVTOOLS_AXI_MCP_PATH=$mcp_path"
+          } >> "$GITHUB_ENV"
 
       - name: Run agent (implement + no-mistakes -> PR)
         id: agent
         uses: anthropics/claude-code-action@v1
+        env:
+          # Make the OAuth token and gh credentials available to the no-mistakes
+          # pipeline the agent spawns: its review step runs its OWN claude, which
+          # authenticates from CLAUDE_CODE_OAUTH_TOKEN in the environment (not from
+          # claude-code-action's input), and its push/PR steps shell out to gh via
+          # GH_TOKEN. The CHROME_DEVTOOLS_AXI_* vars exported above reach the agent's
+          # chrome-devtools-axi calls the same way (step env + GITHUB_ENV both
+          # propagate to the subprocesses the action spawns).
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         with:
           # Authenticate with the Claude Code OAuth token (your Claude subscription)
           # rather than a metered ANTHROPIC_API_KEY. Set up by the Claude Code GitHub
@@ -208,13 +262,32 @@ jobs:
 
             Do this, end to end, unattended:
             1. Create and switch to branch fm/issue-${{ matrix.number }}.
-            2. Implement the change the ticket asks for. Keep it focused on the ticket
-               and match the repo's existing TypeScript / ESLint / CSS Modules conventions.
-            3. Validate and ship with no-mistakes: run the /no-mistakes pipeline.
-               - Auto-approve routine, low-risk findings and continue.
-               - If a finding is genuinely risky or irreversible, STOP: do not push,
-                 and clearly explain why so the run can park the ticket for the captain.
-            4. The no-mistakes pipeline opens the PR. Make sure the PR body says
+            2. Implement the change the ticket asks for. Keep it focused on the
+               ticket and match the repo's existing TypeScript / ESLint / CSS
+               Modules conventions. Commit your work on this branch.
+            3. Capture visual evidence when the change affects the UI. Start the app
+               (npm run build && npm run start, served on http://localhost:3000),
+               wait until it responds, then use the `chrome-devtools-axi` CLI to
+               screenshot the affected screens before and after your change into
+               .no-mistakes/evidence/fm/issue-${{ matrix.number }}/. A headless
+               Chrome is already running for you - chrome-devtools-axi is configured
+               to connect to it, so just call it (e.g. `chrome-devtools-axi open
+               http://localhost:3000`, then `chrome-devtools-axi screenshot <path>`).
+               If the change has no visible UI surface (a CI, config, or build-only
+               change), say so and skip the screenshots.
+            4. Validate and ship with no-mistakes. Run the pipeline IN THE FOREGROUND
+               and drive it to a final outcome:
+                 no-mistakes axi run --yes --intent "<what the ticket asked for, plus the key decisions you made>"
+               This command BLOCKS for several minutes (the review, test, and CI
+               steps each take time) - that is expected and correct. Do NOT run it in
+               the background, do NOT append `&`, do NOT set up a monitor or a
+               status-poll loop, and do NOT end your turn while it is still running.
+               Keep driving it (with `no-mistakes axi respond` if it stops at a gate)
+               until it returns a final `checks-passed` or `passed` outcome. `--yes`
+               auto-approves routine findings; if a finding is genuinely risky or
+               irreversible, STOP without pushing and clearly explain why so the run
+               can park the ticket for the captain.
+            5. no-mistakes opens the PR as its final step. Make sure the PR body says
                "Closes #${{ matrix.number }}".
             Never merge anything. The captain merges.
           # Pin Opus 4.8 with the 1M-token context window ([1m] is Claude Code's
