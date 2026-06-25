@@ -1,0 +1,105 @@
+name: Agent PR responder
+
+# Wakes an agent on a PR the loop opened, when the captain asks for changes.
+# Triggers ("changes requested only"):
+#   - a review with state "changes_requested", OR
+#   - a comment that @-mentions the agent (@claude),
+# and only from the repository OWNER. Because the guard requires OWNER, the agent
+# never reacts to its own bot comments or pushes, so it can't ping-pong - this
+# owner-only guard is the loop-prevention mechanism. Only PRs on agent branches
+# (fm/issue-*) are eligible.
+
+on:
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: agent-respond-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  respond:
+    name: Address PR feedback
+    runs-on: ubuntu-latest
+    # Owner-only loop guard: react only to the repo owner, and only to a
+    # changes-requested review or an @claude mention on a PR comment.
+    if: >-
+      (github.event_name == 'pull_request_review' &&
+       github.event.review.state == 'changes_requested' &&
+       github.event.review.author_association == 'OWNER')
+      ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       github.event.comment.author_association == 'OWNER' &&
+       contains(github.event.comment.body, '@claude'))
+    steps:
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # Event data routed through env, never interpolated into a shell line.
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          set -eu
+          gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json number,headRefName,state,url > pr.json
+          branch="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("pr.json","utf8")).headRefName)')"
+          state="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("pr.json","utf8")).state)')"
+          echo "PR #$PR_NUMBER branch=$branch state=$state"
+          # Only act on open PRs on agent branches.
+          go=false
+          case "$branch" in
+            fm/issue-*) [ "$state" = "OPEN" ] && go=true ;;
+          esac
+          {
+            echo "go=$go"
+            echo "branch=$branch"
+            echo "number=$PR_NUMBER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR branch
+        if: steps.pr.outputs.go == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+
+      - name: Install no-mistakes CLI
+        if: steps.pr.outputs.go == 'true'
+        env:
+          NO_MISTAKES_INSTALL_CMD: ${{ vars.NO_MISTAKES_INSTALL_CMD }}
+        run: |
+          set -eu
+          if [ -z "${NO_MISTAKES_INSTALL_CMD:-}" ]; then
+            echo "::error::Set the NO_MISTAKES_INSTALL_CMD repo variable to install the no-mistakes CLI (see docs/agent-loop.md)."
+            exit 1
+          fi
+          sh -c "$NO_MISTAKES_INSTALL_CMD"
+          no-mistakes --version
+
+      - name: Run agent (address feedback)
+        if: steps.pr.outputs.go == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You previously opened PR #${{ steps.pr.outputs.number }} on branch
+            ${{ steps.pr.outputs.branch }}. The captain has asked for changes.
+
+            Read the full PR conversation and review comments:
+              gh pr view ${{ steps.pr.outputs.number }} --comments
+            Then, on this same branch:
+            1. Make exactly the changes the captain's feedback calls for. Nothing else.
+            2. Re-run the /no-mistakes pipeline to validate and push the update.
+               - Auto-approve routine findings; STOP on genuinely risky ones and explain why.
+            3. Leave a brief PR comment summarising what you changed in response.
+            Never merge. The captain merges.
+          claude_args: "--allowedTools Bash,Edit,Write,Read,Glob,Grep"
