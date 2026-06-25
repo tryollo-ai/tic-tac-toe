@@ -1,0 +1,171 @@
+name: Agent issue dispatch
+
+# Twice a day (and on demand), pick up to 3 opt-in tickets by priority, claim
+# them so a later run won't re-pull them, and run one agent per ticket. Each
+# agent implements its ticket, runs no-mistakes, and opens a PR. Nothing merges
+# automatically - every PR waits for the captain.
+#
+# Opt-in: a ticket is eligible ONLY while it carries the `agent:ready` label and
+# is not already `claude:in-progress` / `claude:needs-captain`. Tickets without
+# `agent:ready` (backfills, tracking issues) are invisible to this workflow.
+
+on:
+  schedule:
+    # 00:00 and 12:00 UTC daily. GitHub cron is always UTC.
+    - cron: "0 0,12 * * *"
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "Max tickets to pick this run"
+        required: false
+        default: "3"
+
+concurrency:
+  group: agent-dispatch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  select:
+    name: Select tickets
+    runs-on: ubuntu-latest
+    outputs:
+      numbers: ${{ steps.pick.outputs.numbers }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: List eligible issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh issue list \
+            --state open \
+            --label "agent:ready" \
+            --json number,title,labels,createdAt,state \
+            --limit 100 > issues.json
+          echo "Eligible (pre-cap):"
+          node -e 'JSON.parse(require("fs").readFileSync("issues.json","utf8")).forEach(i => console.log(`  #${i.number} ${i.title}`))'
+
+      - name: Pick top tickets
+        id: pick
+        env:
+          # Pass the (possibly attacker-influenced) dispatch input through env and
+          # reference the quoted variable - never interpolate event data straight
+          # into a shell line. The CLI validates that it is a non-negative integer.
+          MAX_INPUT: ${{ github.event.inputs.max || '3' }}
+        run: |
+          set -eu
+          numbers="$(npx tsx scripts/agent-loop/selectTickets.cli.ts --max "$MAX_INPUT" < issues.json)"
+          echo "Selected: $numbers"
+          echo "numbers=$numbers" >> "$GITHUB_OUTPUT"
+
+  work:
+    name: "Agent: issue #${{ matrix.number }}"
+    needs: select
+    if: needs.select.outputs.numbers != '[]'
+    runs-on: ubuntu-latest
+    # Bound a hung claude-code-action run so it cannot strand a ticket in
+    # claude:in-progress (the if: always() park step below still runs on timeout).
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        number: ${{ fromJSON(needs.select.outputs.numbers) }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      # Derived from our own selector (validated integers), not raw event data;
+      # still routed through env so no value is interpolated into a shell line.
+      ISSUE_NUMBER: ${{ matrix.number }}
+      BRANCH: fm/issue-${{ matrix.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claim ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          echo "Claiming #$ISSUE_NUMBER"
+          gh issue edit "$ISSUE_NUMBER" \
+            --add-label "claude:in-progress" --remove-label "agent:ready"
+          gh issue comment "$ISSUE_NUMBER" \
+            --body "Picked up by the agent loop. Working on it now; a PR will follow."
+
+      - name: Load ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh issue view "$ISSUE_NUMBER" --json number,title,body,url > ticket.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install no-mistakes CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
+          no-mistakes --version
+
+      - name: Run agent (implement + no-mistakes -> PR)
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are working ticket #${{ matrix.number }} in this repository.
+            The full ticket (title, body, url) is in ticket.json at the repo root - read it first.
+
+            Do this, end to end, unattended:
+            1. Create and switch to branch fm/issue-${{ matrix.number }}.
+            2. Implement the change the ticket asks for. Keep it focused on the ticket
+               and match the repo's existing TypeScript / ESLint / CSS Modules conventions.
+            3. Validate and ship with no-mistakes: run the /no-mistakes pipeline.
+               - Auto-approve routine, low-risk findings and continue.
+               - If a finding is genuinely risky or irreversible, STOP: do not push,
+                 and clearly explain why so the run can park the ticket for the captain.
+            4. The no-mistakes pipeline opens the PR. Make sure the PR body says
+               "Closes #${{ matrix.number }}".
+            Never merge anything. The captain merges.
+          claude_args: "--allowedTools Bash,Edit,Write,Read,Glob,Grep"
+
+      - name: Park ticket if no PR was opened
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          # Resilient by design: park on ANY uncertainty. The only branch that
+          # skips parking is a confirmed open PR (a numeric count greater than 0).
+          pr_count="$(gh pr list --head "$BRANCH" --state open --json number --jq 'length' 2>/dev/null)" || pr_count=""
+          if printf '%s' "$pr_count" | grep -qE '^[0-9]+$' && [ "$pr_count" -gt 0 ]; then
+            echo "PR open for $BRANCH; leaving the claim in place for the captain to review."
+            exit 0
+          fi
+          echo "No confirmed open PR for $BRANCH; parking #$ISSUE_NUMBER for the captain."
+          gh issue edit "$ISSUE_NUMBER" \
+            --remove-label "claude:in-progress" \
+            --add-label "claude:needs-captain" || true
+          gh issue comment "$ISSUE_NUMBER" \
+            --body "The agent finished without opening a PR (a failed run, a risky finding it stopped on, or no change needed). Parked for the captain." || true

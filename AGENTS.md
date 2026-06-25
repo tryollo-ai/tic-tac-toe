@@ -246,6 +246,8 @@ components.
 - `npm run build` - production build
 - `npm run lint` - run ESLint
 - `npm test` - run the Vitest unit suite once (`vitest run`)
+- `npm run select-tickets` - run the agent-loop ticket selector CLI (reads a
+  `gh issue list` JSON payload on stdin, prints the chosen issue numbers)
 
 ## Testing
 
@@ -258,3 +260,37 @@ randomness - so prefer testing exported pure functions directly; the in-memory
 store can be driven straight through its exported functions (`createRoom`,
 `claimSeat`, `makeMove`, `shiftBoardAction`) without a live server. Network,
 polling, and React rendering are intentionally out of scope here.
+
+## Agent issue loop (CI)
+
+An opt-in, scheduled "issue -> PR" loop lives under `.github/workflows/` and
+`scripts/agent-loop/`; it is independent of the game runtime. The captain labels
+issues `agent:ready` (plus a `priority:*`); twice daily `agent-dispatch.yml`
+selects up to three, claims each (`claude:in-progress`, drop `agent:ready`),
+runs one `anthropics/claude-code-action@v1` agent per ticket on branch
+`fm/issue-<n>`, and lets `/no-mistakes` open the PR. `agent-respond.yml` wakes an
+agent when the repo OWNER requests changes or `@claude`-mentions on an
+`fm/issue-*` PR; the owner-only guard is what prevents the loop from reacting to
+its own bot activity. Nothing is ever merged automatically. Full operator
+docs are in `docs/agent-loop.md`.
+
+Conventions worth preserving when touching this code:
+
+- **Selection is a pure, tested TS function.** `scripts/agent-loop/selectTickets.ts`
+  exposes `selectTickets(issues, { max })` (opt-in gate, priority order, FIFO
+  tiebreak, cap), covered by `selectTickets.test.ts`. The workflow calls it only
+  through the thin CLI `selectTickets.cli.ts` (run via `tsx`, also
+  `npm run select-tickets`), which reads `gh issue list` JSON on stdin and prints
+  a JSON array of numbers. Keep all eligibility/ordering logic in the pure module,
+  not in YAML.
+- **Read-only select, per-ticket claim, resilient park.** The dispatch `select`
+  job never mutates labels; each `work` job claims as its first step and, with
+  `if: always()`, parks to `claude:needs-captain` unless a PR for its branch is
+  *confirmed* open (park on any uncertainty - never strand a claim).
+- **No event data in shell.** Never interpolate `github.event.*` (or `matrix.*`)
+  into a `run:` line; pass it through `env:` and reference the quoted variable, to
+  avoid Actions script injection. Validate the numeric `max` input in the CLI.
+- The `no-mistakes` CLI is installed on the runner by each workflow's "Install
+  no-mistakes CLI" step (the hardcoded `docs/install.sh` curl one-liner); the only
+  one-time setup is the `ANTHROPIC_API_KEY` secret and running
+  `scripts/agent-loop/setup-labels.sh` (idempotent, plain `gh`) to create labels.

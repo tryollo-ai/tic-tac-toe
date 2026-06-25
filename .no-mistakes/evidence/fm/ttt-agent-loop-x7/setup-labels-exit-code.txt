@@ -1,0 +1,37 @@
+# setup-labels.sh: exits non-zero when label creation fails (commit a705363)
+# Uses a STUB gh on PATH (no real GitHub repo touched) to drive both paths.
+
+## Case A: gh fails for every label -> script must report failures and exit 1
+skip: agent:ready (could not create or update)
+skip: priority:critical (could not create or update)
+skip: priority:high (could not create or update)
+skip: priority:med (could not create or update)
+skip: priority:low (could not create or update)
+skip: claude:in-progress (could not create or update)
+skip: claude:needs-captain (could not create or update)
+skip: type:tracking (could not create or update)
+setup-labels: 8 label(s) could not be created or updated; check gh auth (gh auth status) and repo access
+exit code: 1   (expect 1)
+
+## Case B: gh succeeds for every label -> all ok, exit 0
+ok:   agent:ready
+ok:   priority:critical
+ok:   priority:high
+ok:   priority:med
+ok:   priority:low
+ok:   claude:in-progress
+ok:   claude:needs-captain
+ok:   type:tracking
+exit code: 0   (expect 0)
+
+## Case C: one label fails (priority:high) -> partial failure still exits 1
+ok:   agent:ready
+ok:   priority:critical
+skip: priority:high (could not create or update)
+ok:   priority:med
+ok:   priority:low
+ok:   claude:in-progress
+ok:   claude:needs-captain
+ok:   type:tracking
+setup-labels: 1 label(s) could not be created or updated; check gh auth (gh auth status) and repo access
+exit code: 1   (expect 1)
