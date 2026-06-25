@@ -28,7 +28,7 @@ export function cellCenter(index: number): { x: number; y: number } {
  * the line reaches well into both end cells (closer to their outer edges)
  * without quite touching the board boundary.
  */
-const ENDPOINT_EXTEND = 0.8;
+const ENDPOINT_EXTEND = 0.7;
 
 /**
  * Endpoints for a line drawn through a winning triple, extended outward past the

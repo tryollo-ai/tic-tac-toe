@@ -37,8 +37,8 @@ the first and last cells (`(col + 0.5) / size`, `(row + 0.5) / size`; since
 `calculateWinner` returns each triple ordered along its line, those two ends are
 correct for all eight wins), then extends each endpoint outward past its center,
 along the line, toward that end cell's outer edge - controlled by
-`ENDPOINT_EXTEND` (fraction of the half-cell from center to outer edge; `0.8`
-reaches most of the way without touching the board boundary) - so the line runs
+`ENDPOINT_EXTEND` (fraction of the half-cell from center to outer edge; `0.7`
+reaches well into the end cells without touching the board boundary) - so the line runs
 well into both end cells rather than stopping at their centers. All of this is
 expressed in percentages, so it stays correct at any board size. The percentages
 are deliberately gap-agnostic: with the board's `gap: 10px` the underlying cell
