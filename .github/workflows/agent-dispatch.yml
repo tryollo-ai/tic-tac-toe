@@ -135,6 +135,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
+          show_full_output: true
           prompt: |
             You are working ticket #${{ matrix.number }} in this repository.
             The full ticket (title, body, url) is in ticket.json at the repo root - read it first.
