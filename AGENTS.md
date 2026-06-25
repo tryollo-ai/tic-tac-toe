@@ -290,6 +290,7 @@ Conventions worth preserving when touching this code:
 - **No event data in shell.** Never interpolate `github.event.*` (or `matrix.*`)
   into a `run:` line; pass it through `env:` and reference the quoted variable, to
   avoid Actions script injection. Validate the numeric `max` input in the CLI.
-- The `no-mistakes` CLI is installed at runtime via the `NO_MISTAKES_INSTALL_CMD`
-  repo variable (the workflow fails with a clear message if it is unset).
-  Labels are created idempotently by `scripts/agent-loop/setup-labels.sh`.
+- The `no-mistakes` CLI is installed on the runner by each workflow's "Install
+  no-mistakes CLI" step (the hardcoded `docs/install.sh` curl one-liner); the only
+  one-time setup is the `ANTHROPIC_API_KEY` secret and running
+  `scripts/agent-loop/setup-labels.sh` (idempotent, plain `gh`) to create labels.

@@ -76,15 +76,8 @@ jobs:
 
       - name: Install no-mistakes CLI
         if: steps.pr.outputs.go == 'true'
-        env:
-          NO_MISTAKES_INSTALL_CMD: ${{ vars.NO_MISTAKES_INSTALL_CMD }}
         run: |
-          set -eu
-          if [ -z "${NO_MISTAKES_INSTALL_CMD:-}" ]; then
-            echo "::error::Set the NO_MISTAKES_INSTALL_CMD repo variable to install the no-mistakes CLI (see docs/agent-loop.md)."
-            exit 1
-          fi
-          sh -c "$NO_MISTAKES_INSTALL_CMD"
+          curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
           no-mistakes --version
 
       - name: Run agent (address feedback)

@@ -63,21 +63,20 @@ The responder job (`agent-respond.yml`) has the same 30-minute bound.
 
 1. **Labels.** Run `scripts/agent-loop/setup-labels.sh` (optionally `--repo owner/name`) to create the labels idempotently.
 2. **API key.** Add an `ANTHROPIC_API_KEY` repository secret (Settings -> Secrets and variables -> Actions).
-3. **no-mistakes installer.** Set a repository variable `NO_MISTAKES_INSTALL_CMD` to the command that installs the `no-mistakes` CLI on an Ubuntu runner:
 
-   ```sh
-   curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
-   ```
+That is the whole setup. The workflows install the `no-mistakes` CLI on the runner automatically, via
 
-   The installer auto-detects the runner's platform build and puts `no-mistakes` on `PATH`.
-   The workflows run this command before invoking the agent and fail with a clear message if the variable is unset.
-   Confirm it during the dry-run below.
+```sh
+curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
+```
+
+which auto-detects the runner's platform build and puts `no-mistakes` on `PATH` - so there is no installer variable to configure.
 
 ## Rollout
 
 The loop is built so you can prove it before trusting the schedule:
 
-1. Run `scripts/agent-loop/setup-labels.sh`, add the secret and the installer variable.
+1. Run `scripts/agent-loop/setup-labels.sh` and add the `ANTHROPIC_API_KEY` secret.
 2. Create one disposable ticket, label it `agent:ready` + `priority:low`, and trigger `agent-dispatch` manually (Actions -> Agent issue dispatch -> Run workflow).
 3. Confirm it implements, runs no-mistakes, and opens a PR. Then request changes on that PR and confirm `agent-respond` wakes and updates it.
 4. Once the dry-run is clean, the twice-daily schedule is already wired; the loop runs on its own from there.
