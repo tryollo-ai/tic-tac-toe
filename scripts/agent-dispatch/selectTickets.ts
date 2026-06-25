@@ -10,7 +10,7 @@
 //   - the issue must be OPEN,
 //   - it must carry READY_LABEL (agent:ready),
 //   - it must NOT already be claimed or held (claude:in-progress /
-//     claude:needs-captain), so a later run never re-pulls in-flight work,
+//     claude:needs-help), so a later run never re-pulls in-flight work,
 //   - and, when `requireReadyStatus` is set, it must ALSO sit in the board's
 //     "Ready" column (its Projects v2 Status equals READY_STATUS). This is the
 //     second, independent gate: the label marks a ticket as automatable, the
@@ -72,7 +72,7 @@ export const READY_STATUS = "Ready";
 /** Claim lock written when a run starts a ticket. */
 export const IN_PROGRESS_LABEL = "claude:in-progress";
 /** Parked for the captain (a risky finding, or a failed run). */
-export const HOLD_LABEL = "claude:needs-captain";
+export const HOLD_LABEL = "claude:needs-help";
 
 /** Priority labels, highest priority first; the index is the sort rank. */
 export const PRIORITY_LABELS = [

@@ -7,7 +7,7 @@ name: Trigger - issue agent
 #
 # Opt-in: a ticket is eligible ONLY while it carries the `agent:ready` label AND
 # its card sits in the board's "Ready" column (Projects v2 Status = "Ready"), and
-# is not already `claude:in-progress` / `claude:needs-captain`. The two gates are
+# is not already `claude:in-progress` / `claude:needs-help`. The two gates are
 # independent: the label marks a ticket automatable, the Ready column says "work
 # it now", so an ordinary board needs no column<->label automation. Tickets
 # without `agent:ready`, or parked in Backlog/any non-Ready column, are invisible.
@@ -261,7 +261,7 @@ jobs:
           echo "No confirmed open PR for $BRANCH; parking #$ISSUE_NUMBER for the captain."
           gh issue edit "$ISSUE_NUMBER" \
             --remove-label "claude:in-progress" \
-            --add-label "claude:needs-captain" || true
+            --add-label "claude:needs-help" || true
           # Build the diagnostic comment from the agent's own final message; fall
           # back to a generic body if the reporter itself ever fails, so the
           # comment is never empty.
@@ -275,7 +275,7 @@ jobs:
 
       # Best-effort board sync mirroring the park decision: an open PR moves the
       # card to "In Review"; otherwise it moves to "Needs captain" alongside the
-      # claude:needs-captain label set above. Runs on always() (so it follows a
+      # claude:needs-help label set above. Runs on always() (so it follows a
       # failed/timed-out agent run too) and never fails the job. The merge ->
       # Done transition is left to GitHub Projects' native workflow.
       - name: Sync board status (In Review or Needs captain)

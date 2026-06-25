@@ -28,7 +28,7 @@ describe("selectTickets", () => {
   it("excludes claimed and held tickets even when ready", () => {
     const issues = [
       issue(3, T0, "OPEN", "agent:ready", "priority:high", "claude:in-progress"),
-      issue(4, T0, "OPEN", "agent:ready", "priority:high", "claude:needs-captain"),
+      issue(4, T0, "OPEN", "agent:ready", "priority:high", "claude:needs-help"),
       issue(5, T0, "OPEN", "agent:ready", "priority:low"),
     ];
     expect(selectTickets(issues, { max: 3 })).toEqual([5]);
