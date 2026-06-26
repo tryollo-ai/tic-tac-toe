@@ -106,6 +106,37 @@ export const formatTranscript = (events: RunEvent[]): string => {
 };
 
 /**
+ * Format a single run event into clean, plain-text lines for a LIVE log: the
+ * direct-CLI agent step pipes claude's `--output-format stream-json` NDJSON
+ * through this so each turn prints as it happens. Same selection as
+ * formatTranscript - assistant prose plus one line per tool call, and the final
+ * result - but plain text (no markdown) and per-event. System events, tool-result
+ * blocks, and the result event's usage/cost fields produce no lines, so the
+ * token/cost firehose never reaches the log. Returns [] when the event is silent.
+ */
+export const formatStreamLines = (event: RunEvent): string[] => {
+  const lines: string[] = [];
+
+  if (event.type === "assistant") {
+    for (const block of contentBlocks(event)) {
+      if (block.type === "text") {
+        const text = asString(block.text).trim();
+        if (text !== "") lines.push(`Claude: ${text}`);
+      } else if (block.type === "tool_use") {
+        const name = asString(block.name) || "tool";
+        const arg = summarizeToolArg(block.input);
+        lines.push(arg === "" ? `  -> ${name}` : `  -> ${name}: ${arg}`);
+      }
+    }
+  } else if (event.type === "result") {
+    const text = asString(event.result).trim();
+    if (text !== "") lines.push(`Claude (final): ${text}`);
+  }
+
+  return lines;
+};
+
+/**
  * The agent's final message - preferring the `result` event, falling back to the
  * last assistant text block (a timed-out run may have no `result`). Returns null
  * when neither is present, so the caller can post a generic message instead.
@@ -140,6 +171,30 @@ export const parseEvents = (raw: string): RunEvent[] => {
   } catch {
     return [];
   }
+};
+
+/**
+ * Parse an NDJSON event stream - one JSON event per line, the shape our direct
+ * agent step tees to `execution.ndjson` from claude's stream-json output. Blank
+ * lines and any line that is not a JSON object (e.g. a stray log line on the
+ * stream) are skipped, never thrown on, so a partial file from a killed run
+ * still yields the events captured before it died.
+ */
+export const parseEventStream = (raw: string): RunEvent[] => {
+  const events: RunEvent[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        events.push(parsed as RunEvent);
+      }
+    } catch {
+      // Not a JSON object on its own line; ignore it.
+    }
+  }
+  return events;
 };
 
 export type ParkCommentParams = {

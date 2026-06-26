@@ -18,14 +18,18 @@ import {
   formatParkComment,
   formatTranscript,
   parseEvents,
+  parseEventStream,
   type RunEvent,
 } from "./agentRunReport";
 
 type Mode = "transcript" | "comment";
+// "json-array" is claude-code-action's execution_file (a single JSON array);
+// "ndjson" is the direct-CLI stream we tee to execution.ndjson (one event/line).
+type Format = "json-array" | "ndjson";
 
 const USAGE =
   'usage: agent-run-report --mode transcript|comment --execution-file <path> ' +
-  '[--title <text>] [--outcome <success|failure>] [--run-url <url>]';
+  '[--format json-array|ndjson] [--title <text>] [--outcome <success|failure>] [--run-url <url>]';
 
 const fail = (message: string): never => {
   process.stderr.write(`agent-run-report: ${message}\n`);
@@ -34,6 +38,7 @@ const fail = (message: string): never => {
 
 type Args = {
   mode: Mode;
+  format: Format;
   executionFile: string;
   title: string;
   outcome: string;
@@ -43,6 +48,7 @@ type Args = {
 const parseArgs = (argv: string[]): Args => {
   const args: Args = {
     mode: "transcript",
+    format: "json-array",
     executionFile: "",
     title: "Agent run",
     outcome: "",
@@ -68,6 +74,14 @@ const parseArgs = (argv: string[]): Args => {
         args.mode = value as Mode;
         break;
       }
+      case "--format": {
+        const value = next(arg);
+        if (value !== "json-array" && value !== "ndjson") {
+          fail("--format must be json-array or ndjson");
+        }
+        args.format = value as Format;
+        break;
+      }
       case "--execution-file":
         args.executionFile = next(arg);
         break;
@@ -91,8 +105,9 @@ const parseArgs = (argv: string[]): Args => {
   return args;
 };
 
-/** Read the execution_file, treating any read/parse problem as no events. */
-const readEvents = (path: string): RunEvent[] => {
+/** Read the execution file, treating any read/parse problem as no events. The
+ *  format selects the parser: a whole-file JSON array, or our NDJSON stream. */
+const readEvents = (path: string, format: Format): RunEvent[] => {
   if (path.trim() === "") return [];
   let raw: string;
   try {
@@ -100,12 +115,12 @@ const readEvents = (path: string): RunEvent[] => {
   } catch {
     return [];
   }
-  return parseEvents(raw);
+  return format === "ndjson" ? parseEventStream(raw) : parseEvents(raw);
 };
 
 const main = (): void => {
   const args = parseArgs(process.argv.slice(2));
-  const events = readEvents(args.executionFile);
+  const events = readEvents(args.executionFile, args.format);
 
   if (args.mode === "transcript") {
     const transcript = formatTranscript(events);

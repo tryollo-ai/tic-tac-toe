@@ -112,8 +112,8 @@ jobs:
     needs: select
     if: needs.select.outputs.numbers != '[]'
     runs-on: ubuntu-latest
-    # Bound a hung claude-code-action run so it cannot strand a ticket in
-    # claude:in-progress (the if: always() park step below still runs on timeout).
+    # Bound a hung agent run so it cannot strand a ticket in claude:in-progress
+    # (the if: always() park step below still runs on timeout).
     # 45 min, not 30: a full run now builds the app, captures screenshots, and
     # drives no-mistakes through review/test and its CI watch on the opened PR.
     timeout-minutes: 45
@@ -132,6 +132,9 @@ jobs:
       # still routed through env so no value is interpolated into a shell line.
       ISSUE_NUMBER: ${{ matrix.number }}
       BRANCH: fm/issue-${{ matrix.number }}
+      # The raw stream-json events the agent step tees here as it runs. The
+      # summarize and park steps below read this NDJSON for the end-of-run report.
+      EXECUTION_FILE: execution.ndjson
     steps:
       # Mint a token from the GitHub App BEFORE checkout so the whole job can run
       # as the App rather than github-actions[bot]. This is what lets the agent
@@ -246,30 +249,43 @@ jobs:
             echo "CHROME_DEVTOOLS_AXI_MCP_PATH=$mcp_path"
           } >> "$GITHUB_ENV"
 
+      # Install the Claude Code CLI so we can drive the agent directly (rather than
+      # through claude-code-action). Driving it ourselves is what lets us stream a
+      # clean, live turn-by-turn transcript to the job log: the action buffers all
+      # events and only writes them when the run finishes, and its only live-output
+      # mode is the full token/cost firehose. With the CLI we own stdout.
+      - name: Install Claude Code CLI
+        run: |
+          set -eu
+          npm i -g @anthropic-ai/claude-code
+          claude --version
+
+      # Run the agent directly and stream its turns live. claude emits its events
+      # as NDJSON on stdout (--output-format stream-json, which requires --verbose
+      # in print mode); we tee the raw stream to EXECUTION_FILE for the end-of-run
+      # report, then pipe it through streamTranscript.cli.ts, which prints assistant
+      # text and one line per tool call - dropping the system/tool-result/usage
+      # noise. Because this is our own foreground `run:` step, GitHub streams those
+      # lines to the live log as each turn happens. `set -o pipefail` makes claude's
+      # own exit status drive the step outcome (tee/filter normally succeed), so the
+      # park step's steps.agent.outcome check still works.
       - name: Run agent (implement + no-mistakes -> PR)
         id: agent
-        uses: anthropics/claude-code-action@v1
         env:
-          # Make the OAuth token and gh credentials available to the no-mistakes
-          # pipeline the agent spawns: its review step runs its OWN claude, which
-          # authenticates from CLAUDE_CODE_OAUTH_TOKEN in the environment (not from
-          # claude-code-action's input), and its push/PR steps shell out to git and
-          # gh via GH_TOKEN. GH_TOKEN is the App token (when minted) so those pushes
-          # and the opened PR go out as the App and can touch workflow files; it
-          # falls back to the default token otherwise. The CHROME_DEVTOOLS_AXI_*
-          # vars exported above reach the agent's chrome-devtools-axi calls the same
-          # way (step env + GITHUB_ENV both propagate to the subprocesses the action
-          # spawns).
+          # The OAuth token (your Claude subscription) authenticates the CLI and the
+          # OWN claude that no-mistakes' review step spawns - both read it from the
+          # environment. GH_TOKEN backs the agent's git / gh / no-mistakes push + PR
+          # steps; it is the App token (when minted) so those pushes and the opened PR
+          # go out as the App and can touch workflow files under .github/workflows/,
+          # falling back to the default token otherwise. The CHROME_DEVTOOLS_AXI_*
+          # vars exported above reach chrome-devtools-axi the same way.
+          # --dangerously-skip-permissions keeps the run non-interactive on this
+          # ephemeral CI runner (there is no human to approve tool prompts).
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
-        with:
-          # Authenticate with the Claude Code OAuth token (your Claude subscription)
-          # rather than a metered ANTHROPIC_API_KEY. Set up by the Claude Code GitHub
-          # installer and stored as the CLAUDE_CODE_OAUTH_TOKEN secret - the same
-          # credential the installer-provided claude.yml / claude-code-review.yml use.
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ steps.app_token.outputs.token || github.token }}
-          prompt: |
+          # Built from our validated matrix integer; routed through env so no event
+          # data is interpolated into the command line.
+          PROMPT: |
             You are working ticket #${{ matrix.number }} in this repository.
             The full ticket (title, body, url) is in ticket.json at the repo root - read it first.
 
@@ -303,10 +319,18 @@ jobs:
             5. no-mistakes opens the PR as its final step. Make sure the PR body says
                "Closes #${{ matrix.number }}".
             Never merge anything. The captain merges.
+        run: |
+          set -euo pipefail
           # Pin Opus 4.8 with the 1M-token context window ([1m] is Claude Code's
-          # context-window selector). Single-quoted so the shell that splits
-          # claude_args does not glob-expand the brackets.
-          claude_args: "--model 'claude-opus-4-8[1m]' --allowedTools Bash,Edit,Write,Read,Glob,Grep"
+          # context-window selector). Single-quoted so the shell does not glob-expand
+          # the brackets.
+          claude -p "$PROMPT" \
+            --model 'claude-opus-4-8[1m]' \
+            --allowedTools Bash,Edit,Write,Read,Glob,Grep \
+            --output-format stream-json --verbose \
+            --dangerously-skip-permissions \
+            | tee "$EXECUTION_FILE" \
+            | npx tsx scripts/agent-dispatch/streamTranscript.cli.ts
 
       # Render the agent's run as a clean Claude <-> tools conversation on the
       # run's Summary tab (assistant text + one line per tool call, tool-result
@@ -316,12 +340,11 @@ jobs:
       - name: Summarize the agent run
         if: always()
         continue-on-error: true
-        env:
-          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
         run: |
           set -u
           npx tsx scripts/agent-dispatch/agentRunReport.cli.ts \
             --mode transcript \
+            --format ndjson \
             --execution-file "$EXECUTION_FILE" \
             --title "Agent run - issue #$ISSUE_NUMBER" >> "$GITHUB_STEP_SUMMARY"
 
@@ -329,11 +352,11 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          # The agent step's result and run log, routed through env (never
+          # The agent step's outcome and run log, routed through env (never
           # interpolated into a shell line) so the park comment can say what
-          # actually happened instead of a fixed string.
+          # actually happened instead of a fixed string. EXECUTION_FILE is the
+          # job-level NDJSON path the agent step teed its stream to.
           AGENT_OUTCOME: ${{ steps.agent.outcome }}
-          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -u
@@ -353,6 +376,7 @@ jobs:
           # comment is never empty.
           npx tsx scripts/agent-dispatch/agentRunReport.cli.ts \
             --mode comment \
+            --format ndjson \
             --execution-file "$EXECUTION_FILE" \
             --outcome "$AGENT_OUTCOME" \
             --run-url "$RUN_URL" > park-comment.md \
