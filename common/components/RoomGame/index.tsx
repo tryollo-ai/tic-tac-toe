@@ -28,6 +28,7 @@ import Status, {
 } from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
 import styles from "./styles.module.scss";
+import squareStyles from "@/common/components/Square/styles.module.scss";
 
 type Props = {
   id: string;
@@ -78,11 +79,7 @@ const FALLBACK_POLL_MS = 10000;
  */
 const ACTIVE_POLL_MS = 1500;
 
-/**
- * How long the grid-shift slide plays before the board settles. Kept in sync
- * with $shift-slide-ms in Square/styles.module.scss, which drives the motion.
- */
-const SHIFT_ANIMATION_MS = 280;
+const SHIFT_ANIMATION_MS = Number(squareStyles.shiftSlideMs);
 
 /** Map a thrown error to a known room-error message, or the given fallback. */
 function roomErrorMessage(err: unknown, fallback: string): string {
@@ -323,15 +320,17 @@ const RoomGame = (props: Props) => {
   // joined mid-play doesn't replay the motion; a shrinking log (reset/rewind)
   // just reseeds.
   const prevActionCountRef = useRef<number | null>(null);
+  const actionsRef = useRef(room?.actions);
+  actionsRef.current = room?.actions;
   const actionCount = room?.actions.length ?? null;
   useEffect(() => {
     if (actionCount === null) return;
     const prev = prevActionCountRef.current;
     prevActionCountRef.current = actionCount;
     if (prev === null || actionCount <= prev) return;
-    const latest = room?.actions[actionCount - 1];
+    const latest = actionsRef.current?.[actionCount - 1];
     if (latest?.kind === "shift") setShiftAnimation(latest.dir);
-  }, [actionCount, room?.actions]);
+  }, [actionCount]);
 
   // Clear the slide once it has played so the board returns to its resting,
   // motionless render.

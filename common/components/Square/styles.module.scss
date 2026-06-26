@@ -32,9 +32,14 @@
 
 // The mark fills the cell so a one-cell slide is `100% + grid gap`, and only the
 // glyph moves while the cell itself stays put. Keep $shift-gap in sync with the
-// Board grid gap and $shift-slide-ms with SHIFT_ANIMATION_MS in RoomGame.
+// Board grid gap.
 $shift-gap: 10px;
-$shift-slide-ms: 280ms;
+$shift-slide-raw: 280;
+$shift-slide-ms: $shift-slide-raw * 1ms;
+
+:export {
+  shiftSlideMs: $shift-slide-raw;
+}
 
 .mark {
   display: flex;
