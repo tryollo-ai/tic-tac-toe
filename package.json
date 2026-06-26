@@ -12,13 +12,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "postinstall": "prisma generate",
-    "select-tickets": "tsx scripts/agent-dispatch/selectTickets.cli.ts",
-    "select-tickets-agent": "tsx scripts/agent-dispatch/selectTicketsAgent.cli.ts",
-    "enrich-issue-status": "tsx scripts/agent-dispatch/enrichIssueStatus.cli.ts",
-    "enrich-dependencies": "tsx scripts/agent-dispatch/enrichDependencies.cli.ts",
-    "set-project-status": "tsx scripts/agent-dispatch/setProjectStatus.cli.ts",
-    "agent-run-report": "tsx scripts/agent-dispatch/agentRunReport.cli.ts"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

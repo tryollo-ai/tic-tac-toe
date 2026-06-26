@@ -15,7 +15,7 @@
 # Uses plain `gh` (present on GitHub runners and locally). NOT gh-axi: its
 # `label create` requires `--name`, so the positional form below would fail.
 # Requires GitHub auth.
-# Usage: scripts/agent-dispatch/setup-labels.sh [--repo <owner/name>]
+# Usage: agent-kit/scripts/setup-labels.sh [--repo <owner/name>]
 set -eu
 
 REPO=""

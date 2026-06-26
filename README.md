@@ -85,13 +85,10 @@ follow the copy-pasteable guide in [docs/database.md](./docs/database.md).
 - `yarn db:migrate` - apply all committed migrations to `DATABASE_URL` (`prisma migrate deploy`); use this in CI/production
 - `yarn db:migrate:dev` - create/apply a migration during development (`prisma migrate dev`)
 - `yarn db:generate` - regenerate the Prisma client (`prisma generate`); also runs automatically on `postinstall`
-- `yarn select-tickets` - agent-dispatch ticket selector CLI (reads `gh issue list`
-  JSON on stdin, prints the chosen issue numbers; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
-- `yarn enrich-issue-status` - annotate the issue JSON on stdin with each
-  issue's Projects v2 board Status, for the selector's Ready-column gate
-  (fail-closed without `PROJECTS_TOKEN`; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
-- `yarn set-project-status` - best-effort Projects v2 board-sync CLI
-  (`--issue N --status "In Progress"`; no-ops without `PROJECTS_TOKEN`; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
+
+The agent-dispatch ticket-selection and board-sync CLIs are packaged in the
+self-contained [agent-kit/](./agent-kit/) and run via `npx tsx agent-kit/scripts/<name>.cli.ts`
+(no `package.json` aliases); see [agent-kit/docs/operations.md](./agent-kit/docs/operations.md).
 
 ## Project structure
 
@@ -112,8 +109,8 @@ lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 app/providers.tsx         # Client root: stable React Query QueryClientProvider
 constants/game.ts         # Cross-cutting domain constants (board size, AI seat sentinel)
-scripts/agent-dispatch/       # Opt-in CI "issue -> PR" loop: ticket selector, label setup, board sync
-.github/workflows/        # deploy.yml (Vercel auto-deploy on push to main); agent-dispatch, claude, claude-code-review (see docs/agent-dispatch.md)
+agent-kit/                # Self-contained "issue -> PR" agent loop + Claude review kit (scripts, workflows, config, setup skill)
+.github/workflows/        # deploy.yml (Vercel auto-deploy on push to main); agent-dispatch, claude, claude-code-review (installed from agent-kit/; see agent-kit/docs/operations.md)
 ```
 
 See [AGENTS.md](./AGENTS.md) for contribution conventions (notably the styling

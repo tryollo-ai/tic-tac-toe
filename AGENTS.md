@@ -63,9 +63,7 @@ All client reads/writes go through TanStack React Query (`@tanstack/react-query`
 - `yarn test` - Vitest unit suite once (`vitest run`)
 - `yarn deploy` - deploy to Vercel production
 - `yarn db:migrate` / `db:migrate:dev` / `db:generate` - apply migrations (CI/prod) / author a migration (dev) / regenerate the Prisma client
-- `yarn select-tickets` / `select-tickets-agent` - agent-dispatch ticket selector (deterministic / agent-driven with deterministic fallback)
-- `yarn enrich-issue-status` / `enrich-dependencies` - annotate the stdin issue JSON with Projects v2 Status / resolved blockers for the selector gates
-- `yarn set-project-status` - best-effort Projects v2 board-sync CLI
+- Agent-dispatch CLIs live in the self-contained kit at `agent-kit/scripts/*.cli.ts` (run via `npx tsx`, no `package.json` aliases); see [agent-kit/](./agent-kit/)
 
 ## Testing
 
@@ -75,10 +73,11 @@ All client reads/writes go through TanStack React Query (`@tanstack/react-query`
 
 ## Agent issue loop (CI)
 
-An opt-in, scheduled "issue -> PR" loop under `.github/workflows/agent-dispatch.yml` + `scripts/agent-dispatch/`, independent of the game runtime. Nothing is ever merged automatically. Full operator docs: [docs/agent-dispatch.md](./docs/agent-dispatch.md).
+An opt-in, scheduled "issue -> PR" loop packaged as the self-contained **agent-kit** (`agent-kit/`), independent of the game runtime. The installed workflow is `.github/workflows/agent-dispatch.yml`; its scripts/config/docs live under `agent-kit/`. Nothing is ever merged automatically. Full operator docs: [agent-kit/docs/operations.md](./agent-kit/docs/operations.md); setup: [agent-kit/SKILL.md](./agent-kit/SKILL.md).
 
 Conventions to preserve when touching it:
-- Keep all eligibility/ordering/dependency logic in pure, tested TS modules under `scripts/agent-dispatch/`, never in YAML; each pairs a `*.test.ts` with a thin `*.cli.ts`.
+- Keep all eligibility/ordering/dependency logic in pure, tested TS modules under `agent-kit/scripts/`, never in YAML; each pairs a `*.test.ts` with a thin `*.cli.ts`.
+- The kit is the canonical source: workflow YAMLs live in `agent-kit/workflows/` and are copied verbatim (with `agent-kit/` script paths) into `.github/workflows/`. Edit the kit copy, then re-sync. Project-specific bits (DB `services:`, `db:migrate`, dev port, stack-conventions line) are fenced `PROJECT-SPECIFIC` in the YAML.
 - Two eligibility gates, both **fail-closed**: the `agent:ready` label and the Projects v2 "Ready" column. The dependency gate also holds back any ticket with a non-`CLOSED` or unreadable blocker.
 - An agent only *proposes* the ticket subset; a deterministic guardrail trims it to real eligible numbers and always falls back to the deterministic selector when the agent is unavailable.
 - Resilient claim/park: the `select` job never mutates labels; each `work` job claims first and (with `if: always()`) marks `agent:done` only when a PR is confirmed open, else parks `agent:needs-help`.
