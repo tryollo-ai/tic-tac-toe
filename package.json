@@ -4,9 +4,8 @@
   "private": true,
   "packageManager": "yarn@1.22.21",
   "scripts": {
-    "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next dev",
     "lint": "next lint",
     "test": "vitest run",
     "deploy": "vercel --prod",
