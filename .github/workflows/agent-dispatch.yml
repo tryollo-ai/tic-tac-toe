@@ -293,8 +293,20 @@ jobs:
           #    binaries) instead of the bare systemd-manager default.
           systemctl --user import-environment CLAUDE_CODE_OAUTH_TOKEN GH_TOKEN GITHUB_TOKEN PATH
 
-          # 3. Restart the daemon (or start it if init left it down) so it picks up the
-          #    imported environment, then sanity-check it can find its coding agent.
+          # 3. Pin claude in the no-mistakes config by ABSOLUTE path. Importing PATH
+          #    alone does not durably reach the daemon by pipeline time (the daemon's
+          #    own PATH lacks the toolcache node bin where claude lives), so the robust
+          #    fix is agent_path_override - the daemon then resolves claude regardless
+          #    of its PATH. config.yaml is per-runner (init created it with agent: auto
+          #    and the override commented out, so this is the only active override).
+          CLAUDE_BIN="$(command -v claude)"
+          CFG="$HOME/.no-mistakes/config.yaml"
+          sed -i 's/^agent: .*/agent: claude/' "$CFG"
+          printf '\nagent_path_override:\n  claude: %s\n' "$CLAUDE_BIN" >> "$CFG"
+
+          # 4. Restart the daemon (or start it if init left it down) so it picks up the
+          #    imported environment AND the pinned agent, then sanity-check it resolves
+          #    claude before the agent ever calls the pipeline.
           no-mistakes daemon restart || no-mistakes daemon start || true
           no-mistakes doctor || true
 
@@ -344,7 +356,13 @@ jobs:
                change), say so and skip the screenshots.
             4. Validate and ship with no-mistakes. Run the pipeline IN THE FOREGROUND
                and drive it to a final outcome:
-                 no-mistakes axi run --yes --intent "<what the ticket asked for, plus the key decisions you made>"
+                 no-mistakes axi run --yes --intent "<intent>"
+               Write the intent as concise, readable Markdown - it becomes the PR's
+               "Intent" section verbatim. Lead with a one-sentence summary of the goal,
+               then a short bulleted list of the key decisions and tradeoffs (one per
+               bullet). Keep it to the goal and the decisions; do NOT paste process or
+               meta instructions into it (no "PR body must say...", no notes about the
+               harness or screenshots).
                This command BLOCKS for several minutes (the review, test, and CI
                steps each take time) - that is expected and correct. Do NOT run it in
                the background, do NOT append `&`, do NOT set up a monitor or a

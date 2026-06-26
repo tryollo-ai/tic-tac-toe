@@ -30,3 +30,7 @@ yarn-error.log*
 next-env.d.ts
 
 .idea/
+
+# agent-dispatch run artifacts (generated at repo root by the CI harness)
+/ticket.json
+/execution.ndjson
