@@ -1,0 +1,60 @@
+// Prisma schema for tic-tac-toe persistence (issue #49).
+//
+// Persistence target is Postgres (Neon in production). Timestamps are stored as
+// `timestamptz` (Prisma `DateTime`), NOT epoch-ms integers - this is a deliberate
+// decision so the database holds real instants. The in-memory store still uses
+// epoch-ms numbers; conversion happens at the (future) store boundary.
+//
+// Model field names stay camelCase for ergonomic use from TypeScript, while the
+// underlying tables/columns are snake_case via @map/@@map for idiomatic SQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A live, replayable room. Mirrors `Room` in lib/roomTypes.ts, flattening the
+/// nested scores/seats/seatSeen objects into columns.
+model Room {
+  id          String   @id
+  name        String
+  board       Json
+  /// Every action this round, in turn order; X takes even indices, O odd.
+  actions     Json
+  xIsNext     Boolean  @map("x_is_next")
+  scoreX      Int      @default(0) @map("score_x")
+  scoreO      Int      @default(0) @map("score_o")
+  scoreDraws  Int      @default(0) @map("score_draws")
+  seatX       String?  @map("seat_x")
+  seatO       String?  @map("seat_o")
+  seatSeenX   DateTime? @map("seat_seen_x") @db.Timestamptz
+  seatSeenO   DateTime? @map("seat_seen_o") @db.Timestamptz
+  mode        String
+  /// Whether O has spent its one-time whole-grid shift this round.
+  oShiftUsed  Boolean  @default(false) @map("o_shift_used")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  lastActivity DateTime @map("last_activity") @db.Timestamptz
+
+  @@index([lastActivity])
+  @@map("rooms")
+}
+
+/// An archived, finished game. Mirrors `CompletedGame` in lib/roomTypes.ts. The
+/// ordered action log is the single source of truth; the final board/winner are
+/// derived from it at read time.
+model CompletedGame {
+  id          String   @id
+  roomId      String   @map("room_id")
+  name        String
+  mode        String
+  /// Every action in play order; X takes even indices, O odd.
+  actions     Json
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz
+
+  @@index([completedAt])
+  @@map("completed_games")
+}

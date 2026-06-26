@@ -62,6 +62,18 @@ yarn dev
 
 Then open [http://localhost:3000](http://localhost:3000).
 
+## Database
+
+Room state is moving from an in-memory `Map` to Postgres (Neon in production) via
+Prisma, so rooms survive restarts and serverless cold starts (issue #49).
+The schema lives in [`prisma/schema.prisma`](./prisma/schema.prisma) and the
+cached client in [`lib/prisma.ts`](./lib/prisma.ts).
+The app still runs entirely on the in-memory store until the store is migrated
+over, so you do not need a database to develop locally.
+
+To provision the database and run the migrations against Neon (or any Postgres),
+follow the copy-pasteable guide in [docs/database.md](./docs/database.md).
+
 ## Scripts
 
 - `yarn dev` - start the development server
@@ -70,6 +82,9 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `yarn lint` - lint the codebase
 - `yarn test` - run the Vitest unit suite once
 - `yarn deploy` - deploy to Vercel production (`vercel --prod`); also runs automatically on every push to `main` via `.github/workflows/deploy.yml` (requires `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` repository secrets; skips silently without them)
+- `yarn db:migrate` - apply all committed migrations to `DATABASE_URL` (`prisma migrate deploy`); use this in CI/production
+- `yarn db:migrate:dev` - create/apply a migration during development (`prisma migrate dev`)
+- `yarn db:generate` - regenerate the Prisma client (`prisma generate`); also runs automatically on `postinstall`
 - `yarn select-tickets` - agent-dispatch ticket selector CLI (reads `gh issue list`
   JSON on stdin, prints the chosen issue numbers; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
 - `yarn enrich-issue-status` - annotate the issue JSON on stdin with each
