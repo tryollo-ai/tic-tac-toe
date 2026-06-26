@@ -106,7 +106,8 @@ once `room.actions.length > 0`) once there is history to show - otherwise, befor
 the first move `BoardHistory` renders nothing and its lone sibling `boardArea`
 would auto-place into the narrow 150px history column and squish the board.
 Under 900px the two-column layout collapses back to one column and the history
-stacks above the board (the inner `boardArea` keeps its own 640px collapse). `BoardHistory` takes only `actions: GameAction[]` and derives each
+stacks above the board (the inner `boardArea` keeps its own 640px collapse).
+`BoardHistory` takes only `actions: GameAction[]` and derives each
 historical board with `boardAfterActions(actions, i + 1)` (rendered through the
 shared `MiniBoard`, which draws any winning line) - the same action-log
 reconstruction the replay view uses, so it is never a second board renderer.
