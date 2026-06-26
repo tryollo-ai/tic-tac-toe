@@ -32,10 +32,6 @@ const ARROW_MS = 1500;
 const SHIFT_MS = 750;
 const HOLD_MS = 1100;
 
-const usesReducedMotion = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 /**
  * Looping, decorative illustration of player O's grid shift, shown at the bottom
  * of the "How to play" dialog. A directional arrow fades in and drifts, then the
@@ -50,7 +46,11 @@ const ShiftAnimation = () => {
   const [cycle, setCycle] = useState(0);
 
   useEffect(() => {
-    setReducedMotion(usesReducedMotion());
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReducedMotion(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
   }, []);
 
   useEffect(() => {
