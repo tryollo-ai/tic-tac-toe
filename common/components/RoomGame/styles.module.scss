@@ -1,8 +1,16 @@
+// The board defines the primary column: the header, status, seat bar and
+// scoreboard all stack at the board's width, centered in the page. The move
+// history and player-info panels bleed out of this column into the negative
+// space on either side of the board (see `.playArea`).
 .root {
+  --board-col: 380px;
+
   display: flex;
   flex-direction: column;
   gap: 14px;
   width: 100%;
+  max-width: var(--board-col);
+  margin: 0 auto;
 }
 
 .seatBar {
@@ -59,43 +67,68 @@
   }
 }
 
-// Outer layout: the board is the centered hero. The faded history column sits
-// in the left flank and the combined player-info box in the right one. Both
-// flanks get an equal `1fr` track so the board stays centered in the full width
-// no matter how wide either flank is, while the board itself fills a generous
-// fixed center track. The board and info box are pinned to explicit columns
-// (2 and 3) rather than relying on source-order auto-placement: the history slot
-// is empty until the first move, and without explicit pins the board would slide
-// left into the empty flank's track on a fresh room. `.historySlot`, the only
-// auto-placed child, then lands in the empty left flank.
+// Outer layout: the board frame fills the primary column and the two side
+// panels are absolutely positioned just outside it, bleeding into the page's
+// negative space. The history sits to the left of the board, the player-info box
+// to the right, so the board itself stays the centered hero at full column width.
 .playArea {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 400px) minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
+  position: relative;
+  display: flex;
+  justify-content: center;
   width: 100%;
+}
+
+// The board plus its reserved shift perimeter. The perimeter tracks are zero
+// until O can shift, so the board normally fills the whole frame; arming the
+// shift expands the tracks (`.boardFrameArmed`) to hold the direction arrows.
+.boardFrame {
+  display: grid;
+  grid-template-columns: 0 minmax(0, 1fr) 0;
+  grid-template-rows: 0 auto 0;
+  gap: 0;
+  width: 100%;
+}
+
+.boardFrameArmed {
+  --shift-size: 44px;
+
+  grid-template-columns: var(--shift-size) minmax(0, 1fr) var(--shift-size);
+  grid-template-rows: var(--shift-size) auto var(--shift-size);
+  gap: 8px;
 }
 
 .boardSlot {
   grid-column: 2;
+  grid-row: 2;
   min-width: 0;
 }
 
-// Wraps BoardHistory so the panel can be reordered relative to the board on
-// mobile (BoardHistory's own root carries the panel styling). Auto-placed into
-// the empty left flank on desktop.
+// History panel, bleeding out to the left of the board. Pinned to the right edge
+// of the board frame and pushed fully into the left negative space via
+// `right: 100%`. BoardHistory's own root carries the panel styling.
 .historySlot {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  width: 160px;
+  margin-right: 14px;
   min-width: 0;
 }
 
-// Combined player-info box on the right of the board: who moves first (X) and
-// whether O still holds the once-per-game grid shift. Each row lights up on its
-// player's turn, and O's shift controls live inline under O's status.
+// Combined player-info box, bleeding out to the right of the board: who moves
+// first (X) and whether O still holds the once-per-game grid shift. Each row
+// lights up on its player's turn, and O's shift trigger lives inline under O's
+// status. Pinned to the left edge of the board frame, pushed into the right
+// negative space via `left: 100%`.
 .infoPanel {
-  grid-column: 3;
+  position: absolute;
+  top: 0;
+  left: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 160px;
+  margin-left: 14px;
   min-width: 0;
   padding: 10px;
   background: var(--bg-elevated);
@@ -154,7 +187,7 @@
 .shiftControls {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   margin-top: 4px;
 }
@@ -165,34 +198,92 @@
   color: var(--text-muted);
 }
 
-.shiftGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-}
-
-.shiftButton {
-  padding: 8px 6px;
+// Arms / cancels the shift picker. Tinted with the accent so it reads as the
+// once-per-game special action; the active state inverts to a solid fill.
+.shiftTrigger {
+  padding: 8px 10px;
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: 10px;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
-    transform 0.08s ease;
+    background 0.15s ease;
 
   &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
     border-color: var(--accent);
-    transform: translateY(-1px);
   }
 
   &:disabled {
     opacity: 0.55;
     cursor: default;
   }
+}
+
+.shiftTriggerActive {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+
+  &:hover:not(:disabled) {
+    background: var(--accent);
+  }
+}
+
+// One direction arrow, filling its reserved slot on the matching board edge.
+.shiftButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.08s ease;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    border-color: var(--accent);
+    transform: scale(1.04);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+}
+
+.shiftSlotTop {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.shiftSlotBottom {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.shiftSlotLeft {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.shiftSlotRight {
+  grid-column: 3;
+  grid-row: 2;
 }
 
 .nextGame {
@@ -203,29 +294,33 @@
   text-align: center;
 }
 
-// Below this the board plus both flanks no longer fit side by side, so collapse
-// to a single column. The board stays the static hero at the top with the
-// combined info box directly beneath it; the move history drops to the bottom as
-// a horizontally scrolling strip (BoardHistory's own styles) so a growing
-// history never pushes the board down the page on each move.
+// Below this there is no room to bleed the panels into the flanks, so collapse
+// to a single column at full width. The board stays the static hero at the top
+// with the combined info box directly beneath it; the move history drops to the
+// bottom as a horizontally scrolling strip (BoardHistory's own styles) so a
+// growing history never pushes the board down the page on each move.
 @media (max-width: 760px) {
-  .playArea {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
+  .root {
+    max-width: none;
   }
 
-  // Drop the desktop column pins and reorder the stack explicitly: board, then
-  // info box, then history. `order` overrides source order (history, board,
-  // info) without moving the markup, and dropping the pins avoids forcing
-  // phantom implicit columns.
-  .boardSlot,
+  // Stack the panels back into the flow instead of bleeding them out. `order`
+  // overrides source order (history, board, info) without moving the markup.
+  .playArea {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .boardFrame {
+    order: 1;
+  }
+
   .historySlot,
   .infoPanel {
-    grid-column: auto;
-  }
-
-  .boardSlot {
-    order: 1;
+    position: static;
+    width: auto;
+    margin: 0;
   }
 
   .infoPanel {

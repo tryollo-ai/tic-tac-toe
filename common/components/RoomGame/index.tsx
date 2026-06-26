@@ -42,12 +42,20 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   "shift-used": "You have already used your shift.",
 };
 
-/** The four grid-shift choices, in the order shown to player O. */
-const SHIFT_OPTIONS: { dir: Direction; label: string }[] = [
-  { dir: "top", label: "↑ Up" },
-  { dir: "bottom", label: "↓ Down" },
-  { dir: "left", label: "← Left" },
-  { dir: "right", label: "→ Right" },
+/**
+ * The four grid-shift choices. Each renders as a single arrow on the matching
+ * edge of the board (`slotClass`), with a spelled-out label for assistive tech.
+ */
+const SHIFT_OPTIONS: {
+  dir: Direction;
+  glyph: string;
+  label: string;
+  slotClass: "shiftSlotTop" | "shiftSlotBottom" | "shiftSlotLeft" | "shiftSlotRight";
+}[] = [
+  { dir: "top", glyph: "↑", label: "Shift up", slotClass: "shiftSlotTop" },
+  { dir: "bottom", glyph: "↓", label: "Shift down", slotClass: "shiftSlotBottom" },
+  { dir: "left", glyph: "←", label: "Shift left", slotClass: "shiftSlotLeft" },
+  { dir: "right", glyph: "→", label: "Shift right", slotClass: "shiftSlotRight" },
 ];
 
 /**
@@ -68,6 +76,9 @@ const RoomGame = (props: Props) => {
   // the optimistic/authoritative state.
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Whether O has armed the grid shift and is now picking a direction. The
+  // direction buttons live around the board perimeter only while this is on.
+  const [shiftActive, setShiftActive] = useState(false);
 
   const roomKey = useMemo(
     () => ["room", props.id, playerId] as const,
@@ -218,6 +229,7 @@ const RoomGame = (props: Props) => {
   const handleShift = useCallback(
     (direction: Direction) => {
       if (!playerId) return;
+      setShiftActive(false);
       shiftMutation.mutate(direction);
     },
     [playerId, shiftMutation],
@@ -248,6 +260,17 @@ const RoomGame = (props: Props) => {
       resetScheduledRef.current = false;
     };
   }, [room?.status, room?.seats.X, mySeat, playerId, resetMutation]);
+
+  // Disarm the shift picker whenever O can no longer shift (turn passed, shift
+  // spent, game ended, seat left), so it never lingers into the next turn.
+  const shiftEligible =
+    mySeat === "O" &&
+    room?.status !== "finished" &&
+    room?.xIsNext === false &&
+    !room?.oShiftUsed;
+  useEffect(() => {
+    if (!shiftEligible && shiftActive) setShiftActive(false);
+  }, [shiftEligible, shiftActive]);
 
   if (notFound) {
     return (
@@ -353,13 +376,38 @@ const RoomGame = (props: Props) => {
           <BoardHistory actions={room.actions} />
         </div>
 
-        <div className={styles.boardSlot}>
-          <Board
-            board={room.board}
-            winningLine={room.winningLine}
-            onSquareClick={handleMove}
-            disabled={boardDisabled}
-          />
+        {/* The board keeps a reserved perimeter while O can shift, so arming the
+            picker reveals the direction arrows in already-allotted slots without
+            resizing or nudging the board. */}
+        <div
+          className={classNames(styles.boardFrame, {
+            [styles.boardFrameArmed]: canShiftNow,
+          })}
+        >
+          {canShiftNow &&
+            shiftActive &&
+            SHIFT_OPTIONS.map(({ dir, glyph, label, slotClass }) => (
+              <button
+                key={dir}
+                type="button"
+                className={classNames(styles.shiftButton, styles[slotClass])}
+                onClick={() => handleShift(dir)}
+                disabled={paused}
+                aria-label={label}
+                title={label}
+              >
+                {glyph}
+              </button>
+            ))}
+
+          <div className={styles.boardSlot}>
+            <Board
+              board={room.board}
+              winningLine={room.winningLine}
+              onSquareClick={handleMove}
+              disabled={boardDisabled}
+            />
+          </div>
         </div>
 
         <aside className={styles.infoPanel}>
@@ -392,22 +440,22 @@ const RoomGame = (props: Props) => {
 
             {canShiftNow && (
               <div className={styles.shiftControls}>
+                <button
+                  type="button"
+                  className={classNames(styles.shiftTrigger, {
+                    [styles.shiftTriggerActive]: shiftActive,
+                  })}
+                  onClick={() => setShiftActive((active) => !active)}
+                  disabled={paused}
+                  aria-pressed={shiftActive}
+                >
+                  {shiftActive ? "Cancel shift" : "Use grid shift"}
+                </button>
                 <p className={styles.shiftControlsHint}>
-                  Slide the grid (uses your turn):
+                  {shiftActive
+                    ? "Pick a direction around the board (uses your turn)."
+                    : "Slide the whole grid one cell (uses your turn)."}
                 </p>
-                <div className={styles.shiftGrid}>
-                  {SHIFT_OPTIONS.map(({ dir, label }) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      className={styles.shiftButton}
-                      onClick={() => handleShift(dir)}
-                      disabled={paused}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
           </div>
