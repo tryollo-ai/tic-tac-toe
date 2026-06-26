@@ -260,6 +260,44 @@ jobs:
           npm i -g @anthropic-ai/claude-code
           claude --version
 
+      # Prime the no-mistakes daemon's environment BEFORE the agent runs. The daemon
+      # is a separate systemd --user service the agent only talks to over a socket,
+      # so the agent step's env never reaches it - and the CLI scrubs
+      # CLAUDE_CODE_OAUTH_TOKEN from its own subprocesses anyway. Without this, every
+      # run burns most of its time hand-injecting auth, PATH, and git/gh credentials
+      # into the daemon mid-pipeline. We inject them once, deterministically: git
+      # credentials into the global config the daemon's git reads, and the auth/PATH
+      # into the systemd user manager (which a regenerated unit still inherits), then
+      # restart the daemon so it picks all of it up. continue-on-error so a priming
+      # hiccup degrades to the agent's own fallback handling rather than failing the
+      # job.
+      - name: Prime no-mistakes daemon environment
+        continue-on-error: true
+        env:
+          APP_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          set -eu
+          export GH_TOKEN="$APP_TOKEN" GITHUB_TOKEN="$APP_TOKEN"
+
+          # 1. Global git credentials so the daemon's git (same HOME) pushes to origin
+          #    as the App - which carries the Workflows + Contents permissions the
+          #    push under .github/workflows/ needs.
+          git config --global \
+            url."https://x-access-token:${APP_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+          # 2. Hand the daemon the auth its review-step claude and its gh need, via the
+          #    systemd user manager so the values survive the unit regeneration that
+          #    'daemon restart' performs. PATH is included so the daemon inherits this
+          #    step's PATH (which has the global claude + no-mistakes + chrome-devtools
+          #    binaries) instead of the bare systemd-manager default.
+          systemctl --user import-environment CLAUDE_CODE_OAUTH_TOKEN GH_TOKEN GITHUB_TOKEN PATH
+
+          # 3. Restart the daemon (or start it if init left it down) so it picks up the
+          #    imported environment, then sanity-check it can find its coding agent.
+          no-mistakes daemon restart || no-mistakes daemon start || true
+          no-mistakes doctor || true
+
       # Run the agent directly and stream its turns live. claude emits its events
       # as NDJSON on stdout (--output-format stream-json, which requires --verbose
       # in print mode); we tee the raw stream to EXECUTION_FILE for the end-of-run
