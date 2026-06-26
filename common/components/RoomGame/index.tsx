@@ -263,14 +263,14 @@ const RoomGame = (props: Props) => {
 
   // Disarm the shift picker whenever O can no longer shift (turn passed, shift
   // spent, game ended, seat left), so it never lingers into the next turn.
-  const shiftEligible =
+  const canShiftNow =
     mySeat === "O" &&
     room?.status !== "finished" &&
     room?.xIsNext === false &&
     !room?.oShiftUsed;
   useEffect(() => {
-    if (!shiftEligible && shiftActive) setShiftActive(false);
-  }, [shiftEligible, shiftActive]);
+    if (!canShiftNow && shiftActive) setShiftActive(false);
+  }, [canShiftNow, shiftActive]);
 
   if (notFound) {
     return (
@@ -296,12 +296,6 @@ const RoomGame = (props: Props) => {
       ? (room.board[room.winningLine[0]] as Player)
       : null;
   const bothSeated = room.seats.X !== null && room.seats.O !== null;
-  // O's shift is an alternative to placing on O's own turn, once per game. Like
-  // a normal placement it only needs O to be seated and on turn - not both seats
-  // filled - so a single player swapping into O can still use it.
-  const canShiftNow =
-    mySeat === "O" && !gameOver && currentTurn === "O" && !room.oShiftUsed;
-
   const xLabel = mySeat === "X" ? "You (X)" : "Player X";
   const oLabel =
     room.mode === "ai" ? "AI (O)" : mySeat === "O" ? "You (O)" : "Player O";
