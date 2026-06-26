@@ -20,13 +20,28 @@ export function roomErrorCode(err: unknown): string {
   return err instanceof RoomError ? err.code : "unknown";
 }
 
-async function parseRoom(res: Response): Promise<RoomView> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new RoomError(body.error ?? `http-${res.status}`);
-  }
+/** Turn a failed response into a RoomError, preferring its error-code body. */
+async function errorFrom(res: Response): Promise<RoomError> {
+  const body = await res.json().catch(() => ({}));
+  return new RoomError(body.error ?? `http-${res.status}`);
+}
+
+/** Read one keyed field out of a JSON response, throwing a RoomError on failure. */
+async function readField<T>(res: Response, key: string): Promise<T> {
+  if (!res.ok) throw await errorFrom(res);
   const body = await res.json();
-  return body.room as RoomView;
+  return body[key] as T;
+}
+
+/** GET a no-store JSON endpoint and return one of its fields. */
+function getJson<T>(
+  url: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  return fetch(url, { cache: "no-store", signal }).then((res) =>
+    readField<T>(res, key),
+  );
 }
 
 /** Send a JSON-bodied mutation and return the resulting room view. */
@@ -39,31 +54,24 @@ function sendJson(
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  }).then(parseRoom);
+  }).then((res) => readField<RoomView>(res, "room"));
 }
 
-export async function fetchRooms(signal?: AbortSignal): Promise<RoomSummary[]> {
-  const res = await fetch("/api/rooms", { cache: "no-store", signal });
-  if (!res.ok) throw new RoomError(`http-${res.status}`);
-  const body = await res.json();
-  return body.rooms as RoomSummary[];
+export function fetchRooms(signal?: AbortSignal): Promise<RoomSummary[]> {
+  return getJson<RoomSummary[]>("/api/rooms", "rooms", signal);
 }
 
 export function createRoom(name: string, mode: RoomMode): Promise<RoomView> {
   return sendJson("/api/rooms", "POST", { name, mode });
 }
 
-export async function fetchRoom(
+export function fetchRoom(
   id: string,
   playerId: string | null,
   signal?: AbortSignal,
 ): Promise<RoomView> {
   const query = playerId ? `?playerId=${encodeURIComponent(playerId)}` : "";
-  const res = await fetch(`/api/rooms/${id}${query}`, {
-    cache: "no-store",
-    signal,
-  });
-  return parseRoom(res);
+  return getJson<RoomView>(`/api/rooms/${id}${query}`, "room", signal);
 }
 
 export function claimSeat(
@@ -98,24 +106,15 @@ export function shiftRoom(
   return sendJson(`/api/rooms/${id}/shift`, "POST", { playerId, direction });
 }
 
-export async function fetchCompletedGames(
+export function fetchCompletedGames(
   signal?: AbortSignal,
 ): Promise<CompletedGameSummary[]> {
-  const res = await fetch("/api/completed", { cache: "no-store", signal });
-  if (!res.ok) throw new RoomError(`http-${res.status}`);
-  const body = await res.json();
-  return body.games as CompletedGameSummary[];
+  return getJson<CompletedGameSummary[]>("/api/completed", "games", signal);
 }
 
-export async function fetchCompletedGame(
+export function fetchCompletedGame(
   id: string,
   signal?: AbortSignal,
 ): Promise<CompletedGameView> {
-  const res = await fetch(`/api/completed/${id}`, { cache: "no-store", signal });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new RoomError(body.error ?? `http-${res.status}`);
-  }
-  const body = await res.json();
-  return body.game as CompletedGameView;
+  return getJson<CompletedGameView>(`/api/completed/${id}`, "game", signal);
 }
