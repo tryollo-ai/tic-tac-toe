@@ -40,7 +40,7 @@ jobs:
     outputs:
       numbers: ${{ steps.pick.outputs.numbers }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Mint a short-lived Projects v2 token from the PROJECTS_APP GitHub App
       # (the default GITHUB_TOKEN cannot read/write user/org Projects v2). With no
@@ -53,13 +53,13 @@ jobs:
       # so the gate simply fails closed - never blocks the job.
       - name: Mint Projects token
         id: projects_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         continue-on-error: true
         with:
           app-id: ${{ secrets.PROJECTS_APP_ID }}
           private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -150,7 +150,7 @@ jobs:
       # does not touch workflow files.
       - name: Mint app token
         id: app_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         continue-on-error: true
         with:
           app-id: ${{ secrets.PROJECTS_APP_ID }}
@@ -160,7 +160,7 @@ jobs:
       # one actions/checkout persists for git push - that is how no-mistakes' push
       # to origin inherits the Workflows permission. Falls back to the default
       # token when no App is configured.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{ steps.app_token.outputs.token || github.token }}
@@ -183,7 +183,7 @@ jobs:
           set -eu
           gh issue view "$ISSUE_NUMBER" --json number,title,body,url > ticket.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -220,7 +220,7 @@ jobs:
       # so the browser flags (headless, no-sandbox) stay under our control in CI.
       - name: Install Chrome
         id: chrome
-        uses: browser-actions/setup-chrome@v1
+        uses: browser-actions/setup-chrome@v2
         with:
           chrome-version: stable
 
