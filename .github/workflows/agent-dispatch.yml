@@ -188,11 +188,6 @@ jobs:
       # that no-mistakes' test step runs ignores this and starts its own throwaway
       # container (test/testDb.ts), so the two never collide.
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-      # Handoff file between the agent step and the no-mistakes step: the agent
-      # writes its validation intent here, and the no-mistakes step reads it as the
-      # pipeline's --intent. Lives under the runner temp dir (persists across steps
-      # in the same job) so it never lands in the repo or a PR diff.
-      INTENT_FILE: ${{ runner.temp }}/no-mistakes-intent.md
     # A disposable Postgres for the agent to run the app against while it captures
     # before/after screenshots. Health-gated so steps only start once it accepts
     # connections. Schema is applied by the "Apply database migrations" step.
@@ -280,6 +275,15 @@ jobs:
           fi
           echo "BRANCH=$branch" >> "$GITHUB_ENV"
           echo "Resolved branch: $branch"
+
+      # Handoff file between the agent step and the no-mistakes step: the agent
+      # writes its validation intent here and the no-mistakes step reads it as the
+      # pipeline's --intent. Set via $GITHUB_ENV (one source of truth for both
+      # steps) from the runner's own $RUNNER_TEMP - NOT a `${{ runner.* }}`
+      # expression, which is unavailable in job-level env. Living under the runner
+      # temp dir keeps it out of the repo and any PR diff.
+      - name: Resolve intent-file path
+        run: echo "INTENT_FILE=$RUNNER_TEMP/no-mistakes-intent.md" >> "$GITHUB_ENV"
 
       # Download any image attachments referenced in the ticket body so the agent
       # can actually SEE them - the Read tool renders image files to the model,
