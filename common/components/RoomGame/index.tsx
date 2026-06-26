@@ -351,12 +351,14 @@ const RoomGame = (props: Props) => {
       <div className={styles.playArea}>
         <BoardHistory actions={room.actions} />
 
-        <Board
-          board={room.board}
-          winningLine={room.winningLine}
-          onSquareClick={handleMove}
-          disabled={boardDisabled}
-        />
+        <div className={styles.boardSlot}>
+          <Board
+            board={room.board}
+            winningLine={room.winningLine}
+            onSquareClick={handleMove}
+            disabled={boardDisabled}
+          />
+        </div>
 
         <aside className={styles.infoPanel}>
           <div
