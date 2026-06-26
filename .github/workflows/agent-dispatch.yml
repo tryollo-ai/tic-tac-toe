@@ -225,6 +225,53 @@ jobs:
           set -eu
           gh issue view "$ISSUE_NUMBER" --json number,title,body,url > ticket.json
 
+      # Download any image attachments referenced in the ticket body so the agent
+      # can actually SEE them - the Read tool renders image files to the model,
+      # whereas the body only carries the attachment URL as text. GitHub stores
+      # pasted images as <img src="..."> or ![](...) pointing at github.com
+      # attachment URLs; on a private repo those need an authenticated fetch, so we
+      # auth to github.com with GH_TOKEN and let curl drop the header on the
+      # cross-host redirect to object storage (default -L behavior; the signed
+      # storage URL rejects a stray Authorization header). Best-effort: this never
+      # fails the job, and the agent treats .ticket-attachments/ as optional.
+      - name: Download ticket attachments
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          dir=.ticket-attachments
+          mkdir -p "$dir"
+          # Every github.com attachment URL in the body: user-attachments/assets,
+          # the older <owner>/<repo>/assets/<id> form, and user-images.* hosts.
+          jq -r '.body // ""' ticket.json \
+            | grep -oE 'https://(github\.com/(user-attachments/assets/[0-9a-fA-F-]+|[^/"'"'"'() ]+/[^/"'"'"'() ]+/assets/[0-9]+)|user-images\.githubusercontent\.com/[^"'"'"'() ]+)' \
+            | sort -u > "$dir/urls.txt" || true
+          count=0
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            count=$((count + 1))
+            tmp="$dir/attachment-$count"
+            if curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$url" -o "$tmp"; then
+              # Name the file by its real type so Read treats it as an image.
+              case "$(file --mime-type -b "$tmp")" in
+                image/png)      ext=png ;;
+                image/jpeg)     ext=jpg ;;
+                image/gif)      ext=gif ;;
+                image/webp)     ext=webp ;;
+                image/svg+xml)  ext=svg ;;
+                *)              ext=bin ;;
+              esac
+              mv "$tmp" "$dir/attachment-$count.$ext"
+              echo "downloaded #$count ($ext) <- $url"
+            else
+              echo "WARN: failed to download $url" >&2
+              rm -f "$tmp"
+            fi
+          done < "$dir/urls.txt"
+          echo "Saved $count attachment(s) to $dir"
+          ls -la "$dir" || true
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -380,6 +427,10 @@ jobs:
           PROMPT: |
             You are working ticket #${{ matrix.number }} in this repository.
             The full ticket (title, body, url) is in ticket.json at the repo root - read it first.
+            Any images attached to the ticket have been downloaded to the
+            .ticket-attachments/ directory (when it exists and is non-empty) - Read
+            those image files too, so you see exactly what the reporter saw rather
+            than just the attachment URL text in the body.
 
             Do this, end to end, unattended:
             1. Create and switch to branch fm/issue-${{ matrix.number }}.
