@@ -29,11 +29,14 @@ game.
   and never loses on the 3x3 board.
   As O it also decides when to spend its one-time grid shift, weighing the shift
   against its best placement each turn.
-- **Move history:** a faded column to the left of the board shows the game's
-  progression - one mini-board snapshot per move, oldest at top and newest at
-  bottom, each labelled with who moved and what they did (a named cell or O's
-  grid shift). It fades up to full visibility on hover and scrolls within a
-  bounded height via up/down arrow buttons.
+- **Move history:** one mini-board snapshot per move, oldest first and newest
+  last, each labelled with who moved and what they did (a named cell or O's
+  grid shift). On desktop it appears as a faded column to the left of the board,
+  fades up to full visibility on hover, and scrolls within a bounded height via
+  up/down arrow buttons. On mobile (≤760px) it sits below the board as a
+  horizontally scrolling strip; the up/down arrows are hidden and native swipe
+  scrolling is used instead, so a growing history never pushes the board down
+  the page.
 - **Scoreboard** tracking wins for each side and draws across rounds.
 - **Win-line highlight:** the three winning cells are highlighted and a green
   line is drawn connecting them, alongside a clear turn/winner status indicator.
