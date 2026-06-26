@@ -44,31 +44,28 @@
   white-space: nowrap;
 }
 
+// The two seat buttons sit directly in this row (no enclosing card) and each
+// take an equal half via `flex: 1`. When the player is seated, the lone
+// `Leave seat` button is the only child, so `flex: 1` makes it full width.
 .seatBar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
-  padding: 10px 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-
-.youBadge {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text);
+  width: 100%;
 }
 
 .spectateBadge {
+  flex: 1;
+  padding: 10px 14px;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--text-muted);
+  text-align: center;
 }
 
 .seatButton {
-  padding: 8px 14px;
+  flex: 1;
+  padding: 10px 14px;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text);
@@ -87,6 +84,19 @@
   &:disabled {
     opacity: 0.55;
     cursor: default;
+  }
+}
+
+// Seated state: a solid, full-width CTA that stands out from the bordered
+// `Play as` buttons, matching the lobby's primary-action treatment.
+.leaveButton {
+  color: #06121f;
+  background: linear-gradient(120deg, var(--x-color), #7dd3fc);
+  border-color: transparent;
+
+  &:hover:not(:disabled) {
+    border-color: transparent;
+    filter: brightness(1.05);
   }
 }
 
