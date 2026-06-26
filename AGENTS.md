@@ -246,11 +246,19 @@ components.
 - `npm run build` - production build
 - `npm run lint` - run ESLint
 - `npm test` - run the Vitest unit suite once (`vitest run`)
-- `npm run select-tickets` - run the agent-dispatch ticket selector CLI (reads a
-  `gh issue list` JSON payload on stdin, prints the chosen issue numbers)
+- `npm run select-tickets` - run the deterministic agent-dispatch ticket selector
+  CLI (reads a `gh issue list` JSON payload on stdin, prints the chosen issue
+  numbers by priority/FIFO); also the guardrail/fallback behind the agent selector
+- `npm run select-tickets-agent` - run the agent-driven selector CLI: hands the
+  eligible candidates to `claude`, then applies the deterministic guardrail and
+  falls back to `select-tickets` if the agent is unavailable
 - `npm run enrich-issue-status` - annotate the issue JSON on stdin with each
   issue's Projects v2 board Status for the selector's Ready-column gate
   (fail-closed; no-ops to label-only data without `PROJECTS_TOKEN`)
+- `npm run enrich-dependencies` - annotate the issue JSON on stdin with each
+  issue's resolved `blockedBy` states (parsed from "Blocked by #N" / "Depends on
+  #N" in the body) for the selector's dependency gate (fail-closed; an
+  unresolvable blocker is recorded UNKNOWN and still blocks)
 - `npm run set-project-status` - run the best-effort Projects v2 board-sync CLI
   (`--issue N --status "In Progress"`; non-fatal, no-ops without `PROJECTS_TOKEN`)
 
@@ -271,9 +279,11 @@ polling, and React rendering are intentionally out of scope here.
 An opt-in, scheduled "issue -> PR" loop lives under `.github/workflows/` and
 `scripts/agent-dispatch/`; it is independent of the game runtime. The captain labels
 issues `agent:ready` (plus a `priority:*`) **and** drags their card into the
-board's "Ready" column; twice daily `agent-dispatch.yml`
-selects up to three, claims each (`agent:in-progress`, drop `agent:ready`),
-runs one `anthropics/claude-code-action@v1` agent per ticket on branch
+board's "Ready" column; twice daily `agent-dispatch.yml` gathers the eligible,
+dependency-annotated candidates and lets a `claude` selector agent choose up to
+three (a deterministic guardrail trims its pick to real eligible numbers and
+falls back to a priority/FIFO slice if the agent is unavailable), claims each
+(`agent:in-progress`, drop `agent:ready`), runs one agent per ticket on branch
 `fm/issue-<n>`, and lets `/no-mistakes` open the PR. PR follow-ups are handled by
 the Claude Code GitHub installer's own workflows (`claude.yml`, which wakes an
 agent on an `@claude` mention, and `claude-code-review.yml`), not by a workflow we
@@ -282,13 +292,35 @@ own. Nothing is ever merged automatically. Full operator docs are in
 
 Conventions worth preserving when touching this code:
 
-- **Selection is a pure, tested TS function.** `scripts/agent-dispatch/selectTickets.ts`
+- **Eligibility/ordering is a pure, tested TS function.** `scripts/agent-dispatch/selectTickets.ts`
   exposes `selectTickets(issues, { max, requireReadyStatus })` (opt-in gate,
-  priority order, FIFO tiebreak, cap), covered by `selectTickets.test.ts`. The
-  workflow calls it only through the thin CLI `selectTickets.cli.ts` (run via
-  `tsx`, also `npm run select-tickets`), which reads `gh issue list` JSON on stdin
-  and prints a JSON array of numbers. Keep all eligibility/ordering logic in the
-  pure module, not in YAML.
+  priority order, FIFO tiebreak, cap) and `filterEligible(...)`, covered by
+  `selectTickets.test.ts`. Keep all eligibility/ordering logic in the pure module,
+  not in YAML.
+- **An agent picks the subset; a deterministic guardrail keeps it safe.** Rather
+  than a fixed `slice(max)`, the `select` job hands the eligible, dependency-
+  annotated candidates to `claude` and lets it choose the subset (weighing
+  priority, how many other tickets each one `unblocks`, and the cap). This lives
+  in the pure, tested `selectTicketsAgent.ts` (`chooseTickets`, covered by
+  `selectTicketsAgent.test.ts`): the agent only *proposes*, and `applyGuardrail`
+  trims its answer to real eligible candidate numbers, de-dupes, preserves order,
+  and caps at `max`. The agent runs as an injected `runAgent` (the CLI
+  `selectTicketsAgent.cli.ts` / `npm run select-tickets-agent` wires in the real
+  `claude -p`, no tools), so the policy stays offline-testable. **Always falls
+  back** to `selectTickets` when the agent adds no value (everything already fits)
+  or returns nothing usable (binary missing, timeout, garbage) - the loop never
+  stalls on the agent. The selector needs `CLAUDE_CODE_OAUTH_TOKEN`.
+- **Dependency gate: hold back blocked tickets, fail closed.** A ticket declares
+  prerequisites in its body as `Blocked by #N` / `Depends on #N` (parsed by the
+  pure, tested `dependencies.ts` `parseBlockerRefs`, comma/"and"/"&"-joined lists,
+  case-insensitive, hyphen or space). `enrichDependencies.cli.ts` (`npm run
+  enrich-dependencies`) resolves each referenced issue's open/closed state in one
+  GraphQL round trip and annotates `blockedBy: [{number,state}]`; `selectTickets`
+  then drops any issue with a blocker that is not `CLOSED`. An unresolvable blocker
+  is recorded `UNKNOWN` and still blocks (**fail closed**), but only issues that
+  *declare* blockers are gated - a missing token never stalls independent tickets.
+  The `select` job pipes `gh issue list` (now including `body`) -> enrich-status
+  -> enrich-dependencies -> the agent selector. Keep the parsing pure and offline.
 - **Two independent eligibility gates: the `agent:ready` label and the "Ready"
   board column.** The label (read by `gh issue list --label`) marks a ticket
   automatable; the column (Projects v2 `Status == "Ready"`, case-insensitive)

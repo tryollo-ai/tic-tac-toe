@@ -12,6 +12,8 @@
 //   - it must NOT already be claimed, done, or held (agent:in-progress /
 //     agent:done / agent:needs-help), so a later run never re-pulls work that
 //     is in flight or already finished,
+//   - it must NOT be blocked by a still-open issue (its `blockedBy` relations,
+//     resolved upstream by enrichDependencies.cli, must all be CLOSED),
 //   - and, when `requireReadyStatus` is set, it must ALSO sit in the board's
 //     "Ready" column (its Projects v2 Status equals READY_STATUS). This is the
 //     second, independent gate: the label marks a ticket as automatable, the
@@ -33,9 +35,21 @@ export type IssueLabel = {
 };
 
 /**
+ * A blocker relation resolved to the referenced issue's open/closed state, as
+ * produced by the dependency enrich step (enrichDependencies.cli). `state` is the
+ * blocker issue's GraphQL state, upper-cased: anything other than "CLOSED" (an
+ * open blocker, or "UNKNOWN" when the state could not be read) keeps the
+ * dependent issue blocked - fail closed.
+ */
+export type BlockerRef = {
+  number: number;
+  state: string;
+};
+
+/**
  * One issue - the subset of fields the loop reads from
- * `gh issue list --json number,title,labels,createdAt,state`. Every field but
- * `number` is optional so partial fixtures and real payloads both type-check.
+ * `gh issue list --json number,title,labels,createdAt,state,body`. Every field
+ * but `number` is optional so partial fixtures and real payloads both type-check.
  */
 export type Issue = {
   number: number;
@@ -49,6 +63,14 @@ export type Issue = {
    * could not be read; with `requireReadyStatus` that absence means "not Ready".
    */
   status?: string;
+  /** The issue body, used to parse "Blocked by #N" / "Depends on #N" relations. */
+  body?: string;
+  /**
+   * Issues this one is blocked by, each resolved to its open/closed state by the
+   * dependency enrich step. While any blocker is not yet CLOSED the issue is
+   * ineligible; an absent/empty list means no known blockers.
+   */
+  blockedBy?: BlockerRef[];
 };
 
 export type SelectOptions = {
@@ -97,6 +119,16 @@ const priorityRank = (names: Set<string>): number => {
 const isReady = (issue: Issue): boolean =>
   (issue.status ?? "").trim().toLowerCase() === READY_STATUS.toLowerCase();
 
+/**
+ * True if any known blocker is not yet closed. An unreadable blocker comes in as
+ * state "UNKNOWN" and still counts as blocking, so a dependent ticket whose
+ * blockers could not be resolved is never auto-picked (fail closed).
+ */
+const hasOpenBlocker = (issue: Issue): boolean =>
+  (issue.blockedBy ?? []).some(
+    (blocker) => (blocker.state ?? "").trim().toUpperCase() !== "CLOSED",
+  );
+
 const isEligible = (issue: Issue, requireReadyStatus: boolean): boolean => {
   const names = labelNames(issue);
   const isOpen = (issue.state ?? "OPEN").toUpperCase() === "OPEN";
@@ -106,9 +138,20 @@ const isEligible = (issue: Issue, requireReadyStatus: boolean): boolean => {
     !names.has(IN_PROGRESS_LABEL) &&
     !names.has(DONE_LABEL) &&
     !names.has(HOLD_LABEL) &&
+    !hasOpenBlocker(issue) &&
     (!requireReadyStatus || isReady(issue))
   );
 };
+
+/**
+ * The eligible issues for this run, in input order. Shared by the deterministic
+ * selector below and the agent-driven selector's guardrail (selectTicketsAgent),
+ * so both honor the exact same opt-in, claim, board-status, and dependency rules.
+ */
+export const filterEligible = (
+  issues: Issue[],
+  requireReadyStatus: boolean,
+): Issue[] => issues.filter((issue) => isEligible(issue, requireReadyStatus));
 
 /**
  * Pick the issue numbers to work this run, in the order they should be worked.
@@ -124,8 +167,7 @@ export const selectTickets = (
     throw new Error(`max must be a non-negative integer, got: ${String(max)}`);
   }
 
-  return issues
-    .filter((issue) => isEligible(issue, requireReadyStatus))
+  return filterEligible(issues, requireReadyStatus)
     .map((issue) => ({
       number: issue.number,
       rank: priorityRank(labelNames(issue)),
