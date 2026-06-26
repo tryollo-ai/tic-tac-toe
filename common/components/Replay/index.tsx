@@ -4,15 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { fetchCompletedGame, RoomError } from "@/utils/roomClient";
-import {
-  boardAfterActions,
-  calculateWinner,
-  type Player,
-} from "@/utils/gameLogic";
+import { boardAfterActions, calculateWinner } from "@/utils/gameLogic";
 import { type CompletedGameView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
 import RoomHeader from "@/common/components/RoomHeader";
-import Status, { type StatusTone, playerTone } from "@/common/components/Status";
+import Status, { spectatorStatus } from "@/common/components/Status";
 import styles from "./styles.module.scss";
 
 type Props = {
@@ -78,19 +74,11 @@ const Replay = (props: Props) => {
   const atStart = step === 0;
   const atEnd = step === total;
 
-  let statusMessage: string;
-  let statusTone: StatusTone;
-  if (result) {
-    statusMessage = `${result.winner} wins!`;
-    statusTone = playerTone(result.winner);
-  } else if (atEnd) {
-    statusMessage = "Draw";
-    statusTone = "draw";
-  } else {
-    const next: Player = step % 2 === 0 ? "X" : "O";
-    statusMessage = `${next} to move`;
-    statusTone = playerTone(next);
-  }
+  const { message: statusMessage, tone: statusTone } = spectatorStatus(
+    result ? result.winner : null,
+    step % 2 === 0 ? "X" : "O",
+    atEnd,
+  );
 
   const goTo = (next: number) => {
     setPlaying(false);
