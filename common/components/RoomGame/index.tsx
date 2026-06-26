@@ -14,6 +14,7 @@ import {
   shiftRoom,
 } from "@/utils/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
+import { useRoomStream } from "@/lib/useRoomStream";
 import type { Direction, Player } from "@/utils/gameLogic";
 import type { RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
@@ -56,6 +57,19 @@ const SHIFT_OPTIONS: { dir: Direction; label: string }[] = [
  */
 const AUTO_RESET_MS = 4500;
 
+/**
+ * Polling cadence when the live SSE stream is connected. Updates arrive pushed
+ * over the stream, so polling stays on only as a slow safety net (e.g. to
+ * recover a missed event), not the primary update path.
+ */
+const FALLBACK_POLL_MS = 10000;
+
+/**
+ * Polling cadence when the stream is unavailable. Matches the pre-SSE interval
+ * so behaviour degrades gracefully to plain polling if SSE can't connect.
+ */
+const ACTIVE_POLL_MS = 1500;
+
 /** Map a thrown error to a known room-error message, or the given fallback. */
 function roomErrorMessage(err: unknown, fallback: string): string {
   return ROOM_ERROR_MESSAGES[roomErrorCode(err)] ?? fallback;
@@ -74,17 +88,36 @@ const RoomGame = (props: Props) => {
     [props.id, playerId],
   );
 
-  const { data: room, error } = useQuery<RoomView>({
-    queryKey: roomKey,
-    queryFn: ({ signal }) => fetchRoom(props.id, playerId, signal),
-    refetchInterval: paused ? false : 1500,
-  });
-
   // Imperatively replace the cached room (optimistic and authoritative writes).
   const setRoom = useCallback(
     (value: RoomView) => queryClient.setQueryData(roomKey, value),
     [queryClient, roomKey],
   );
+
+  // Subscribe to the room's server-pushed updates. While a local write is in
+  // flight (paused) we drop stream events for the same reason polling pauses: a
+  // pushed snapshot must not clobber the optimistic/authoritative state. On the
+  // room disappearing, refetch so the not-found UI surfaces promptly instead of
+  // waiting for the next slow poll.
+  const streamConnected = useRoomStream(props.id, playerId, {
+    onRoom: (incoming) => {
+      if (!paused) setRoom(incoming);
+    },
+    onGone: () => queryClient.invalidateQueries({ queryKey: roomKey }),
+  });
+
+  // Live updates arrive over SSE; polling stays on as a fallback - slow while
+  // the stream is connected, at the original cadence when it isn't - and is
+  // suspended entirely during a local write.
+  const { data: room, error } = useQuery<RoomView>({
+    queryKey: roomKey,
+    queryFn: ({ signal }) => fetchRoom(props.id, playerId, signal),
+    refetchInterval: paused
+      ? false
+      : streamConnected
+        ? FALLBACK_POLL_MS
+        : ACTIVE_POLL_MS,
+  });
 
   const notFound =
     error instanceof RoomError && error.code === "room-not-found";
