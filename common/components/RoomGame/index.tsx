@@ -276,13 +276,11 @@ const RoomGame = (props: Props) => {
       ? (room.board[room.winningLine[0]] as Player)
       : null;
   const bothSeated = room.seats.X !== null && room.seats.O !== null;
-  // O's shift is an alternative to placing on O's own turn, once per game.
+  // O's shift is an alternative to placing on O's own turn, once per game. Like
+  // a normal placement it only needs O to be seated and on turn - not both seats
+  // filled - so a single player swapping into O can still use it.
   const canShiftNow =
-    mySeat === "O" &&
-    !gameOver &&
-    bothSeated &&
-    currentTurn === "O" &&
-    !room.oShiftUsed;
+    mySeat === "O" && !gameOver && currentTurn === "O" && !room.oShiftUsed;
 
   const xLabel = mySeat === "X" ? "You (X)" : "Player X";
   const oLabel =
