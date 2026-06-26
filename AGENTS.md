@@ -31,8 +31,8 @@ Reuse the shared components rather than duplicating them: `UIDialog` for any mod
 
 All client reads/writes go through TanStack React Query (`@tanstack/react-query`), never a hand-rolled hook; add a query/mutation for new client I/O.
 - One `QueryClient` is created in `app/providers.tsx` and wraps the app in `app/layout.tsx`. Its defaults match the old polling: no retry, no refetch on window focus.
-- `utils/roomClient.ts` is the thin fetch layer; React Query calls into it. Reads poll on an interval (lobby 3000ms, completed 5000ms, room 1500ms) and abort in-flight GETs on unmount; replay fetches once.
-- `RoomGame` is the one optimistic consumer: it pauses polling during writes and cancels in-flight reads before writing the cache, so a stale GET can't clobber an update.
+- `utils/roomClient.ts` is the thin fetch layer; React Query calls into it. Reads poll on an interval (lobby 3000ms, completed 5000ms) and abort in-flight GETs on unmount; replay fetches once. `subscribeRoom` opens an SSE connection to `GET /api/rooms/[id]/stream` for live room pushes.
+- `RoomGame` is the one optimistic consumer: it subscribes to the room's SSE stream via `useRoomStream` (`lib/useRoomStream.ts`) and pauses both the stream handler and polling during writes so pushed snapshots can't clobber optimistic state. Room polling runs at 1500ms when the stream isn't connected and slows to 10s while the stream is live (safety net only).
 
 ## Styling conventions
 
@@ -51,7 +51,7 @@ All client reads/writes go through TanStack React Query (`@tanstack/react-query`
 
 - `common/components/<Name>/` - reusable components.
 - `utils/` - stateless/pure helpers; colocate each helper's types with it.
-- `lib/` - non-pure, non-component code (the store, the Prisma singleton, shared types, the player-id hook).
+- `lib/` - non-pure, non-component code (the store, the Prisma singleton, shared types, the player-id hook, the room-stream hook).
 - `constants/` - cross-cutting domain constants shared by more than one module. Keep module-internal tuning and component-local UI timings colocated with their owners.
 - `app/` - routes, pages, and API endpoints (App Router).
 

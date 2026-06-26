@@ -14,9 +14,12 @@ game.
 - **Seat claiming:** visitors claim an open X or O seat, and everyone else
   spectates. Your identity is stored per browser, and only the seat-holder whose
   turn it is can move.
-- **Near-real-time play:** rooms poll the server, so moves, seat changes, and
-  spectated games update within a couple of seconds. A seat auto-releases after
-  30s without a heartbeat (for example, when its player closes the tab).
+- **Near-real-time play:** rooms receive live pushes over a Server-Sent Events
+  stream (`GET /api/rooms/[id]/stream`), so moves and seat changes appear for
+  everyone within ~1–2 seconds. Polling falls back to 10s while the stream is
+  connected and reverts to 1.5s if the stream can't connect (e.g. a buffering
+  proxy), so updates always flow. A seat auto-releases after 30s without a
+  heartbeat (for example, when its player closes the tab).
 - **Grid-shift action (O only):** to offset X's first-move advantage, player O
   gets one once-per-game action that slides the whole 3x3 grid one cell
   (up/down/left/right).
@@ -98,18 +101,19 @@ self-contained [agent-kit/](./agent-kit/) and run via `npx tsx agent-kit/scripts
 ```
 app/                      # App Router: lobby, /room/[id], /replay/[id], styles
 app/api/rooms/            # REST endpoints: list/create rooms, seats, moves,
-                          #   reset, shift
+                          #   reset, shift; [id]/stream — SSE live-room feed
 app/api/completed/        # REST endpoints: list completed games + fetch one for replay
 common/components/<Name>/ # One folder per shared component: index.tsx entry + styles.module.scss
 utils/gameLogic.ts        # Pure game logic: winner detection, O's whole-grid
                           #   shift, and the minimax AI
-utils/roomClient.ts       # Browser fetch helpers for the room API
+utils/roomClient.ts       # Browser fetch helpers for the room API; `subscribeRoom` opens an SSE stream
 utils/apiHelpers.ts       # Shared request/response helpers for the room API routes
 utils/winningLineGeometry.ts # Pure winning-line overlay geometry (cell-center percentages)
 utils/historyLabels.ts    # Pure move-history labels: player parity + cell/shift names
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
+lib/useRoomStream.ts      # Client hook: SSE subscription for live room updates
 app/providers.tsx         # Client root: stable React Query QueryClientProvider
 constants/game.ts         # Cross-cutting domain constants (board size, AI seat sentinel)
 agent-kit/                # Self-contained "issue -> PR" agent loop + Claude review kit (scripts, workflows, config, setup skill)

@@ -74,6 +74,47 @@ export function fetchRoom(
   return getJson<RoomView>(`/api/rooms/${id}${query}`, "room", signal);
 }
 
+/** Callbacks for a room's Server-Sent Events subscription. */
+export type RoomStreamHandlers = {
+  /** A fresh room view arrived over the stream. */
+  onRoom: (room: RoomView) => void;
+  /** The stream connected (or reconnected) successfully. */
+  onOpen?: () => void;
+  /** The connection dropped; the browser will retry on its own. */
+  onError?: () => void;
+  /** The server reported the room no longer exists; the stream is closed. */
+  onGone?: () => void;
+};
+
+/**
+ * Subscribe to a room's live updates over Server-Sent Events. The optional
+ * `playerId` heartbeats that player's seat for as long as the stream is open,
+ * mirroring `fetchRoom`. Returns an unsubscribe function that closes the
+ * connection. SSR-safe: a no-op when `EventSource` is unavailable.
+ */
+export function subscribeRoom(
+  id: string,
+  playerId: string | null,
+  handlers: RoomStreamHandlers,
+): () => void {
+  if (typeof EventSource === "undefined") return () => {};
+
+  const query = playerId ? `?playerId=${encodeURIComponent(playerId)}` : "";
+  const source = new EventSource(`/api/rooms/${id}/stream${query}`);
+
+  source.addEventListener("open", () => handlers.onOpen?.());
+  source.addEventListener("room", (event) => {
+    handlers.onRoom(JSON.parse((event as MessageEvent).data) as RoomView);
+  });
+  source.addEventListener("gone", () => {
+    handlers.onGone?.();
+    source.close();
+  });
+  source.addEventListener("error", () => handlers.onError?.());
+
+  return () => source.close();
+}
+
 export function claimSeat(
   id: string,
   playerId: string,
