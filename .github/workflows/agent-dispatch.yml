@@ -7,7 +7,7 @@ name: Trigger - issue agent
 #
 # Opt-in: a ticket is eligible ONLY while it carries the `agent:ready` label AND
 # its card sits in the board's "Ready" column (Projects v2 Status = "Ready"), and
-# is not already `claude:in-progress` / `claude:needs-help`. The two gates are
+# is not already `agent:in-progress` / `agent:done` / `agent:needs-help`. The two gates are
 # independent: the label marks a ticket automatable, the Ready column says "work
 # it now", so an ordinary board needs no column<->label automation. Tickets
 # without `agent:ready`, or parked in Backlog/any non-Ready column, are invisible.
@@ -112,7 +112,7 @@ jobs:
     needs: select
     if: needs.select.outputs.numbers != '[]'
     runs-on: ubuntu-latest
-    # Bound a hung agent run so it cannot strand a ticket in claude:in-progress
+    # Bound a hung agent run so it cannot strand a ticket in agent:in-progress
     # (the if: always() park step below still runs on timeout).
     # 45 min, not 30: a full run now builds the app, captures screenshots, and
     # drives no-mistakes through review/test and its CI watch on the opened PR.
@@ -172,7 +172,7 @@ jobs:
           set -eu
           echo "Claiming #$ISSUE_NUMBER"
           gh issue edit "$ISSUE_NUMBER" \
-            --add-label "claude:in-progress" --remove-label "agent:ready"
+            --add-label "agent:in-progress" --remove-label "agent:ready"
           gh issue comment "$ISSUE_NUMBER" \
             --body "Picked up by the agent loop. Working on it now; a PR will follow."
 
@@ -404,7 +404,7 @@ jobs:
             --execution-file "$EXECUTION_FILE" \
             --title "Agent run - issue #$ISSUE_NUMBER" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Park ticket if no PR was opened
+      - name: Mark done if a PR was opened, else park
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -417,16 +417,20 @@ jobs:
         run: |
           set -u
           # Resilient by design: park on ANY uncertainty. The only branch that
-          # skips parking is a confirmed open PR (a numeric count greater than 0).
+          # marks the ticket done is a confirmed open PR (a numeric count greater
+          # than 0); everything else parks for the captain.
           pr_count="$(gh pr list --head "$BRANCH" --state open --json number --jq 'length' 2>/dev/null)" || pr_count=""
           if printf '%s' "$pr_count" | grep -qE '^[0-9]+$' && [ "$pr_count" -gt 0 ]; then
-            echo "PR open for $BRANCH; leaving the claim in place for the captain to review."
+            echo "PR open for $BRANCH; marking #$ISSUE_NUMBER agent:done for the captain to review."
+            gh issue edit "$ISSUE_NUMBER" \
+              --remove-label "agent:in-progress" \
+              --add-label "agent:done" || true
             exit 0
           fi
           echo "No confirmed open PR for $BRANCH; parking #$ISSUE_NUMBER for the captain."
           gh issue edit "$ISSUE_NUMBER" \
-            --remove-label "claude:in-progress" \
-            --add-label "claude:needs-help" || true
+            --remove-label "agent:in-progress" \
+            --add-label "agent:needs-help" || true
           # Build the diagnostic comment from the agent's own final message; fall
           # back to a generic body if the reporter itself ever fails, so the
           # comment is never empty.
@@ -439,9 +443,10 @@ jobs:
             || printf '%s\n' "The agent finished without opening a PR. Parked for the captain - see the run logs: $RUN_URL" > park-comment.md
           gh issue comment "$ISSUE_NUMBER" --body-file park-comment.md || true
 
-      # Best-effort board sync mirroring the park decision: an open PR moves the
-      # card to "In Review"; otherwise it moves to "Needs captain" alongside the
-      # claude:needs-help label set above. Runs on always() (so it follows a
+      # Best-effort board sync mirroring the done/park decision: an open PR moves
+      # the card to "In Review" (alongside the agent:done label); otherwise it
+      # moves to "Needs captain" alongside the agent:needs-help label set above.
+      # Runs on always() (so it follows a
       # failed/timed-out agent run too) and never fails the job. The merge ->
       # Done transition is left to GitHub Projects' native workflow.
       - name: Sync board status (In Review or Needs captain)

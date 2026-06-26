@@ -9,8 +9,9 @@
 // Selection is strictly opt-in and idempotent:
 //   - the issue must be OPEN,
 //   - it must carry READY_LABEL (agent:ready),
-//   - it must NOT already be claimed or held (claude:in-progress /
-//     claude:needs-help), so a later run never re-pulls in-flight work,
+//   - it must NOT already be claimed, done, or held (agent:in-progress /
+//     agent:done / agent:needs-help), so a later run never re-pulls work that
+//     is in flight or already finished,
 //   - and, when `requireReadyStatus` is set, it must ALSO sit in the board's
 //     "Ready" column (its Projects v2 Status equals READY_STATUS). This is the
 //     second, independent gate: the label marks a ticket as automatable, the
@@ -70,9 +71,11 @@ export const READY_LABEL = "agent:ready";
  */
 export const READY_STATUS = "Ready";
 /** Claim lock written when a run starts a ticket. */
-export const IN_PROGRESS_LABEL = "claude:in-progress";
+export const IN_PROGRESS_LABEL = "agent:in-progress";
+/** Done coding: set when the run opens a PR, which then waits for the captain. */
+export const DONE_LABEL = "agent:done";
 /** Parked for the captain (a risky finding, or a failed run). */
-export const HOLD_LABEL = "claude:needs-help";
+export const HOLD_LABEL = "agent:needs-help";
 
 /** Priority labels, highest priority first; the index is the sort rank. */
 export const PRIORITY_LABELS = [
@@ -101,6 +104,7 @@ const isEligible = (issue: Issue, requireReadyStatus: boolean): boolean => {
     isOpen &&
     names.has(READY_LABEL) &&
     !names.has(IN_PROGRESS_LABEL) &&
+    !names.has(DONE_LABEL) &&
     !names.has(HOLD_LABEL) &&
     (!requireReadyStatus || isReady(issue))
   );

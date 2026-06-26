@@ -25,10 +25,11 @@ describe("selectTickets", () => {
     expect(selectTickets(issues, { max: 3 })).toEqual([2]);
   });
 
-  it("excludes claimed and held tickets even when ready", () => {
+  it("excludes claimed, done, and held tickets even when ready", () => {
     const issues = [
-      issue(3, T0, "OPEN", "agent:ready", "priority:high", "claude:in-progress"),
-      issue(4, T0, "OPEN", "agent:ready", "priority:high", "claude:needs-help"),
+      issue(3, T0, "OPEN", "agent:ready", "priority:high", "agent:in-progress"),
+      issue(4, T0, "OPEN", "agent:ready", "priority:high", "agent:needs-help"),
+      issue(8, T0, "OPEN", "agent:ready", "priority:high", "agent:done"),
       issue(5, T0, "OPEN", "agent:ready", "priority:low"),
     ];
     expect(selectTickets(issues, { max: 3 })).toEqual([5]);

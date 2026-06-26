@@ -272,7 +272,7 @@ An opt-in, scheduled "issue -> PR" loop lives under `.github/workflows/` and
 `scripts/agent-dispatch/`; it is independent of the game runtime. The captain labels
 issues `agent:ready` (plus a `priority:*`) **and** drags their card into the
 board's "Ready" column; twice daily `agent-dispatch.yml`
-selects up to three, claims each (`claude:in-progress`, drop `agent:ready`),
+selects up to three, claims each (`agent:in-progress`, drop `agent:ready`),
 runs one `anthropics/claude-code-action@v1` agent per ticket on branch
 `fm/issue-<n>`, and lets `/no-mistakes` open the PR. PR follow-ups are handled by
 the Claude Code GitHub installer's own workflows (`claude.yml`, which wakes an
@@ -304,10 +304,11 @@ Conventions worth preserving when touching this code:
   (`githubGraphql.ts`), authenticated with `PROJECTS_TOKEN`. Unlike board sync,
   this read is a real gate: with no `PROJECTS_TOKEN` (or no `Ready` option) the
   loop selects nothing rather than falling back to label-only.
-- **Read-only select, per-ticket claim, resilient park.** The dispatch `select`
+- **Read-only select, per-ticket claim, resilient done/park.** The dispatch `select`
   job never mutates labels; each `work` job claims as its first step and, with
-  `if: always()`, parks to `claude:needs-help` unless a PR for its branch is
-  *confirmed* open (park on any uncertainty - never strand a claim).
+  `if: always()`, marks the ticket `agent:done` when a PR for its branch is
+  *confirmed* open, otherwise parks it to `agent:needs-help` (park on any
+  uncertainty - never strand a claim).
 - **Run diagnostics from the execution_file, in tested TS.** The dispatch job
   reads `claude-code-action@v1`'s `execution_file` output through the pure
   `agentRunReport` helper (`scripts/agent-dispatch/agentRunReport.ts`, tested by
