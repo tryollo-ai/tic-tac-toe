@@ -18,6 +18,7 @@ import {
 } from "@/lib/roomTypes";
 import type { Board } from "@/utils/gameLogic";
 import MiniBoard from "@/common/components/MiniBoard";
+import ShiftAnimation from "@/common/components/ShiftAnimation";
 import Spinner from "@/common/components/Spinner";
 import UIDialog from "@/common/components/UIDialog";
 import styles from "./styles.module.scss";
@@ -320,6 +321,7 @@ const Lobby = () => {
           never complete a line and never wins on its own - it is purely O&apos;s
           compensation for moving second.
         </p>
+        <ShiftAnimation />
       </UIDialog>
     </div>
   );

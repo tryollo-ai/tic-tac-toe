@@ -10,7 +10,10 @@ game.
   a board preview; create a room as two-player or vs an AI. The list is paginated
   (6 rooms per page) with Previous/Next navigation once there is more than one
   page. A "How to play" button by the title opens a dialog explaining the rules,
-  including player O's grid shift, before you enter a room.
+  including player O's grid shift, before you enter a room. The dialog ends with
+  a looping animation illustrating the shift: a directional arrow sweeps across a
+  mini-board, marks slide one cell, and marks pushed off the leading edge fall
+  away. The animation respects `prefers-reduced-motion`.
 - **Seat claiming:** visitors claim an open X or O seat, and everyone else
   spectates. Your identity is stored per browser, and only the seat-holder whose
   turn it is can move.
