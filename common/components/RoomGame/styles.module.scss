@@ -45,16 +45,17 @@
   }
 }
 
-// Seated state: a single full-width call-to-action. A solid accent fill
-// (vs the muted `--surface` of the seat-claim buttons) makes leaving the
-// primary action of the unified row.
+// Seated state: a single full-width call-to-action. A soft, translucent
+// accent tint (vs the muted `--surface` of the seat-claim buttons) marks
+// leaving as the primary action without the harshness of a solid fill.
 .leaveButton {
-  color: var(--bg);
-  background: var(--accent);
-  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 
   &:hover:not(:disabled) {
-    filter: brightness(1.08);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: var(--accent);
   }
 }
 
