@@ -26,6 +26,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
+.env.local
 .env*.local
 
 # agent-dispatch run artifacts (generated at repo root by the CI harness)

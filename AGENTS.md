@@ -10,6 +10,24 @@ Rooms are kept in an in-memory server store (`lib/roomStore.ts`, a `Map` on
 `globalThis`) and surfaced to clients via polling. A room is either two-player or
 played against an AI (minimax, in `utils/gameLogic.ts`).
 
+Persistence (issue #49) is moving to Prisma + Postgres (Neon in production)
+because the per-instance in-memory `Map` does not survive serverless instance
+rotation, so production rooms vanished or reappeared. The Prisma schema is in
+`prisma/schema.prisma` (two models, `Room` and `CompletedGame`, mirroring
+`lib/roomTypes.ts` with the nested scores/seats/seatSeen flattened into columns;
+tables/columns are snake_case via `@map`/`@@map` while model fields stay
+camelCase). Migrations are managed by Prisma Migrate in `prisma/migrations/`
+(apply with `yarn db:migrate` / `prisma migrate deploy`; never hand-edit applied
+SQL). The cached `PrismaClient` singleton lives in `lib/prisma.ts` (stashed on
+`globalThis` so serverless/hot-reload instances reuse one connection pool).
+Timestamps are stored as Postgres `timestamptz` (Prisma `DateTime`), **not**
+epoch-ms integers - a deliberate decision; the in-memory store still uses
+epoch-ms, so conversion happens at the store boundary. This is foundation only:
+the store and API routes still run on the in-memory `Map`; nothing imports
+`lib/prisma.ts` yet. Provisioning/migration steps for the captain are in
+[docs/database.md](./docs/database.md). The real `DATABASE_URL` is a placeholder
+in `.env.example`; never commit a real connection string.
+
 The board is a fixed 3x3, but the game is not plain tic-tac-toe: player O has one
 once-per-game "shift" action that slides the whole grid one cell
 (top/bottom/left/right), with any marks pushed off the leading edge removed.
@@ -252,6 +270,9 @@ components.
 - `yarn lint` - run ESLint
 - `yarn test` - run the Vitest unit suite once (`vitest run`)
 - `yarn deploy` - deploy to Vercel production (`vercel --prod`)
+- `yarn db:migrate` - apply committed migrations to `DATABASE_URL` (`prisma migrate deploy`); for CI/production
+- `yarn db:migrate:dev` - author/apply a migration in development (`prisma migrate dev`)
+- `yarn db:generate` - regenerate the Prisma client (`prisma generate`); also runs on `postinstall`
 - `yarn select-tickets` - run the deterministic agent-dispatch ticket selector
   CLI (reads a `gh issue list` JSON payload on stdin, prints the chosen issue
   numbers by priority/FIFO); also the guardrail/fallback behind the agent selector

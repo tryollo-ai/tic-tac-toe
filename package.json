@@ -9,6 +9,10 @@
     "lint": "next lint",
     "test": "vitest run",
     "deploy": "vercel --prod",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "postinstall": "prisma generate",
     "select-tickets": "tsx scripts/agent-dispatch/selectTickets.cli.ts",
     "select-tickets-agent": "tsx scripts/agent-dispatch/selectTicketsAgent.cli.ts",
     "enrich-issue-status": "tsx scripts/agent-dispatch/enrichIssueStatus.cli.ts",
@@ -17,6 +21,7 @@
     "agent-run-report": "tsx scripts/agent-dispatch/agentRunReport.cli.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@radix-ui/react-dialog": "^1.1.17",
     "classnames": "^2.5.1",
     "next": "^15.1.6",
@@ -30,6 +35,7 @@
     "@types/react-dom": "^19.0.3",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.1.6",
+    "prisma": "^6.19.3",
     "sass": "^1.83.4",
     "tsx": "^4.22.4",
     "typescript": "^5.7.3",
