@@ -13,10 +13,11 @@ Timestamps (`created_at`, `last_activity`, `completed_at`, `seat_seen_x/o`) are
 stored as Postgres `timestamptz`, **not** epoch-ms integers - a deliberate
 decision so the database holds real instants.
 
-> The app still runs entirely on the in-memory store today, so a database is
-> **not** required for local development. These steps provision Postgres so the
-> upcoming Postgres-backed store (a follow-up to issue #49) has tables to write
-> to, and so production persists.
+> The room store (`lib/roomStore.ts`) now persists exclusively to Postgres via
+> Prisma, so a reachable `DATABASE_URL` is **required** to run the app (the
+> lobby, rooms, and replay all read/write through the database). The unit tests
+> do **not** need this setup - they spin up their own throwaway local Postgres in
+> Docker (see the Testing section of [AGENTS.md](../AGENTS.md)).
 
 This project uses **yarn** (`yarn@1.22.21`). The `prisma` CLI is invoked below
 with `npx prisma ...`, which works regardless of package manager; the equivalent

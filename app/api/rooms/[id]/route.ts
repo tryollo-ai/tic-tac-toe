@@ -10,7 +10,7 @@ export async function GET(
   const { id } = await params;
   const playerId = new URL(request.url).searchParams.get("playerId") ?? undefined;
 
-  const room = getRoom(id, playerId);
+  const room = await getRoom(id, playerId);
   if (!room) {
     return NextResponse.json({ error: "room-not-found" }, { status: 404 });
   }

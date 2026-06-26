@@ -21,5 +21,5 @@ export async function POST(
   const { direction } = parsed.body;
   if (!isDirection(direction)) return badRequest("invalid-direction");
 
-  return storeResponse(shiftBoardAction(id, direction, parsed.playerId));
+  return storeResponse(await shiftBoardAction(id, direction, parsed.playerId));
 }

@@ -14,7 +14,7 @@ export async function POST(
   const { seat } = parsed.body;
   if (seat !== "X" && seat !== "O") return badRequest("invalid-seat");
 
-  return storeResponse(claimSeat(id, seat, parsed.playerId));
+  return storeResponse(await claimSeat(id, seat, parsed.playerId));
 }
 
 export async function DELETE(
@@ -25,5 +25,5 @@ export async function DELETE(
   const parsed = await parsePlayerBody(request);
   if (parsed.error) return parsed.error;
 
-  return storeResponse(leaveSeat(id, parsed.playerId));
+  return storeResponse(await leaveSeat(id, parsed.playerId));
 }

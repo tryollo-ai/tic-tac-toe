@@ -4,5 +4,5 @@ import { listCompletedGames } from "@/lib/roomStore";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ games: listCompletedGames() });
+  return NextResponse.json({ games: await listCompletedGames() });
 }

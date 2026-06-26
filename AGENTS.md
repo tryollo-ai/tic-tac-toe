@@ -6,13 +6,14 @@ Guidance for AI agents and contributors working in this repository.
 
 A multiplayer tic-tac-toe app built with Next.js (App Router) and TypeScript.
 Players join game rooms from a lobby and play across browsers or spectate live.
-Rooms are kept in an in-memory server store (`lib/roomStore.ts`, a `Map` on
-`globalThis`) and surfaced to clients via polling. A room is either two-player or
-played against an AI (minimax, in `utils/gameLogic.ts`).
+Room and completed-game state is persisted in Postgres via Prisma (the store,
+`lib/roomStore.ts`) and surfaced to clients via polling. A room is either
+two-player or played against an AI (minimax, in `utils/gameLogic.ts`).
 
-Persistence (issue #49) is moving to Prisma + Postgres (Neon in production)
-because the per-instance in-memory `Map` does not survive serverless instance
-rotation, so production rooms vanished or reappeared. The Prisma schema is in
+Persistence (issue #49) is Prisma + Postgres (Neon in production); it replaced
+the per-instance in-memory `Map` that did not survive serverless instance
+rotation, so production rooms vanished or reappeared. Every serverless instance
+now shares one durable source of truth. The Prisma schema is in
 `prisma/schema.prisma` (two models, `Room` and `CompletedGame`, mirroring
 `lib/roomTypes.ts` with the nested scores/seats/seatSeen flattened into columns;
 tables/columns are snake_case via `@map`/`@@map` while model fields stay
@@ -21,12 +22,38 @@ camelCase). Migrations are managed by Prisma Migrate in `prisma/migrations/`
 SQL). The cached `PrismaClient` singleton lives in `lib/prisma.ts` (stashed on
 `globalThis` so serverless/hot-reload instances reuse one connection pool).
 Timestamps are stored as Postgres `timestamptz` (Prisma `DateTime`), **not**
-epoch-ms integers - a deliberate decision; the in-memory store still uses
-epoch-ms, so conversion happens at the store boundary. This is foundation only:
-the store and API routes still run on the in-memory `Map`; nothing imports
-`lib/prisma.ts` yet. Provisioning/migration steps for the captain are in
+epoch-ms integers. The domain types in `lib/roomTypes.ts` still use epoch-ms
+numbers (so the pure helpers and the client-facing JSON shape are unchanged), so
+all conversion happens at the store boundary: rows -> domain (`DateTime.getTime()`)
+on read, domain -> columns (`new Date(ms)`) on write. Idle-room/idle-completed
+reaping is a `timestamptz` interval comparison (`deleteMany` where the timestamp
+is `< now() - ttl`) rather than an epoch-ms scan.
+Provisioning/migration steps for the captain are in
 [docs/database.md](./docs/database.md). The real `DATABASE_URL` is a placeholder
 in `.env.example`; never commit a real connection string.
+
+**The store is fully async and every mutation is transactional.** All exported
+store functions (`listRooms`, `createRoom`, `getRoom`, `listCompletedGames`,
+`getCompletedGame`, `claimSeat`, `leaveSeat`, `makeMove`, `shiftBoardAction`,
+`resetGame`) return Promises; `StoreResult` is the unchanged result shape,
+resolved via Promise. The API route handlers under `app/api/**` `await` them and
+`utils/apiHelpers.ts`'s `storeResponse` takes the resolved `StoreResult` - the
+response shapes and `errorStatus` HTTP mapping are unchanged, so the client is
+unaffected. Status (`computeStatus`) and `winningLine` stay **derived** at
+serialization (`toView`/`toCompletedSummary`/`toCompletedView`), never stored.
+Because shared room state loses the old single-threaded "mutate one object in
+place" guarantee, every read-modify-write (`makeMove`, `claimSeat`, `leaveSeat`,
+`shiftBoardAction`, `resetGame`, and the seat-sweep/heartbeat path in `getRoom`)
+runs through `withRoomTx`, a Prisma interactive transaction that opens with
+`SELECT id ... FOR UPDATE` to row-lock that room for the whole transaction. A
+second concurrent request on the same room blocks on the lock until the first
+commits, then re-reads the just-written state - so per-room mutations are
+serialized and cannot clobber each other. A finished game is scored and its
+archive row inserted inside the same transaction as the room update (atomic).
+Plain reads (`listRooms`, `getRoom` with no heartbeat, the completed-game reads)
+do not lock; they sweep expired seats in-memory for the returned view, and the
+release is persisted lazily the next time the room is mutated or heartbeated
+under its lock.
 
 The board is a fixed 3x3, but the game is not plain tic-tac-toe: player O has one
 once-per-game "shift" action that slides the whole grid one cell
@@ -144,8 +171,8 @@ labeling rather than re-deriving the player-parity or cell-naming rules.
 Each room records its history as a single ordered `actions` log, where each
 action is either `{ kind: "place", index }` or `{ kind: "shift", dir }` and the
 player alternates strictly (X takes the even-indexed actions, O the odd ones).
-When a game finishes it is snapshotted into a separate completed-games archive (a
-second `Map` on `globalThis`), so it can be replayed turn by turn from
+When a game finishes it is snapshotted into a separate completed-games archive
+(the `completed_games` table), so it can be replayed turn by turn from
 `/replay/[id]` even after the room is reset for a new round or reaped for
 idleness.
 Replay reconstructs every step via `boardAfterActions(actions, count)`, which
@@ -287,8 +314,9 @@ components.
   the `Board`/`Direction`/`GameAction` types live alongside the functions in
   `utils/gameLogic.ts`).
 - `lib/` holds the remaining non-component code that is not a pure helper: the
-  in-memory room and completed-game store plus all move/seat validation in
-  `lib/roomStore.ts`, shared types in `lib/roomTypes.ts`, and the client hook
+  async Prisma/Postgres-backed room and completed-game store plus all move/seat
+  validation in `lib/roomStore.ts`, the cached `PrismaClient` singleton in
+  `lib/prisma.ts`, shared types in `lib/roomTypes.ts`, and the client hook
   `usePlayerId`.
 - `constants/` holds cross-cutting domain constants shared across more than one
   module - e.g. `INITIAL_SIZE` (the board side length, used by `utils/gameLogic`,
@@ -335,11 +363,24 @@ Unit tests use [Vitest](https://vitest.dev/) and run in the `node` environment
 (see `vitest.config.ts`, which mirrors the `@/*` path alias). Tests are
 co-located next to the code as `*.test.ts` (e.g. `utils/gameLogic.test.ts`,
 `lib/roomStore.test.ts`) and cover the pure game-state logic and the store's
-turn/seat/shift validation. They are deterministic - no timers, network, or
-randomness - so prefer testing exported pure functions directly; the in-memory
-store can be driven straight through its exported functions (`createRoom`,
-`claimSeat`, `makeMove`, `shiftBoardAction`) without a live server. Network,
-polling, and React rendering are intentionally out of scope here.
+turn/seat/shift validation, scoring/archival, seat-TTL sweeping, and idle
+reaping. The pure game-logic tests are deterministic (no timers, network, or
+randomness) - prefer testing exported pure functions directly.
+
+The store is now Prisma/Postgres-backed, so `lib/roomStore.test.ts` drives its
+async exported functions (`createRoom`, `claimSeat`, `makeMove`,
+`shiftBoardAction`, ...) against a **throwaway local Postgres in Docker** -
+never a real/Neon database. `vitest.config.ts`'s `globalSetup`
+(`test/globalSetup.ts`, helpers in `test/testDb.ts`) starts a disposable
+`postgres` container on a dedicated localhost port once per `vitest run`, applies
+the committed migration with `prisma migrate deploy`, and tears it down
+afterwards; the throwaway `TEST_DATABASE_URL` (127.0.0.1 only) is injected as
+`DATABASE_URL` into the test env so the cached Prisma client connects there. Each
+test truncates `rooms`/`completed_games` in a `beforeEach` for isolation.
+Running the suite therefore requires a running Docker daemon (globalSetup fails
+loudly if Docker is unavailable). Note GitHub Actions does not run `yarn test`;
+the unit suite runs locally / via the no-mistakes gate. Network, polling, and
+React rendering are intentionally out of scope here.
 
 ## Agent issue loop (CI)
 

@@ -15,5 +15,5 @@ export async function POST(
     typeof parsed.body.index === "number" ? parsed.body.index : NaN;
   if (!Number.isInteger(index)) return badRequest();
 
-  return storeResponse(makeMove(id, index, parsed.playerId));
+  return storeResponse(await makeMove(id, index, parsed.playerId));
 }

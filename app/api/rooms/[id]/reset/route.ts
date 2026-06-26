@@ -11,5 +11,5 @@ export async function POST(
   const parsed = await parsePlayerBody(request);
   if (parsed.error) return parsed.error;
 
-  return storeResponse(resetGame(id, parsed.playerId));
+  return storeResponse(await resetGame(id, parsed.playerId));
 }
