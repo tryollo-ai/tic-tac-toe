@@ -348,42 +348,36 @@ const RoomGame = (props: Props) => {
         )}
       </div>
 
-      <div
-        className={classNames(styles.playArea, {
-          [styles.playAreaWithHistory]: room.actions.length > 0,
-        })}
-      >
+      <div className={styles.playArea}>
         <BoardHistory actions={room.actions} />
 
-        <div className={styles.boardArea}>
-          <aside
-            className={classNames(styles.sidePanel, {
-              [styles.sideActive]: turnActive("X"),
+        <Board
+          board={room.board}
+          winningLine={room.winningLine}
+          onSquareClick={handleMove}
+          disabled={boardDisabled}
+        />
+
+        <aside className={styles.infoPanel}>
+          <div
+            className={classNames(styles.infoRow, {
+              [styles.infoRowActive]: turnActive("X"),
             })}
           >
-            <span className={classNames(styles.sideMark, styles.sideMarkX)}>
-              X
+            <span className={classNames(styles.infoName, styles.infoNameX)}>
+              {xLabel}
             </span>
-            <span className={styles.sideName}>{xLabel}</span>
-            <span className={styles.sideAbility}>Plays first</span>
-          </aside>
+            <span className={styles.infoAbility}>Moves first</span>
+          </div>
 
-          <Board
-            board={room.board}
-            winningLine={room.winningLine}
-            onSquareClick={handleMove}
-            disabled={boardDisabled}
-          />
-
-          <aside
-            className={classNames(styles.sidePanel, {
-              [styles.sideActive]: turnActive("O"),
+          <div
+            className={classNames(styles.infoRow, {
+              [styles.infoRowActive]: turnActive("O"),
             })}
           >
-            <span className={classNames(styles.sideMark, styles.sideMarkO)}>
-              O
+            <span className={classNames(styles.infoName, styles.infoNameO)}>
+              {oLabel}
             </span>
-            <span className={styles.sideName}>{oLabel}</span>
             <span
               className={classNames(styles.shiftStatus, {
                 [styles.shiftStatusUsed]: room.oShiftUsed,
@@ -412,8 +406,8 @@ const RoomGame = (props: Props) => {
                 </div>
               </div>
             )}
-          </aside>
-        </div>
+          </div>
+        </aside>
       </div>
 
       {gameOver && <p className={styles.nextGame}>Next game starting…</p>}
