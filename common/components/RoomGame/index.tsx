@@ -312,17 +312,14 @@ const RoomGame = (props: Props) => {
 
       <div className={styles.seatBar}>
         {mySeat ? (
-          <>
-            <span className={styles.youBadge}>You are playing {mySeat}</span>
-            <button
-              type="button"
-              className={styles.seatButton}
-              onClick={handleLeave}
-              disabled={paused}
-            >
-              Leave seat
-            </button>
-          </>
+          <button
+            type="button"
+            className={classNames(styles.seatButton, styles.leaveButton)}
+            onClick={handleLeave}
+            disabled={paused}
+          >
+            Leave seat
+          </button>
         ) : (
           <>
             {room.seats.X === null && (
