@@ -36,11 +36,15 @@ const BoardHistory = (props: Props) => {
   }, []);
 
   // Keep the newest move in view as the game progresses, then refresh the arrow
-  // enabled-state for the new content height.
+  // enabled-state for the new content height. The list scrolls vertically on
+  // desktop and horizontally on mobile; pinning both axes to their end keeps the
+  // newest entry visible in either layout (the inactive axis has no overflow, so
+  // its assignment is a no-op).
   useLayoutEffect(() => {
     const el = listRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
+    el.scrollLeft = el.scrollWidth;
     updateArrows();
   }, [moveCount, updateArrows]);
 

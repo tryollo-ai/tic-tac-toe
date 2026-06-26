@@ -64,10 +64,10 @@
 // flanks get an equal `1fr` track so the board stays centered in the full width
 // no matter how wide either flank is, while the board itself fills a generous
 // fixed center track. The board and info box are pinned to explicit columns
-// (2 and 3) rather than relying on source-order auto-placement: `BoardHistory`
-// renders nothing until the first move, and without explicit pins the board
-// would slide left into the empty flank's track on a fresh room. `BoardHistory`,
-// the only auto-placed child, then lands in the empty left flank.
+// (2 and 3) rather than relying on source-order auto-placement: the history slot
+// is empty until the first move, and without explicit pins the board would slide
+// left into the empty flank's track on a fresh room. `.historySlot`, the only
+// auto-placed child, then lands in the empty left flank.
 .playArea {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 400px) minmax(0, 1fr);
@@ -78,6 +78,13 @@
 
 .boardSlot {
   grid-column: 2;
+  min-width: 0;
+}
+
+// Wraps BoardHistory so the panel can be reordered relative to the board on
+// mobile (BoardHistory's own root carries the panel styling). Auto-placed into
+// the empty left flank on desktop.
+.historySlot {
   min-width: 0;
 }
 
@@ -197,18 +204,36 @@
 }
 
 // Below this the board plus both flanks no longer fit side by side, so collapse
-// to a single column: history above the board, the combined info box below it.
+// to a single column. The board stays the static hero at the top with the
+// combined info box directly beneath it; the move history drops to the bottom as
+// a horizontally scrolling strip (BoardHistory's own styles) so a growing
+// history never pushes the board down the page on each move.
 @media (max-width: 760px) {
   .playArea {
     grid-template-columns: 1fr;
     justify-items: stretch;
   }
 
-  // Drop the desktop column pins so the single-column stack follows source
-  // order (history, board, info) instead of forcing phantom implicit columns.
+  // Drop the desktop column pins and reorder the stack explicitly: board, then
+  // info box, then history. `order` overrides source order (history, board,
+  // info) without moving the markup, and dropping the pins avoids forcing
+  // phantom implicit columns.
   .boardSlot,
+  .historySlot,
   .infoPanel {
     grid-column: auto;
+  }
+
+  .boardSlot {
+    order: 1;
+  }
+
+  .infoPanel {
+    order: 2;
+  }
+
+  .historySlot {
+    order: 3;
   }
 }
 

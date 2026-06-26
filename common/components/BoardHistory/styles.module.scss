@@ -120,3 +120,26 @@
   color: var(--text-muted);
   font-weight: 600;
 }
+
+// On mobile the panel sits below the board (see RoomGame's playArea) and turns
+// into a horizontally scrolling strip so it never grows the page downward as
+// moves accumulate. The up/down arrows are vertical affordances, so they're
+// dropped here in favour of native horizontal swipe scrolling.
+@media (max-width: 760px) {
+  .arrow {
+    display: none;
+  }
+
+  .list {
+    flex-direction: row;
+    align-items: flex-start;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .entry {
+    width: auto;
+    flex-shrink: 0;
+  }
+}
