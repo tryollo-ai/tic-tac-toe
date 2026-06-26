@@ -1,0 +1,17 @@
+# no-mistakes per-repo configuration (merged over the machine-global
+# ~/.no-mistakes/config.yaml).
+#
+# This file exists so settings apply in CI too. The agent-dispatch workflow
+# runs `no-mistakes axi run` on a fresh GitHub Actions runner, where no-mistakes
+# writes a *default* global config. Anything we rely on in CI must live here,
+# in the repo, not only in a developer's local global config.
+
+# Test-step evidence artifacts (the before/after screenshots the test step
+# gathers). With store_in_repo disabled (the default) they stay in a temp dir
+# and the PR body links them as `(local file: /tmp/...)`. Enabling it commits
+# them under `dir` so the PR body links the committed repo files and the images
+# render directly on the PR.
+test:
+  evidence:
+    store_in_repo: true
+    dir: .no-mistakes/evidence

@@ -1,0 +1,14 @@
+self-hosted-runner:
+  labels: []
+
+config-variables: null
+
+# Suppress false-positive [action] errors for actions/create-github-app-token@v3.
+# Actionlint's bundled popular_actions.go schema for v3 is stale: it requires
+# the deprecated `app-id` input and does not yet know about `client-id`, which
+# replaced it upstream. The workflow is correct; the schema is outdated.
+paths:
+  .github/workflows/agent-dispatch.yml:
+    ignore:
+      - 'missing input "app-id"'
+      - 'input "client-id" is not defined'

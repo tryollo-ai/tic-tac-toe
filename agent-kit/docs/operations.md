@@ -2,6 +2,10 @@
 
 An opt-in, scheduled loop that turns Kanban tickets into reviewable pull requests.
 
+This is the operations reference for the **agent-kit**.
+To stand the loop up on a repo, see [`../README.md`](../README.md) and run the setup skill ([`../SKILL.md`](../SKILL.md)); this document explains how the loop behaves once it is installed.
+Paths below (`agent-kit/scripts/...`) assume the kit dir is named `agent-kit`; if you renamed it, substitute the real name.
+
 ## What it does
 
 You open tickets on the repository's GitHub issues / Project board and mark the ones you want worked.
@@ -65,7 +69,7 @@ This lets you queue a chain of work up front - file the whole chain `agent:ready
 
 The gate is **fail-closed**: a blocker that is not closed - or that cannot be read at all (a native read error, an unreadable body ref, or a `totalBlockedBy` count higher than the blockers GitHub returned, e.g. a cross-repo blocker) - is treated as `UNKNOWN` and still blocks, so a ticket is never worked on an unverified prerequisite.
 Tickets with no blockers from either source pass through untouched.
-The body parsing (`parseBlockerRefs`) and the two-source merge (`resolveBlockedBy`) are pure functions in `scripts/agent-dispatch/dependencies.ts` (covered by `dependencies.test.ts`); the network reads - the native `blockedBy` relationships and the state of any body-only refs - are done by `enrichDependencies.cli.ts` (`yarn enrich-dependencies`), which annotates each issue with `blockedBy: [{number, state}]` for the selector.
+The body parsing (`parseBlockerRefs`) and the two-source merge (`resolveBlockedBy`) are pure functions in `agent-kit/scripts/dependencies.ts` (covered by `dependencies.test.ts`); the network reads - the native `blockedBy` relationships and the state of any body-only refs - are done by `enrichDependencies.cli.ts` (`npx tsx agent-kit/scripts/enrichDependencies.cli.ts`), which annotates each issue with `blockedBy: [{number, state}]` for the selector.
 
 ## Selection: an agent picks, a guardrail keeps it safe
 
@@ -84,25 +88,25 @@ At most three tickets are taken per run (override with the `max` input on a manu
 
 The pieces are pure and tested:
 
-- `selectTickets(issues, { max, requireReadyStatus })` in `scripts/agent-dispatch/selectTickets.ts` (covered by `selectTickets.test.ts`) - eligibility (label, Ready column, **and** the dependency gate), priority/FIFO order, cap. It stays pure and offline; the board Status and `blockedBy` it gates on are injected upstream by the enrich steps. This is both the agent's guardrail and its fallback.
-- `chooseTickets({ issues, max, requireReadyStatus, runAgent })` in `scripts/agent-dispatch/selectTicketsAgent.ts` (covered by `selectTicketsAgent.test.ts`) - builds the prompt, runs the injected agent, applies the guardrail, and falls back. The agent itself is wired in by the CLI as a no-tools `claude -p`, so the policy stays offline-testable.
+- `selectTickets(issues, { max, requireReadyStatus })` in `agent-kit/scripts/selectTickets.ts` (covered by `selectTickets.test.ts`) - eligibility (label, Ready column, **and** the dependency gate), priority/FIFO order, cap. It stays pure and offline; the board Status and `blockedBy` it gates on are injected upstream by the enrich steps. This is both the agent's guardrail and its fallback.
+- `chooseTickets({ issues, max, requireReadyStatus, runAgent })` in `agent-kit/scripts/selectTicketsAgent.ts` (covered by `selectTicketsAgent.test.ts`) - builds the prompt, runs the injected agent, applies the guardrail, and falls back. The agent itself is wired in by the CLI as a no-tools `claude -p`, so the policy stays offline-testable.
 
 The workflow runs the thin CLIs in sequence, each testable and runnable without the network:
 
-1. `enrichIssueStatus.cli.ts` (`yarn enrich-issue-status`) adds each issue's board Status via the pure `getProjectStatus(...)` helper (`getProjectStatus.ts`, covered by `getProjectStatus.test.ts`). Authenticates with `PROJECTS_TOKEN`; with no token or an unreadable status it passes the issue through with no status (fail-closed).
-2. `enrichDependencies.cli.ts` (`yarn enrich-dependencies`) adds each issue's resolved `blockedBy` states (see [Dependencies](#dependencies-blocked-by)).
-3. `selectTicketsAgent.cli.ts` (`yarn select-tickets-agent`) reads the enriched list on stdin, lets the agent pick, applies the guardrail/fallback, and prints the chosen numbers as a compact JSON array. The workflow passes `--require-ready-status` so the column gate is on, and provides `CLAUDE_CODE_OAUTH_TOKEN` for the agent.
+1. `enrichIssueStatus.cli.ts` (`npx tsx agent-kit/scripts/enrichIssueStatus.cli.ts`) adds each issue's board Status via the pure `getProjectStatus(...)` helper (`getProjectStatus.ts`, covered by `getProjectStatus.test.ts`). Authenticates with `PROJECTS_TOKEN`; with no token or an unreadable status it passes the issue through with no status (fail-closed).
+2. `enrichDependencies.cli.ts` (`npx tsx agent-kit/scripts/enrichDependencies.cli.ts`) adds each issue's resolved `blockedBy` states (see [Dependencies](#dependencies-blocked-by)).
+3. `selectTicketsAgent.cli.ts` (`npx tsx agent-kit/scripts/selectTicketsAgent.cli.ts`) reads the enriched list on stdin, lets the agent pick, applies the guardrail/fallback, and prints the chosen numbers as a compact JSON array. The workflow passes `--require-ready-status` so the column gate is on, and provides `CLAUDE_CODE_OAUTH_TOKEN` for the agent.
 
 ```sh
 gh issue list --state open --label agent:ready \
   --json number,title,labels,createdAt,state,body --limit 100 \
-  | yarn --silent enrich-issue-status \
-  | yarn --silent enrich-dependencies \
-  | yarn --silent select-tickets-agent --max 3 --require-ready-status
+  | npx tsx agent-kit/scripts/enrichIssueStatus.cli.ts \
+  | npx tsx agent-kit/scripts/enrichDependencies.cli.ts \
+  | npx tsx agent-kit/scripts/selectTicketsAgent.cli.ts --max 3 --require-ready-status
 # -> e.g. [42,7,13]  (Ready-column, unblocked tickets the agent chose to work)
 ```
 
-The deterministic `selectTickets.cli.ts` (`yarn select-tickets`) is still available and is what the agent path falls back to; swap it in for `select-tickets-agent` above for a fully deterministic, agent-free selection.
+The deterministic `selectTickets.cli.ts` (`npx tsx agent-kit/scripts/selectTickets.cli.ts`) is still available and is what the agent path falls back to; swap it in for `selectTicketsAgent.cli.ts` above for a fully deterministic, agent-free selection.
 
 ## Claiming (idempotency)
 
@@ -119,7 +123,7 @@ The park comment is not a fixed string: it diagnoses what actually happened, quo
 
 ## Run transcript and parking diagnostics
 
-The dispatch job reads the `execution_file` output that `claude-code-action@v1` writes (a JSON log of the run) and turns it into something readable, via the pure `agentRunReport` helper (`scripts/agent-dispatch/agentRunReport.ts`, covered by `agentRunReport.test.ts`, CLI `agentRunReport.cli.ts` / `yarn agent-run-report`):
+The dispatch job reads the `execution_file` output that `claude-code-action@v1` writes (a JSON log of the run) and turns it into something readable, via the pure `agentRunReport` helper (`agent-kit/scripts/agentRunReport.ts`, covered by `agentRunReport.test.ts`, CLI `agentRunReport.cli.ts` / `npx tsx agent-kit/scripts/agentRunReport.cli.ts`):
 
 - **Run Summary.** A `Summarize the agent run` step renders the run as a clean Claude-and-tools conversation - assistant text plus one compact line per tool call - on the run's **Summary** tab. The noisy tool-result blocks are dropped, which is both more readable than `show_full_output` and safer (those tool-result blocks were the secret-leak vector). It is `continue-on-error` and runs on `if: always()`, so it never fails the job and still summarizes a failed run.
 - **Park comment.** The park step builds its comment from `extractResult(...)` (the agent's final message) plus the agent step's `outcome` and a link to the run, posting it with `gh issue comment --body-file` (the agent text is never interpolated into a shell line). A missing or partial `execution_file` (e.g. from a hard timeout) degrades to a generic message, never an empty comment.
@@ -130,7 +134,7 @@ Each per-ticket job also carries a 30-minute `timeout-minutes`, so a hung agent 
 
 ## One-time setup
 
-1. **Labels.** Run `scripts/agent-dispatch/setup-labels.sh` (optionally `--repo owner/name`) to create the labels idempotently.
+1. **Labels.** Run `agent-kit/scripts/setup-labels.sh` (optionally `--repo owner/name`) to create the labels idempotently.
 2. **Claude Code OAuth token.** Install the Claude GitHub app and run the [Claude Code GitHub installer](https://code.claude.com/docs/en/github-actions) (`/install-github-app` from the Claude Code CLI), which adds the `claude.yml` / `claude-code-review.yml` workflows and stores a `CLAUDE_CODE_OAUTH_TOKEN` repository secret (Settings -> Secrets and variables -> Actions).
    `agent-dispatch.yml` authenticates `anthropics/claude-code-action@v1` with that same token (your Claude subscription) rather than a metered API key, and passes the workflow's default `GITHUB_TOKEN` as `github_token`.
    The action's GitHub work runs under that default token, so each job that runs the action grants it `contents`/`issues`/`pull-requests: write` plus `actions: read`.
@@ -167,7 +171,7 @@ Once set up, the workflows move the card automatically:
 
 `@claude` follow-ups on an existing PR (via the installer's `claude.yml`) do not move the card; the PR is already in `In Review` and stays there until you merge it.
 
-The mechanics live in the pure `setProjectStatus(...)` helper (`scripts/agent-dispatch/setProjectStatus.ts`, covered by `setProjectStatus.test.ts`), called by the thin CLI `setProjectStatus.cli.ts` (also `yarn set-project-status`).
+The mechanics live in the pure `setProjectStatus(...)` helper (`agent-kit/scripts/setProjectStatus.ts`, covered by `setProjectStatus.test.ts`), called by the thin CLI `setProjectStatus.cli.ts` (also `npx tsx agent-kit/scripts/setProjectStatus.cli.ts`).
 Both the CLI and the helper are non-fatal by design - a missing `PROJECTS_TOKEN`, an issue on no project, a missing `Status` field or option, or any API error logs a clear message and exits `0`.
 The workflow steps additionally carry `continue-on-error: true`, so board sync can never block or fail the loop.
 
@@ -175,8 +179,8 @@ The workflow steps additionally carry `continue-on-error: true`, so board sync c
 
 The loop is built so you can prove it before trusting the schedule:
 
-1. Run `scripts/agent-dispatch/setup-labels.sh` and make sure the `CLAUDE_CODE_OAUTH_TOKEN` secret is in place (added by the Claude Code GitHub installer).
-2. Create one disposable ticket, label it `agent:ready` + `priority:low`, and trigger `agent-dispatch` manually (Actions -> Agent issue dispatch -> Run workflow).
+1. Run `agent-kit/scripts/setup-labels.sh` and make sure the `CLAUDE_CODE_OAUTH_TOKEN` secret is in place (added by the Claude Code GitHub installer).
+2. Create one disposable ticket, label it `agent:ready` + `priority:low`, and trigger `agent-dispatch` manually (Actions -> "Trigger - issue agent" -> Run workflow).
 3. Confirm it implements, the no-mistakes step runs, and a PR opens. Then `@claude`-mention that PR with a change request and confirm `claude.yml` wakes and updates it.
 4. Once the dry-run is clean, the twice-daily schedule is already wired; the loop runs on its own from there.
 
