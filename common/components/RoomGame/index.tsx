@@ -294,11 +294,14 @@ const RoomGame = (props: Props) => {
   } else if (gameOver) {
     statusMessage = "Draw";
     statusTone = "draw";
+  } else if (mySeat && currentTurn === mySeat) {
+    statusMessage = "Your turn";
+    statusTone = playerTone(currentTurn);
   } else if (!bothSeated) {
     statusMessage = "Waiting for opponent";
     statusTone = "neutral";
   } else if (mySeat) {
-    statusMessage = currentTurn === mySeat ? "Your turn" : "Opponent's turn";
+    statusMessage = "Opponent's turn";
     statusTone = playerTone(currentTurn);
   } else {
     statusMessage = `${currentTurn} to move`;
@@ -307,8 +310,7 @@ const RoomGame = (props: Props) => {
 
   const boardDisabled =
     gameOver || mySeat === null || currentTurn !== mySeat || paused;
-  const turnActive = (seat: Player) =>
-    !gameOver && bothSeated && currentTurn === seat;
+  const turnActive = (seat: Player) => !gameOver && currentTurn === seat;
 
   return (
     <div className={styles.root}>
