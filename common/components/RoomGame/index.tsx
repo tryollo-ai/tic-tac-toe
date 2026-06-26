@@ -404,25 +404,30 @@ const RoomGame = (props: Props) => {
           <BoardHistory actions={room.actions} />
         </div>
 
-        {/* The board keeps a reserved perimeter while O can shift, so arming the
-            picker reveals the direction arrows in already-allotted slots without
-            resizing or nudging the board. */}
+        {/* At rest the board fills the whole frame. Arming the picker expands the
+            perimeter tracks (`.boardFrameArmed`), shrinking the board; the arrows
+            then fade in once the shrink settles. The arrows stay mounted while O
+            can shift so cancelling can reverse the sequence (fade out, then grow).
+            See styles.module.scss for the two-phase transition timing. */}
         <div
           className={classNames(styles.boardFrame, {
-            [styles.boardFrameArmed]: canShiftNow,
+            [styles.boardFrameArmed]: shiftActive,
           })}
         >
           {canShiftNow &&
-            shiftActive &&
             SHIFT_OPTIONS.map(({ dir, glyph, label, slotClass }) => (
               <button
                 key={dir}
                 type="button"
-                className={classNames(styles.shiftButton, styles[slotClass])}
+                className={classNames(styles.shiftButton, styles[slotClass], {
+                  [styles.shiftButtonVisible]: shiftActive,
+                })}
                 onClick={() => handleShift(dir)}
                 disabled={paused}
                 aria-label={label}
                 title={label}
+                aria-hidden={!shiftActive}
+                tabIndex={shiftActive ? undefined : -1}
               >
                 {glyph}
               </button>

@@ -78,23 +78,42 @@
   width: 100%;
 }
 
-// The board plus its reserved shift perimeter. The perimeter tracks are zero
-// until O can shift, so the board normally fills the whole frame; arming the
-// shift expands the tracks (`.boardFrameArmed`) to hold the direction arrows.
+// The board plus its shift perimeter. At rest the perimeter tracks are zero so
+// the board fills the whole frame; arming the shift expands the tracks
+// (`.boardFrameArmed`) to hold the direction arrows, shrinking the board.
+//
+// The activate/cancel sequence is two-phase and reversible:
+//   activate: board shrinks immediately, then the arrows fade in (`.shiftButtonVisible`).
+//   cancel:   arrows fade out immediately, then the board grows back.
+// The phases are ordered purely with transition timing - each state carries the
+// delay for the step that must wait. The rest state (`.boardFrame`) delays the
+// grow so it follows the arrows' fade-out; the armed arrows delay their fade-in
+// so it follows the shrink. The opposite directions run with no delay.
 .boardFrame {
+  --shift-size: 44px;
+  --shift-grow: 0.25s;
+  --shift-fade: 0.2s;
+
   display: grid;
   grid-template-columns: 0 minmax(0, 1fr) 0;
   grid-template-rows: 0 auto 0;
   gap: 0;
   width: 100%;
+  transition:
+    grid-template-columns var(--shift-grow) ease var(--shift-fade),
+    grid-template-rows var(--shift-grow) ease var(--shift-fade),
+    gap var(--shift-grow) ease var(--shift-fade);
 }
 
 .boardFrameArmed {
-  --shift-size: 44px;
-
   grid-template-columns: var(--shift-size) minmax(0, 1fr) var(--shift-size);
   grid-template-rows: var(--shift-size) auto var(--shift-size);
   gap: 8px;
+  // Shrink runs immediately; only the rest state delays the reverse (grow).
+  transition:
+    grid-template-columns var(--shift-grow) ease,
+    grid-template-rows var(--shift-grow) ease,
+    gap var(--shift-grow) ease;
 }
 
 .boardSlot {
@@ -234,7 +253,9 @@
   }
 }
 
-// One direction arrow, filling its reserved slot on the matching board edge.
+// One direction arrow, filling its slot on the matching board edge. Hidden at
+// rest (the slot has zero size then too) and revealed by `.shiftButtonVisible`;
+// `pointer-events` keeps the invisible arrows from intercepting clicks.
 .shiftButton {
   display: flex;
   align-items: center;
@@ -249,7 +270,11 @@
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: 10px;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  // Hidden state: arrows fade out immediately (no delay) so cancel reverses cleanly.
   transition:
+    opacity var(--shift-fade) ease,
     border-color 0.15s ease,
     background 0.15s ease,
     transform 0.08s ease;
@@ -261,8 +286,23 @@
   }
 
   &:disabled {
-    opacity: 0.55;
     cursor: default;
+  }
+}
+
+// Shown while the picker is armed: the arrows fade in, but only after the board
+// has finished shrinking (delay = shrink duration).
+.shiftButtonVisible {
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    opacity var(--shift-fade) ease var(--shift-grow),
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.08s ease;
+
+  &:disabled {
+    opacity: 0.55;
   }
 }
 
@@ -329,6 +369,17 @@
 
   .historySlot {
     order: 3;
+  }
+}
+
+// Respect reduced-motion: snap the board and arrows between rest and armed with
+// no shrink/fade animation (matches the Spinner's reduced-motion handling).
+@media (prefers-reduced-motion: reduce) {
+  .boardFrame,
+  .boardFrameArmed,
+  .shiftButton,
+  .shiftButtonVisible {
+    transition: none;
   }
 }
 
