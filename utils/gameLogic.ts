@@ -199,14 +199,6 @@ function bestPlacement(
 }
 
 /**
- * Returns the index of the best move for `aiPlayer`, or -1 if the board is
- * full. Exact (unbeatable) on the 3×3 board.
- */
-export function getBestMove(board: Board, aiPlayer: Player): number {
-  return bestPlacement(board, aiPlayer).index;
-}
-
-/**
  * Choose O's action for the current turn when O is the AI: either its best
  * placement, or - when `canShift` - its once-per-game whole-grid shift if that
  * yields a strictly better position. Because shifting uses up the turn, the two

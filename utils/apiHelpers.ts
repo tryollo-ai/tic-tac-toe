@@ -36,6 +36,27 @@ export async function parsePlayerBody(
 }
 
 /**
+ * Shared entry point for the mutation routes: await the dynamic `id` param,
+ * parse the player body, and short-circuit with the error response when the
+ * body is missing/malformed or playerId is absent. On success the handler runs
+ * with the resolved `id`, parsed `body`, and `playerId`.
+ */
+export async function withPlayerRoute(
+  request: Request,
+  params: Promise<{ id: string }>,
+  handler: (ctx: {
+    id: string;
+    body: Record<string, unknown>;
+    playerId: string;
+  }) => Promise<NextResponse>,
+): Promise<NextResponse> {
+  const { id } = await params;
+  const parsed = await parsePlayerBody(request);
+  if (parsed.error) return parsed.error;
+  return handler({ id, body: parsed.body, playerId: parsed.playerId });
+}
+
+/**
  * Turn a StoreResult into its HTTP response: the error code mapped to a status
  * on failure, or the room view (defaulting to 200) on success.
  */

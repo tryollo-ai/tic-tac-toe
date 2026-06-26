@@ -7,6 +7,25 @@ export type StatusTone = "x" | "o" | "draw" | "neutral";
 export const playerTone = (player: "X" | "O"): StatusTone =>
   player === "X" ? "x" : "o";
 
+/** A status line: the message to show and the tone to colour it with. */
+export type StatusInfo = { message: string; tone: StatusTone };
+
+/**
+ * The neutral, observer's-eye status of a position: who won, a draw, or whose
+ * move it is. `winner` is the winning player (or null), `toMove` is the player
+ * to move next, and `isOver` distinguishes a draw from an in-progress game.
+ * Shared by the live room and the replay viewer.
+ */
+export const spectatorStatus = (
+  winner: "X" | "O" | null,
+  toMove: "X" | "O",
+  isOver: boolean,
+): StatusInfo => {
+  if (winner) return { message: `${winner} wins!`, tone: playerTone(winner) };
+  if (isOver) return { message: "Draw", tone: "draw" };
+  return { message: `${toMove} to move`, tone: playerTone(toMove) };
+};
+
 type Props = {
   message: string;
   tone: StatusTone;

@@ -16,6 +16,7 @@ import {
   type RoomMode,
   type RoomSummary,
 } from "@/lib/roomTypes";
+import type { Board } from "@/utils/gameLogic";
 import MiniBoard from "@/common/components/MiniBoard";
 import UIDialog from "@/common/components/UIDialog";
 import styles from "./styles.module.scss";
@@ -42,6 +43,35 @@ function timeAgo(from: number, now: number): string {
 }
 
 const PAGE_SIZE = 6;
+
+/**
+ * The shared card shell for both lobby lists (live rooms and completed games):
+ * a clickable card with a board preview, the name, a status/result badge beside
+ * the mode badge, and a list-specific footer passed as children.
+ */
+const GameCard = (props: {
+  board: Board;
+  name: string;
+  mode: RoomMode;
+  onClick: () => void;
+  badgeClass: string;
+  badgeLabel: string;
+  children: React.ReactNode;
+}) => (
+  <li>
+    <button type="button" className={styles.roomCard} onClick={props.onClick}>
+      <MiniBoard board={props.board} />
+      <div className={styles.roomInfo}>
+        <span className={styles.roomName}>{props.name}</span>
+        <div className={styles.roomMeta}>
+          <span className={props.badgeClass}>{props.badgeLabel}</span>
+          <span className={styles.modeBadge}>{modeLabel(props.mode)}</span>
+        </div>
+        {props.children}
+      </div>
+    </button>
+  </li>
+);
 
 const Lobby = () => {
   const router = useRouter();
@@ -183,36 +213,24 @@ const Lobby = () => {
       {rooms && rooms.length > 0 && pageRooms && (
         <ul className={styles.roomList}>
           {pageRooms.map((room) => (
-            <li key={room.id}>
-              <button
-                type="button"
-                className={styles.roomCard}
-                onClick={() => router.push(`/room/${room.id}`)}
-              >
-                <MiniBoard board={room.board} />
-                <div className={styles.roomInfo}>
-                  <span className={styles.roomName}>{room.name}</span>
-                  <div className={styles.roomMeta}>
-                    <span
-                      className={`${styles.badge} ${styles[`badge_${room.status === "in-progress" ? "inProgress" : room.status}`]}`}
-                    >
-                      {STATUS_LABEL[room.status]}
-                    </span>
-                    <span className={styles.modeBadge}>
-                      {modeLabel(room.mode)}
-                    </span>
-                  </div>
-                  <div className={styles.seats}>
-                    <span className={room.seatsTaken.X ? styles.seatTaken : styles.seatOpen}>
-                      X {room.seatsTaken.X ? "taken" : "open"}
-                    </span>
-                    <span className={room.seatsTaken.O ? styles.seatTaken : styles.seatOpen}>
-                      O {room.seatsTaken.O ? "taken" : "open"}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            </li>
+            <GameCard
+              key={room.id}
+              board={room.board}
+              name={room.name}
+              mode={room.mode}
+              onClick={() => router.push(`/room/${room.id}`)}
+              badgeClass={`${styles.badge} ${styles[`badge_${room.status === "in-progress" ? "inProgress" : room.status}`]}`}
+              badgeLabel={STATUS_LABEL[room.status]}
+            >
+              <div className={styles.seats}>
+                <span className={room.seatsTaken.X ? styles.seatTaken : styles.seatOpen}>
+                  X {room.seatsTaken.X ? "taken" : "open"}
+                </span>
+                <span className={room.seatsTaken.O ? styles.seatTaken : styles.seatOpen}>
+                  O {room.seatsTaken.O ? "taken" : "open"}
+                </span>
+              </div>
+            </GameCard>
           ))}
         </ul>
       )}
@@ -250,34 +268,22 @@ const Lobby = () => {
           </p>
           <ul className={styles.roomList}>
             {completed.map((game) => (
-              <li key={game.id}>
-                <button
-                  type="button"
-                  className={styles.roomCard}
-                  onClick={() => router.push(`/replay/${game.id}`)}
-                >
-                  <MiniBoard board={game.board} />
-                  <div className={styles.roomInfo}>
-                    <span className={styles.roomName}>{game.name}</span>
-                    <div className={styles.roomMeta}>
-                      <span
-                        className={`${styles.badge} ${game.winner ? styles[`badge_${game.winner === "X" ? "x" : "o"}`] : styles.badge_draw}`}
-                      >
-                        {resultLabel(game.winner)}
-                      </span>
-                      <span className={styles.modeBadge}>
-                        {modeLabel(game.mode)}
-                      </span>
-                    </div>
-                    <div className={styles.completedFooter}>
-                      <span className={styles.replayHint}>▶ Replay</span>
-                      <span className={styles.completedTime}>
-                        {timeAgo(game.completedAt, Date.now())}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              </li>
+              <GameCard
+                key={game.id}
+                board={game.board}
+                name={game.name}
+                mode={game.mode}
+                onClick={() => router.push(`/replay/${game.id}`)}
+                badgeClass={`${styles.badge} ${game.winner ? styles[`badge_${game.winner === "X" ? "x" : "o"}`] : styles.badge_draw}`}
+                badgeLabel={resultLabel(game.winner)}
+              >
+                <div className={styles.completedFooter}>
+                  <span className={styles.replayHint}>▶ Replay</span>
+                  <span className={styles.completedTime}>
+                    {timeAgo(game.completedAt, Date.now())}
+                  </span>
+                </div>
+              </GameCard>
             ))}
           </ul>
         </section>

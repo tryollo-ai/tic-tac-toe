@@ -1,17 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { fetchCompletedGame, RoomError } from "@/utils/roomClient";
-import {
-  boardAfterActions,
-  calculateWinner,
-  type Player,
-} from "@/utils/gameLogic";
-import { modeLabel, type CompletedGameView } from "@/lib/roomTypes";
+import { boardAfterActions, calculateWinner } from "@/utils/gameLogic";
+import { type CompletedGameView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
-import Status, { type StatusTone, playerTone } from "@/common/components/Status";
+import RoomHeader from "@/common/components/RoomHeader";
+import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
+import Status, { spectatorStatus } from "@/common/components/Status";
 import styles from "./styles.module.scss";
 
 type Props = {
@@ -33,7 +30,8 @@ const Replay = (props: Props) => {
     staleTime: Infinity,
   });
 
-  const notFound = error instanceof RoomError && error.code === "game-not-found";
+  const notFound =
+    error instanceof RoomError && error.code === "game-not-found";
   const loadError = Boolean(error) && !notFound;
 
   const total = game ? game.actions.length : 0;
@@ -45,30 +43,27 @@ const Replay = (props: Props) => {
       setPlaying(false);
       return;
     }
-    const timer = setTimeout(() => setStep((s) => Math.min(s + 1, total)), AUTOPLAY_MS);
+    const timer = setTimeout(
+      () => setStep((s) => Math.min(s + 1, total)),
+      AUTOPLAY_MS,
+    );
     return () => clearTimeout(timer);
   }, [playing, step, total]);
 
   if (notFound) {
     return (
-      <div className={styles.notFound}>
-        <p className={styles.notFoundTitle}>Game no longer exists</p>
-        <p className={styles.notFoundHint}>
-          Completed games are kept temporarily and may have been cleared, or the
-          server restarted.
-        </p>
-        <Link href="/" className={styles.backLink}>
-          Back to lobby
-        </Link>
-      </div>
+      <RoomNotFound
+        title="Game no longer exists"
+        hint="Completed games are kept temporarily and may have been cleared, or the server restarted."
+      />
     );
   }
 
   if (!game) {
     return (
-      <div className={styles.loading}>
+      <RoomLoading>
         {loadError ? "Could not load the game." : "Loading game…"}
-      </div>
+      </RoomLoading>
     );
   }
 
@@ -77,19 +72,11 @@ const Replay = (props: Props) => {
   const atStart = step === 0;
   const atEnd = step === total;
 
-  let statusMessage: string;
-  let statusTone: StatusTone;
-  if (result) {
-    statusMessage = `${result.winner} wins!`;
-    statusTone = playerTone(result.winner);
-  } else if (atEnd) {
-    statusMessage = "Draw";
-    statusTone = "draw";
-  } else {
-    const next: Player = step % 2 === 0 ? "X" : "O";
-    statusMessage = `${next} to move`;
-    statusTone = playerTone(next);
-  }
+  const { message: statusMessage, tone: statusTone } = spectatorStatus(
+    result ? result.winner : null,
+    step % 2 === 0 ? "X" : "O",
+    atEnd,
+  );
 
   const goTo = (next: number) => {
     setPlaying(false);
@@ -108,13 +95,7 @@ const Replay = (props: Props) => {
 
   return (
     <div className={styles.root}>
-      <header className={styles.topBar}>
-        <Link href="/" className={styles.back}>
-          ← Lobby
-        </Link>
-        <h1 className={styles.title}>{game.name}</h1>
-        <span className={styles.modeTag}>{modeLabel(game.mode)}</span>
-      </header>
+      <RoomHeader name={game.name} mode={game.mode} />
 
       <p className={styles.replayTag}>Replay · read-only</p>
 
@@ -131,7 +112,11 @@ const Replay = (props: Props) => {
         Turn {step} / {total}
       </div>
 
-      <div className={styles.controls} role="group" aria-label="Replay controls">
+      <div
+        className={styles.controls}
+        role="group"
+        aria-label="Replay controls"
+      >
         <button
           type="button"
           className={styles.controlButton}

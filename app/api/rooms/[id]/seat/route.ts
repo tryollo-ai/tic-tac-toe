@@ -1,5 +1,5 @@
 import { claimSeat, leaveSeat } from "@/lib/roomStore";
-import { badRequest, parsePlayerBody, storeResponse } from "@/utils/apiHelpers";
+import { badRequest, storeResponse, withPlayerRoute } from "@/utils/apiHelpers";
 
 export const dynamic = "force-dynamic";
 
@@ -7,23 +7,19 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const parsed = await parsePlayerBody(request);
-  if (parsed.error) return parsed.error;
+  return withPlayerRoute(request, params, async ({ id, body, playerId }) => {
+    const { seat } = body;
+    if (seat !== "X" && seat !== "O") return badRequest("invalid-seat");
 
-  const { seat } = parsed.body;
-  if (seat !== "X" && seat !== "O") return badRequest("invalid-seat");
-
-  return storeResponse(await claimSeat(id, seat, parsed.playerId));
+    return storeResponse(await claimSeat(id, seat, playerId));
+  });
 }
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const parsed = await parsePlayerBody(request);
-  if (parsed.error) return parsed.error;
-
-  return storeResponse(await leaveSeat(id, parsed.playerId));
+  return withPlayerRoute(request, params, async ({ id, playerId }) =>
+    storeResponse(await leaveSeat(id, playerId)),
+  );
 }

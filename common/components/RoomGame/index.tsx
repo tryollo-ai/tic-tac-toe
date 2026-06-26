@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import classNames from "classnames";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,12 +15,15 @@ import {
 } from "@/utils/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
 import type { Direction, Player } from "@/utils/gameLogic";
-import { modeLabel, type RoomView } from "@/lib/roomTypes";
+import type { RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
 import BoardHistory from "@/common/components/BoardHistory";
+import RoomHeader from "@/common/components/RoomHeader";
+import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
 import Status, {
-  type StatusTone,
+  type StatusInfo,
   playerTone,
+  spectatorStatus,
 } from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
 import styles from "./styles.module.scss";
@@ -102,8 +104,24 @@ const RoomGame = (props: Props) => {
     setActionError(null);
   }, [queryClient, roomKey]);
 
+  // Shared lifecycle for the non-optimistic writes (claim/leave/shift/reset):
+  // pause+abort before, adopt the authoritative room on success, surface a
+  // fallback message on error, resume polling when settled. Only the request
+  // function and the error fallback differ, so each mutation supplies just those.
+  const writeOptions = useCallback(
+    (fallback: string) => ({
+      onMutate: beginWrite,
+      onSuccess: setRoom,
+      onError: (err: unknown) =>
+        setActionError(roomErrorMessage(err, fallback)),
+      onSettled: () => setPaused(false),
+    }),
+    [beginWrite, setRoom],
+  );
+
   const moveMutation = useMutation({
-    mutationFn: (index: number) => makeMove(props.id, playerId as string, index),
+    mutationFn: (index: number) =>
+      makeMove(props.id, playerId as string, index),
     onMutate: async (index: number) => {
       await beginWrite();
       const snapshot = queryClient.getQueryData<RoomView>(roomKey);
@@ -130,39 +148,23 @@ const RoomGame = (props: Props) => {
 
   const claimMutation = useMutation({
     mutationFn: (seat: Player) => claimSeat(props.id, playerId as string, seat),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not claim that seat.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not claim that seat."),
   });
 
   const leaveMutation = useMutation({
     mutationFn: () => leaveSeat(props.id, playerId as string),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not leave the seat.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not leave the seat."),
   });
 
   const shiftMutation = useMutation({
     mutationFn: (direction: Direction) =>
       shiftRoom(props.id, playerId as string, direction),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not shift the grid.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not shift the grid."),
   });
 
   const resetMutation = useMutation({
     mutationFn: () => resetRoom(props.id, playerId as string),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not start a new game.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not start a new game."),
   });
 
   // Best-effort instant seat release: on tab close via `pagehide`, and on
@@ -249,23 +251,18 @@ const RoomGame = (props: Props) => {
 
   if (notFound) {
     return (
-      <div className={styles.notFound}>
-        <p className={styles.notFoundTitle}>Room no longer exists</p>
-        <p className={styles.notFoundHint}>
-          It may have been removed or the server restarted.
-        </p>
-        <Link href="/" className={styles.backLink}>
-          Back to lobby
-        </Link>
-      </div>
+      <RoomNotFound
+        title="Room no longer exists"
+        hint="It may have been removed or the server restarted."
+      />
     );
   }
 
   if (!room) {
     return (
-      <div className={styles.loading}>
+      <RoomLoading>
         {error ? "Could not load the room. Retrying…" : "Loading room…"}
-      </div>
+      </RoomLoading>
     );
   }
 
@@ -288,23 +285,18 @@ const RoomGame = (props: Props) => {
   const oLabel =
     room.mode === "ai" ? "AI (O)" : mySeat === "O" ? "You (O)" : "Player O";
 
-  let statusMessage: string;
-  let statusTone: StatusTone;
-  if (winner) {
-    statusMessage = `${winner} wins!`;
-    statusTone = playerTone(winner);
-  } else if (gameOver) {
-    statusMessage = "Draw";
-    statusTone = "draw";
-  } else if (!bothSeated) {
-    statusMessage = "Waiting for opponent";
-    statusTone = "neutral";
-  } else if (mySeat) {
-    statusMessage = currentTurn === mySeat ? "Your turn" : "Opponent's turn";
-    statusTone = playerTone(currentTurn);
+  // Terminal and pure spectator states share their wording with the replay
+  // viewer (spectatorStatus); only the seat-aware mid-game lines are bespoke.
+  let status: StatusInfo;
+  if (!gameOver && !bothSeated) {
+    status = { message: "Waiting for opponent", tone: "neutral" };
+  } else if (!gameOver && mySeat) {
+    status = {
+      message: currentTurn === mySeat ? "Your turn" : "Opponent's turn",
+      tone: playerTone(currentTurn),
+    };
   } else {
-    statusMessage = `${currentTurn} to move`;
-    statusTone = playerTone(currentTurn);
+    status = spectatorStatus(winner, currentTurn, gameOver);
   }
 
   const boardDisabled =
@@ -314,15 +306,9 @@ const RoomGame = (props: Props) => {
 
   return (
     <div className={styles.root}>
-      <header className={styles.topBar}>
-        <Link href="/" className={styles.back}>
-          ← Lobby
-        </Link>
-        <h1 className={styles.title}>{room.name}</h1>
-        <span className={styles.modeTag}>{modeLabel(room.mode)}</span>
-      </header>
+      <RoomHeader name={room.name} mode={room.mode} />
 
-      <Status message={statusMessage} tone={statusTone} />
+      <Status message={status.message} tone={status.tone} />
 
       <div className={styles.seatBar}>
         {mySeat ? (
