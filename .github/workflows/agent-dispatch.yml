@@ -268,10 +268,17 @@ jobs:
             | tr '[:upper:]' '[:lower:]' \
             | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
             | cut -c1-50 | sed -E 's/-+$//')"
+          # Per-run hash suffix so a re-run of the same issue never reuses a branch
+          # name. The branch is otherwise deterministic (issue + title), so a re-run
+          # would push to a branch a prior run already pushed - updating its stale PR
+          # or hitting a non-fast-forward. Derived from run id + attempt (not random):
+          # unique per dispatch and per re-run attempt, stable within one run, and
+          # traceable back to the run that made it.
+          hash="$(printf '%s' "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" | sha1sum | cut -c1-5)"
           if [ -n "$slug" ]; then
-            branch="agent/issue-${ISSUE_NUMBER}/${slug}"
+            branch="agent/issue-${ISSUE_NUMBER}/${slug}-${hash}"
           else
-            branch="agent/issue-${ISSUE_NUMBER}"
+            branch="agent/issue-${ISSUE_NUMBER}/${hash}"
           fi
           echo "BRANCH=$branch" >> "$GITHUB_ENV"
           echo "Resolved branch: $branch"
@@ -608,6 +615,63 @@ jobs:
             checks-passed|passed) exit 0 ;;
             *) echo "no-mistakes did not reach a shipping outcome; parking." >&2; exit 1 ;;
           esac
+
+      # Fallback PR. When no-mistakes does not reach a shipping outcome the agent's
+      # committed work would otherwise park with nothing reviewable. Open a PR anyway
+      # so there is always something to look at. The gate is outcome-agnostic: the
+      # single source of truth is "does an open PR already exist for $BRANCH?" - the
+      # same signal the Ensure-PR-closes and done/park steps below use. If no-mistakes
+      # already opened a PR (shipped, or opened one then failed CI) this no-ops; only
+      # when there are commits past the default branch AND no PR do we push and open
+      # one with a Claude-drafted body under a deterministic [!WARNING] banner that
+      # flags it skipped validation. The claude CLI + CLAUDE_CODE_OAUTH_TOKEN are
+      # already provisioned earlier in the job; this is a plain run: step so the
+      # agent's 10-min Bash cap is irrelevant.
+      - name: Fallback - open a PR if none exists
+        if: always()
+        continue-on-error: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
+          NM_OUTCOME: ${{ steps.nomistakes.outputs.outcome }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -uo pipefail
+          # 1. Skip entirely if no-mistakes already opened a PR for this branch.
+          pr="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null)" || pr=""
+          if printf '%s' "$pr" | grep -qE '^[0-9]+$'; then
+            echo "PR #$pr already exists for $BRANCH; no fallback needed."; exit 0
+          fi
+          # 2. Need committed work to PR. If the branch has no commits past the default
+          #    branch, let the park step handle it.
+          if [ -z "$(git log "origin/${DEFAULT_BRANCH}..HEAD" --oneline 2>/dev/null)" ]; then
+            echo "No commits on $BRANCH beyond the default branch; nothing to PR."; exit 0
+          fi
+          # 3. Push the agent's local commits (no-mistakes never got far enough to push).
+          git push -u origin "$BRANCH"
+          # 4. Claude drafts the PR body from the ticket + the agent's intent + a diffstat.
+          title="$(jq -r '.title // "Address issue"' ticket.json)"
+          diffstat="$(git diff --stat "origin/${DEFAULT_BRANCH}...HEAD")"
+          intent="$( [ -s "$INTENT_FILE" ] && cat "$INTENT_FILE" || echo '(no intent recorded)')"
+          draft_prompt="Write a concise GitHub PR description in Markdown for the change below.
+          Lead with a one-sentence summary, then a short bulleted list of what changed and why.
+          Do NOT invent testing/validation that was not done. Output only the body.
+          Ticket: ${title}
+          Agent intent:
+          ${intent}
+          Changed files:
+          ${diffstat}"
+          claude -p "$draft_prompt" --model 'claude-opus-4-8[1m]' \
+            --allowedTools Read,Grep,Glob --dangerously-skip-permissions > body-draft.md || true
+          # 5. Deterministic banner always on top so a reviewer knows this skipped validation.
+          {
+            printf '> [!WARNING]\n'
+            printf '> **Unvalidated fallback PR.** no-mistakes did not reach a passing outcome on this run (outcome: `%s`).\n' "${NM_OUTCOME:-unknown}"
+            printf '> It was opened directly with a Claude-drafted body - review carefully before merging.\n\n'
+            [ -s body-draft.md ] && cat body-draft.md || printf 'Implements #%s. See the commits for details.\n' "$ISSUE_NUMBER"
+          } > fallback-pr-body.md
+          gh pr create --base "${DEFAULT_BRANCH}" --head "$BRANCH" \
+            --title "${title} (#${ISSUE_NUMBER})" --body-file fallback-pr-body.md
 
       # Render the agent's run as a clean Claude <-> tools conversation on the
       # run's Summary tab (assistant text + one line per tool call, tool-result
