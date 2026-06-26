@@ -112,7 +112,7 @@ That is the claim lock: a later run will not re-pull a ticket that is already in
 Keeping the claim per-ticket makes each ticket's lifecycle self-contained - one ticket failing to claim or run can never strand another.
 
 The same per-ticket job ends with a done/park step that always runs.
-If the job finishes with an open PR for `fm/issue-<number>`, the ticket is moved to `agent:done` (dropping `agent:in-progress`) and waits for you to review and merge.
+If the job finishes with an open PR for the ticket's branch (`agent/issue-<number>/<slug>`, the slug derived from the issue title), the ticket is moved to `agent:done` (dropping `agent:in-progress`) and waits for you to review and merge.
 If it finishes without an open PR - a failed run, a risky finding the agent stopped on, or no change needed - the ticket is moved to `agent:needs-help` and a comment is left, so it parks for you instead of being stranded in `agent:in-progress`.
 The park comment is not a fixed string: it diagnoses what actually happened, quoting the agent's own final message (its reason for stopping) on a run that finished, or a "failed or timed out" message otherwise, and always links back to the run.
 

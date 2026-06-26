@@ -173,7 +173,11 @@ jobs:
       # Derived from our own selector (validated integers), not raw event data;
       # still routed through env so no value is interpolated into a shell line.
       ISSUE_NUMBER: ${{ matrix.number }}
-      BRANCH: fm/issue-${{ matrix.number }}
+      # Deterministic default/fallback. The "Resolve branch name" step below
+      # overrides this with a title slug appended -> agent/issue-<n>/<slug>. The
+      # branch stays computed entirely from data the workflow controls (number +
+      # title) so the done/park and PR-link steps can find the PR by exact head.
+      BRANCH: agent/issue-${{ matrix.number }}
       # The raw stream-json events the agent step tees here as it runs. The
       # summarize and park steps below read this NDJSON for the end-of-run report.
       EXECUTION_FILE: execution.ndjson
@@ -224,6 +228,31 @@ jobs:
         run: |
           set -eu
           gh issue view "$ISSUE_NUMBER" --json number,title,body,url > ticket.json
+
+      # Append a slug derived from the ticket title to the branch name, so a branch
+      # reads as agent/issue-42/center-the-board instead of a bare number. The slug
+      # is computed here (not chosen by the agent) so the full branch stays
+      # deterministic and known to the workflow: the done/park and PR-link steps
+      # find the PR via `gh pr list --head "$BRANCH"`, which needs the exact name.
+      # Overrides the job-level BRANCH for every later step via $GITHUB_ENV.
+      - name: Resolve branch name
+        run: |
+          set -euo pipefail
+          # lowercase -> non-alphanumerics collapse to single hyphens -> trim
+          # leading/trailing hyphens -> cap at 50 chars -> re-trim a trailing hyphen
+          # left by the cut. An empty/odd title falls back to the bare prefix.
+          title="$(jq -r '.title // ""' ticket.json)"
+          slug="$(printf '%s' "$title" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+            | cut -c1-50 | sed -E 's/-+$//')"
+          if [ -n "$slug" ]; then
+            branch="agent/issue-${ISSUE_NUMBER}/${slug}"
+          else
+            branch="agent/issue-${ISSUE_NUMBER}"
+          fi
+          echo "BRANCH=$branch" >> "$GITHUB_ENV"
+          echo "Resolved branch: $branch"
 
       # Download any image attachments referenced in the ticket body so the agent
       # can actually SEE them - the Read tool renders image files to the model,
@@ -433,7 +462,7 @@ jobs:
             than just the attachment URL text in the body.
 
             Do this, end to end, unattended:
-            1. Create and switch to branch fm/issue-${{ matrix.number }}.
+            1. Create and switch to branch %BRANCH% (use that exact name).
             2. Implement the change the ticket asks for. Keep it focused on the
                ticket and match the repo's existing TypeScript / ESLint / CSS
                Modules conventions. Commit your work on this branch.
@@ -441,7 +470,7 @@ jobs:
                (yarn build && yarn start, served on http://localhost:3000),
                wait until it responds, then use the `chrome-devtools-axi` CLI to
                screenshot the affected screens before and after your change into
-               .no-mistakes/evidence/fm/issue-${{ matrix.number }}/. A headless
+               .no-mistakes/evidence/%BRANCH%/. A headless
                Chrome is already running for you - chrome-devtools-axi is configured
                to connect to it, so just call it (e.g. `chrome-devtools-axi open
                http://localhost:3000`, then `chrome-devtools-axi screenshot <path>`).
@@ -470,10 +499,14 @@ jobs:
             Never merge anything. The captain merges.
         run: |
           set -euo pipefail
+          # The PROMPT carries a %BRANCH% placeholder for the branch name, which is
+          # resolved at runtime (with the title slug) and so is not known at
+          # workflow-parse time; substitute the real value before invoking the agent.
+          prompt="${PROMPT//%BRANCH%/$BRANCH}"
           # Pin Opus 4.8 with the 1M-token context window ([1m] is Claude Code's
           # context-window selector). Single-quoted so the shell does not glob-expand
           # the brackets.
-          claude -p "$PROMPT" \
+          claude -p "$prompt" \
             --model 'claude-opus-4-8[1m]' \
             --allowedTools Bash,Edit,Write,Read,Glob,Grep \
             --output-format stream-json --verbose \
