@@ -332,7 +332,7 @@ const RoomGame = (props: Props) => {
             onClick={handleLeave}
             disabled={paused}
           >
-            Leave seat
+            Playing as {mySeat} · Leave seat
           </button>
         ) : room.seats.X !== null && room.seats.O !== null ? (
           <span className={styles.spectateBadge}>Spectating</span>
