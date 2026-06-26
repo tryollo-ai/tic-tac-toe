@@ -1,5 +1,5 @@
 import { INITIAL_SIZE } from "@/constants/game";
-import { type Board as BoardState } from "@/utils/gameLogic";
+import { type Board as BoardState, type Direction } from "@/utils/gameLogic";
 import Square from "@/common/components/Square";
 import WinningLine from "@/common/components/WinningLine";
 import styles from "./styles.module.scss";
@@ -9,6 +9,11 @@ type Props = {
   winningLine: readonly number[] | null;
   onSquareClick: (index: number) => void;
   disabled: boolean;
+  /**
+   * Set for the brief moment after a whole-grid shift so every mark slides in
+   * from the cell it came from; null/omitted renders the board with no motion.
+   */
+  shiftDirection?: Direction | null;
 };
 
 const Board = (props: Props) => {
@@ -27,6 +32,7 @@ const Board = (props: Props) => {
           isWinning={props.winningLine?.includes(index) ?? false}
           onClick={() => props.onSquareClick(index)}
           disabled={props.disabled}
+          shiftDirection={props.shiftDirection}
         />
       ))}
       {props.winningLine && <WinningLine line={props.winningLine} />}

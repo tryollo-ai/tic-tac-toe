@@ -25,6 +25,9 @@ game.
   (up/down/left/right).
   Any marks pushed off the leading edge are removed, and empty cells enter
   behind.
+  When the shift lands, every remaining mark slides in from the cell it came
+  from so the move reads as a single coherent motion; the animation plays
+  identically for both players and any spectators.
   Shifting is an alternative to placing a mark and uses up O's turn, so O weighs
   reshaping the board against taking a square.
   A win is always three in a row.
