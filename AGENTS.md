@@ -124,34 +124,34 @@ lives on the home page so players learn them before entering a room; `RoomGame`
 has no help dialog. Reuse `UIDialog` for any future modal rather than hand-rolling
 one.
 
-`RoomGame` lays the board out centered between two side indicators (one per
-player) in a `boardArea` grid (`minmax(0,1fr) minmax(0,300px) minmax(0,1fr)`,
-collapsing to a single stacked column under 640px). Each `sidePanel` shows that
-player's mark, name, and turn highlight (`sideActive`); the X panel adds a static
-`Plays first` ability line and the O panel additionally shows `Grid shift:
-available`/`used`, visible to both players and spectators. On
-player O's own screen, when it is O's turn and the shift is unused (`canShiftNow`),
-the O panel also renders the `SHIFT_OPTIONS` direction buttons so O activates the
-shift directly from the indicator - X and spectators see the status but no
-controls. `canShiftNow` mirrors the store's `shiftBoardAction` guard
-(`mySeat === "O"`, O's turn, both seated, shift unused). There is no manual "New
-Game" button: a finished game auto-resets after `AUTO_RESET_MS` via a single
-seated scheduler (the X seat, falling back to O if X is empty) guarded by a ref so
-the many polling clients/spectators do not double-reset, with a "Next game
-starting…" line shown while it counts down.
+`RoomGame` lays the board out centered and full-width in its own middle column,
+flanked by the faded `BoardHistory` column on the left and a single combined
+`infoPanel` on the right, all in one `playArea` grid
+(`minmax(0,1fr) minmax(0,360px) minmax(0,1fr)`). Both flanking tracks are equal
+`1fr` columns, so the board stays centered in the page regardless of either
+side's content width - that is the "layout magic" that keeps the board centered
+while the history hangs off its left and the info panel off its right (the
+history is pinned to its track's inner edge with `justify-self: end`, the panel
+with `justify-self: start`). The history lives in a `historyCol` wrapper so the
+grid keeps three stable children even before the first move, when `BoardHistory`
+renders nothing and its (empty) column simply collapses to an empty track. The
+`infoPanel` combines both players' status in one box: an `infoRow` for X (mark +
+name + a static `Moves first` line) and one for O (mark + name + the `Grid shift:
+available`/`used` status), with `infoRowActive` highlighting whichever player is
+to move, all visible to both players and spectators. On player O's own screen,
+when it is O's turn and the shift is unused (`canShiftNow`), the panel also
+renders the `SHIFT_OPTIONS` direction buttons so O activates the shift directly
+from the panel - X and spectators see the status but no controls. `canShiftNow`
+mirrors the store's `shiftBoardAction` guard (`mySeat === "O"`, O's turn, both
+seated, shift unused). Under 760px the three columns collapse to a single
+centered column - history above the board, info panel below it. There is no
+manual "New Game" button: a finished game auto-resets after `AUTO_RESET_MS` via a
+single seated scheduler (the X seat, falling back to O if X is empty) guarded by
+a ref so the many polling clients/spectators do not double-reset, with a "Next
+game starting…" line shown while it counts down.
 
-To the left of the play area, `RoomGame` renders a `BoardHistory`
-(`common/components/BoardHistory/`) column showing the game's progression - one
-entry per move, oldest at top and newest at bottom. The history is the outermost
-left column: `RoomGame` wraps `BoardHistory` and the existing `boardArea` in a
-`playArea` grid so the X/O side panels still flank the board directly. The
-`playArea` is a single column by default and only opts into the two-column
-`minmax(0,150px) minmax(0,1fr)` history layout (`playAreaWithHistory`, applied
-once `room.actions.length > 0`) once there is history to show - otherwise, before
-the first move `BoardHistory` renders nothing and its lone sibling `boardArea`
-would auto-place into the narrow 150px history column and squish the board.
-Under 900px the two-column layout collapses back to one column and the history
-stacks above the board (the inner `boardArea` keeps its own 640px collapse).
+`BoardHistory` (`common/components/BoardHistory/`) shows the game's progression -
+one entry per move, oldest at top and newest at bottom.
 `BoardHistory` takes only `actions: GameAction[]` and derives each
 historical board with `boardAfterActions(actions, i + 1)` (rendered through the
 shared `MiniBoard`, which draws any winning line) - the same action-log

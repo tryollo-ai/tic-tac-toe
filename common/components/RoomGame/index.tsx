@@ -366,72 +366,74 @@ const RoomGame = (props: Props) => {
         )}
       </div>
 
-      <div
-        className={classNames(styles.playArea, {
-          [styles.playAreaWithHistory]: room.actions.length > 0,
-        })}
-      >
-        <BoardHistory actions={room.actions} />
+      <div className={styles.playArea}>
+        <div className={styles.historyCol}>
+          <BoardHistory actions={room.actions} />
+        </div>
 
-        <div className={styles.boardArea}>
-          <aside
-            className={classNames(styles.sidePanel, {
-              [styles.sideActive]: turnActive("X"),
+        <Board
+          board={room.board}
+          winningLine={room.winningLine}
+          onSquareClick={handleMove}
+          disabled={boardDisabled}
+        />
+
+        <aside className={styles.infoPanel}>
+          <div
+            className={classNames(styles.infoRow, {
+              [styles.infoRowActive]: turnActive("X"),
             })}
           >
             <span className={classNames(styles.sideMark, styles.sideMarkX)}>
               X
             </span>
-            <span className={styles.sideName}>{xLabel}</span>
-            <span className={styles.sideAbility}>Plays first</span>
-          </aside>
+            <span className={styles.infoText}>
+              <span className={styles.sideName}>{xLabel}</span>
+              <span className={styles.sideAbility}>Moves first</span>
+            </span>
+          </div>
 
-          <Board
-            board={room.board}
-            winningLine={room.winningLine}
-            onSquareClick={handleMove}
-            disabled={boardDisabled}
-          />
-
-          <aside
-            className={classNames(styles.sidePanel, {
-              [styles.sideActive]: turnActive("O"),
+          <div
+            className={classNames(styles.infoRow, {
+              [styles.infoRowActive]: turnActive("O"),
             })}
           >
             <span className={classNames(styles.sideMark, styles.sideMarkO)}>
               O
             </span>
-            <span className={styles.sideName}>{oLabel}</span>
-            <span
-              className={classNames(styles.shiftStatus, {
-                [styles.shiftStatusUsed]: room.oShiftUsed,
-              })}
-            >
-              Grid shift: {room.oShiftUsed ? "used" : "available"}
+            <span className={styles.infoText}>
+              <span className={styles.sideName}>{oLabel}</span>
+              <span
+                className={classNames(styles.shiftStatus, {
+                  [styles.shiftStatusUsed]: room.oShiftUsed,
+                })}
+              >
+                Grid shift: {room.oShiftUsed ? "used" : "available"}
+              </span>
             </span>
+          </div>
 
-            {canShiftNow && (
-              <div className={styles.shiftControls}>
-                <p className={styles.shiftControlsHint}>
-                  Slide the grid (uses your turn):
-                </p>
-                <div className={styles.shiftGrid}>
-                  {SHIFT_OPTIONS.map(({ dir, label }) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      className={styles.shiftButton}
-                      onClick={() => handleShift(dir)}
-                      disabled={paused}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+          {canShiftNow && (
+            <div className={styles.shiftControls}>
+              <p className={styles.shiftControlsHint}>
+                Slide the grid (uses your turn):
+              </p>
+              <div className={styles.shiftGrid}>
+                {SHIFT_OPTIONS.map(({ dir, label }) => (
+                  <button
+                    key={dir}
+                    type="button"
+                    className={styles.shiftButton}
+                    onClick={() => handleShift(dir)}
+                    disabled={paused}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            )}
-          </aside>
-        </div>
+            </div>
+          )}
+        </aside>
       </div>
 
       {gameOver && <p className={styles.nextGame}>Next game starting…</p>}

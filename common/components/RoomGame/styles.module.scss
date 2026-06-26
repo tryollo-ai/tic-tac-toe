@@ -90,52 +90,68 @@
   }
 }
 
-// Outer layout: the faded history column on the left, then the board area
-// (X panel / board / O panel) filling the rest. The history is the outermost
-// column so the player panels still flank the board directly. Until the first
-// move, `BoardHistory` renders nothing, so the play area is a single column and
-// the board area fills it - otherwise the lone board area would land in the
-// narrow history column and squish the board (`playAreaWithHistory` opts into
-// the two-column layout only once there is history to show).
+// Outer layout: the board sits centered in its own full-width middle column,
+// flanked by the faded history column on the left and the combined player-info
+// panel on the right. Both flanking tracks are equal-width (`1fr`), so the board
+// stays centered in the page regardless of either side's content width - the
+// "layout magic" that keeps the board centered while the history hangs off its
+// left. The history renders nothing until the first move; its (empty) column
+// simply collapses to an empty track, so the board is centered from the start.
 .playArea {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 360px) minmax(0, 1fr);
   align-items: start;
   gap: 14px;
   width: 100%;
 }
 
-.playAreaWithHistory {
-  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
-}
-
-.boardArea {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 300px) minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
+// Pin the history to the inner edge of its track so it hugs the board's left.
+.historyCol {
+  justify-self: end;
   width: 100%;
+  max-width: 150px;
 }
 
-.sidePanel {
+// The combined player-info panel hugs the board's right edge. It carries both
+// the "X moves first" line and player O's grid-shift status (plus O's shift
+// controls on O's own turn) in a single box.
+.infoPanel {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 12px 10px;
+  gap: 8px;
+  justify-self: start;
+  width: 100%;
+  max-width: 160px;
+  padding: 10px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 14px;
-  text-align: center;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 10px;
   transition:
-    border-color 0.15s ease,
+    background 0.15s ease,
     box-shadow 0.15s ease;
 }
 
-.sideActive {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+// Highlight the row of whichever player is to move.
+.infoRowActive {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.infoText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
 }
 
 .sideMark {
@@ -233,30 +249,18 @@
   text-align: center;
 }
 
-// Below this the side-by-side history + board gets cramped, so stack the
-// history above the board instead of letting it squeeze the play area.
-@media (max-width: 900px) {
-  .playAreaWithHistory {
+// Below this the three side-by-side columns get cramped, so collapse to a
+// single centered column: history above the board, info panel below it.
+@media (max-width: 760px) {
+  .playArea {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .boardArea {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
+    justify-items: center;
   }
 
-  .sidePanel {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 8px 12px;
-  }
-
-  .shiftControls {
-    flex-basis: 100%;
+  .historyCol,
+  .infoPanel {
+    justify-self: center;
+    max-width: 360px;
   }
 }
 
