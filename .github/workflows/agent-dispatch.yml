@@ -72,10 +72,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
+          cache: yarn
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: List label-eligible issues
         env:
@@ -228,10 +228,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
+          cache: yarn
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       # Best-effort board sync: move the ticket's Projects v2 card to
       # "In Progress" now that it is claimed. Guarded twice - continue-on-error
@@ -242,7 +242,7 @@ jobs:
         env:
           PROJECTS_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
-          npm run --silent set-project-status -- --issue "$ISSUE_NUMBER" --status "In Progress"
+          yarn --silent set-project-status --issue "$ISSUE_NUMBER" --status "In Progress"
 
       - name: Install no-mistakes CLI
         run: |
@@ -387,7 +387,7 @@ jobs:
                ticket and match the repo's existing TypeScript / ESLint / CSS
                Modules conventions. Commit your work on this branch.
             3. Capture visual evidence when the change affects the UI. Start the app
-               (npm run build && npm run start, served on http://localhost:3000),
+               (yarn build && yarn start, served on http://localhost:3000),
                wait until it responds, then use the `chrome-devtools-axi` CLI to
                screenshot the affected screens before and after your change into
                .no-mistakes/evidence/fm/issue-${{ matrix.number }}/. A headless
@@ -506,4 +506,4 @@ jobs:
             status="Needs captain"
           fi
           echo "Setting board status to: $status"
-          npm run --silent set-project-status -- --issue "$ISSUE_NUMBER" --status "$status"
+          yarn --silent set-project-status --issue "$ISSUE_NUMBER" --status "$status"

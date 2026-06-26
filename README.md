@@ -56,25 +56,26 @@ dependencies, so everything resets when the server restarts.
 ## Getting started
 
 ```bash
-npm install
-npm run dev
+yarn install
+yarn dev
 ```
 
 Then open [http://localhost:3000](http://localhost:3000).
 
 ## Scripts
 
-- `npm run dev` - start the development server
-- `npm run build` - create a production build
-- `npm run start` - run the production build
-- `npm run lint` - lint the codebase
-- `npm test` - run the Vitest unit suite once
-- `npm run select-tickets` - agent-dispatch ticket selector CLI (reads `gh issue list`
+- `yarn dev` - start the development server
+- `yarn build` - create a production build
+- `yarn start` - run the production build
+- `yarn lint` - lint the codebase
+- `yarn test` - run the Vitest unit suite once
+- `yarn deploy` - deploy to Vercel production (`vercel --prod`)
+- `yarn select-tickets` - agent-dispatch ticket selector CLI (reads `gh issue list`
   JSON on stdin, prints the chosen issue numbers; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
-- `npm run enrich-issue-status` - annotate the issue JSON on stdin with each
+- `yarn enrich-issue-status` - annotate the issue JSON on stdin with each
   issue's Projects v2 board Status, for the selector's Ready-column gate
   (fail-closed without `PROJECTS_TOKEN`; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
-- `npm run set-project-status` - best-effort Projects v2 board-sync CLI
+- `yarn set-project-status` - best-effort Projects v2 board-sync CLI
   (`--issue N --status "In Progress"`; no-ops without `PROJECTS_TOKEN`; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
 
 ## Project structure

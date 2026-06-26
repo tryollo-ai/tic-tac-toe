@@ -242,24 +242,25 @@ components.
 
 ## Commands
 
-- `npm run dev` - start the dev server
-- `npm run build` - production build
-- `npm run lint` - run ESLint
-- `npm test` - run the Vitest unit suite once (`vitest run`)
-- `npm run select-tickets` - run the deterministic agent-dispatch ticket selector
+- `yarn dev` - start the dev server
+- `yarn build` - production build
+- `yarn lint` - run ESLint
+- `yarn test` - run the Vitest unit suite once (`vitest run`)
+- `yarn deploy` - deploy to Vercel production (`vercel --prod`)
+- `yarn select-tickets` - run the deterministic agent-dispatch ticket selector
   CLI (reads a `gh issue list` JSON payload on stdin, prints the chosen issue
   numbers by priority/FIFO); also the guardrail/fallback behind the agent selector
-- `npm run select-tickets-agent` - run the agent-driven selector CLI: hands the
+- `yarn select-tickets-agent` - run the agent-driven selector CLI: hands the
   eligible candidates to `claude`, then applies the deterministic guardrail and
   falls back to `select-tickets` if the agent is unavailable
-- `npm run enrich-issue-status` - annotate the issue JSON on stdin with each
+- `yarn enrich-issue-status` - annotate the issue JSON on stdin with each
   issue's Projects v2 board Status for the selector's Ready-column gate
   (fail-closed; no-ops to label-only data without `PROJECTS_TOKEN`)
-- `npm run enrich-dependencies` - annotate the issue JSON on stdin with each
+- `yarn enrich-dependencies` - annotate the issue JSON on stdin with each
   issue's resolved `blockedBy` states for the selector's dependency gate: GitHub's
   native "Blocked by" relationships plus any "Blocked by #N" / "Depends on #N" in
   the body (fail-closed; a blocker that is not CLOSED, or cannot be read, blocks)
-- `npm run set-project-status` - run the best-effort Projects v2 board-sync CLI
+- `yarn set-project-status` - run the best-effort Projects v2 board-sync CLI
   (`--issue N --status "In Progress"`; non-fatal, no-ops without `PROJECTS_TOKEN`)
 
 ## Testing
@@ -305,7 +306,7 @@ Conventions worth preserving when touching this code:
   `selectTicketsAgent.test.ts`): the agent only *proposes*, and `applyGuardrail`
   trims its answer to real eligible candidate numbers, de-dupes, preserves order,
   and caps at `max`. The agent runs as an injected `runAgent` (the CLI
-  `selectTicketsAgent.cli.ts` / `npm run select-tickets-agent` wires in the real
+  `selectTicketsAgent.cli.ts` / `yarn select-tickets-agent` wires in the real
   `claude -p`, no tools), so the policy stays offline-testable. **Always falls
   back** to `selectTickets` when the agent adds no value (everything already fits)
   or returns nothing usable (binary missing, timeout, garbage) - the loop never
@@ -315,7 +316,7 @@ Conventions worth preserving when touching this code:
   (set in the issue UI, read via GraphQL `Issue.blockedBy` - the primary source),
   and any `Blocked by #N` / `Depends on #N` written in the **body** (parsed by the
   pure, tested `parseBlockerRefs`, comma/"and"/"&"-joined, case-insensitive, hyphen
-  or space). `enrichDependencies.cli.ts` (`npm run enrich-dependencies`) reads the
+  or space). `enrichDependencies.cli.ts` (`yarn enrich-dependencies`) reads the
   native `blockedBy` nodes (which carry each blocker's state) and `totalBlockedBy`
   count, resolves any body-only refs' state, and merges them via the pure, tested
   `resolveBlockedBy` into `blockedBy: [{number,state}]`; `selectTickets` then drops
@@ -334,7 +335,7 @@ Conventions worth preserving when touching this code:
   (**fail closed** - never auto-pick a card we cannot place in Ready). The status
   is read by the pure `getProjectStatus` helper (`getProjectStatus.ts`, tested by
   `getProjectStatus.test.ts`) and injected onto each issue by the thin
-  `enrichIssueStatus.cli.ts` (`npm run enrich-issue-status`) *before* selection,
+  `enrichIssueStatus.cli.ts` (`yarn enrich-issue-status`) *before* selection,
   so `selectTickets` itself stays pure and offline. The dispatch `select` job
   pipes `gh issue list` -> enrich -> `selectTickets.cli --require-ready-status`.
   Both Projects v2 CLIs share one fetch-backed executor, `makeGithubGraphql`
@@ -349,7 +350,7 @@ Conventions worth preserving when touching this code:
 - **Run diagnostics from the execution_file, in tested TS.** The dispatch job
   reads `claude-code-action@v1`'s `execution_file` output through the pure
   `agentRunReport` helper (`scripts/agent-dispatch/agentRunReport.ts`, tested by
-  `agentRunReport.test.ts`, CLI `agentRunReport.cli.ts` / `npm run
+  `agentRunReport.test.ts`, CLI `agentRunReport.cli.ts` / `yarn
   agent-run-report`): `formatTranscript` renders a clean Claude-and-tools
   conversation (tool-result blocks dropped) onto the run Summary, and
   `extractResult` + `formatParkComment` build the park comment from the agent's
@@ -382,7 +383,7 @@ Conventions worth preserving when touching this code:
   driven by the project's single-select `Status` field, not by labels, so the
   workflows also call the pure `setProjectStatus(...)` helper
   (`scripts/agent-dispatch/setProjectStatus.ts`, tested by `setProjectStatus.test.ts`,
-  CLI `setProjectStatus.cli.ts` / `npm run set-project-status`) to move the card:
+  CLI `setProjectStatus.cli.ts` / `yarn set-project-status`) to move the card:
   `In Progress` after claim, `In Review` when a PR is open, `Needs captain` on the
   park path. It authenticates with a `PROJECTS_TOKEN` that each job mints at
   runtime from the `PROJECTS_APP` GitHub App (`PROJECTS_APP_ID` +
