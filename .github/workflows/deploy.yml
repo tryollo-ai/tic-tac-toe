@@ -1,0 +1,58 @@
+name: Deploy to Vercel
+
+# On every push to main (i.e. when a PR merges), build the app and deploy it to
+# Vercel production using the repo's own deploy script (`yarn deploy`, which runs
+# `vercel --prod`). The deploy is independent of the game runtime and the agent
+# loop; it only ships what is already on main.
+#
+# Vercel needs to authenticate non-interactively, so the job supplies its three
+# standard inputs from repository secrets: VERCEL_TOKEN (auth) plus VERCEL_ORG_ID
+# and VERCEL_PROJECT_ID (which project to deploy to). The Vercel CLI reads all
+# three from the environment automatically. The step fails closed in the friendly
+# direction: with no VERCEL_TOKEN configured (e.g. a fork) it logs and no-ops
+# instead of erroring, so a token-less repo is never blocked by a red deploy.
+
+on:
+  push:
+    branches: [main]
+
+# Serialize deploys so two quick merges to main never race to ship to production;
+# let an in-flight deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: deploy-vercel
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Vercel production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Deploy to Vercel production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -eu
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "VERCEL_TOKEN is not set; skipping deploy. Configure the VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID secrets to enable auto-deploy to Vercel."
+            exit 0
+          fi
+          # The deploy script is `vercel --prod`; provide the Vercel CLI on PATH
+          # and let `yarn deploy` invoke it. --yes keeps it non-interactive in CI;
+          # the CLI reads VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID from env.
+          npm i -g vercel@44
+          yarn deploy --yes

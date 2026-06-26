@@ -69,7 +69,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `yarn start` - run the production build
 - `yarn lint` - lint the codebase
 - `yarn test` - run the Vitest unit suite once
-- `yarn deploy` - deploy to Vercel production (`vercel --prod`)
+- `yarn deploy` - deploy to Vercel production (`vercel --prod`); also runs automatically on every push to `main` via `.github/workflows/deploy.yml` (requires `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` repository secrets; skips silently without them)
 - `yarn select-tickets` - agent-dispatch ticket selector CLI (reads `gh issue list`
   JSON on stdin, prints the chosen issue numbers; see [docs/agent-dispatch.md](./docs/agent-dispatch.md))
 - `yarn enrich-issue-status` - annotate the issue JSON on stdin with each
@@ -98,7 +98,7 @@ lib/usePolling.ts         # Client hook: poll the server on an interval
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 constants/game.ts         # Cross-cutting domain constants (board size, AI seat sentinel)
 scripts/agent-dispatch/       # Opt-in CI "issue -> PR" loop: ticket selector, label setup, board sync
-.github/workflows/        # Agent dispatch + Claude Code app workflows (see docs/agent-dispatch.md)
+.github/workflows/        # deploy.yml (Vercel auto-deploy on push to main); agent-dispatch, claude, claude-code-review (see docs/agent-dispatch.md)
 ```
 
 See [AGENTS.md](./AGENTS.md) for contribution conventions (notably the styling
