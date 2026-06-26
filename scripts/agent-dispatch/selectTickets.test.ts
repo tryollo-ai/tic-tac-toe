@@ -146,4 +146,49 @@ describe("selectTickets", () => {
       ).toEqual([]);
     });
   });
+
+  describe("dependency gate (blockedBy)", () => {
+    /** A ready, prioritised, open issue carrying resolved blocker states. */
+    const withBlockers = (
+      number: number,
+      ...blockedBy: { number: number; state: string }[]
+    ): Issue => ({
+      number,
+      createdAt: T0,
+      state: "OPEN",
+      labels: [{ name: "agent:ready" }, { name: "priority:high" }],
+      blockedBy,
+    });
+
+    it("excludes a ticket with an open blocker", () => {
+      const issues = [withBlockers(1, { number: 9, state: "OPEN" })];
+      expect(selectTickets(issues, { max: 3 })).toEqual([]);
+    });
+
+    it("includes a ticket once all its blockers are closed", () => {
+      const issues = [
+        withBlockers(1, { number: 9, state: "CLOSED" }),
+        withBlockers(2, { number: 8, state: "CLOSED" }, { number: 7, state: "OPEN" }),
+      ];
+      // #1's only blocker is closed; #2 still has an open blocker.
+      expect(selectTickets(issues, { max: 3 })).toEqual([1]);
+    });
+
+    it("treats an UNKNOWN blocker state as still blocking (fail closed)", () => {
+      const issues = [withBlockers(1, { number: 9, state: "UNKNOWN" })];
+      expect(selectTickets(issues, { max: 3 })).toEqual([]);
+    });
+
+    it("matches blocker state case-insensitively", () => {
+      const issues = [withBlockers(1, { number: 9, state: "closed" })];
+      expect(selectTickets(issues, { max: 3 })).toEqual([1]);
+    });
+
+    it("leaves tickets with no blockedBy field unaffected", () => {
+      const issues = [
+        issue(1, T0, "OPEN", "agent:ready", "priority:high"),
+      ];
+      expect(selectTickets(issues, { max: 3 })).toEqual([1]);
+    });
+  });
 });

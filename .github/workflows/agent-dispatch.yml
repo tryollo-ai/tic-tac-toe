@@ -1,18 +1,28 @@
 name: Trigger - issue agent
 
-# Twice a day (and on demand), pick up to 3 opt-in tickets by priority, claim
-# them so a later run won't re-pull them, and run one agent per ticket. Each
-# agent implements its ticket, runs no-mistakes, and opens a PR. Nothing merges
-# automatically - every PR waits for the captain.
+# Twice a day (and on demand), pick up to 3 opt-in tickets, claim them so a later
+# run won't re-pull them, and run one agent per ticket. Each agent implements its
+# ticket, runs no-mistakes, and opens a PR. Nothing merges automatically - every
+# PR waits for the captain.
 #
 # Opt-in: a ticket is eligible ONLY while it carries the `agent:ready` label AND
-# its card sits in the board's "Ready" column (Projects v2 Status = "Ready"), and
-# is not already `agent:in-progress` / `agent:done` / `agent:needs-help`. The two gates are
-# independent: the label marks a ticket automatable, the Ready column says "work
-# it now", so an ordinary board needs no column<->label automation. Tickets
-# without `agent:ready`, or parked in Backlog/any non-Ready column, are invisible.
-# The Ready-column gate reads Projects v2 via PROJECTS_TOKEN and is fail-closed: a
-# status that cannot be read counts as not-Ready, so nothing is wrongly picked.
+# its card sits in the board's "Ready" column (Projects v2 Status = "Ready"), is
+# not already `agent:in-progress` / `agent:done` / `agent:needs-help`, and is not
+# blocked by a still-open issue. The label marks a ticket automatable, the Ready
+# column says "work it now", and the dependency gate holds back tickets whose
+# prerequisites are unresolved. Tickets without `agent:ready`, parked in a
+# non-Ready column, or blocked, are invisible. The Ready-column gate reads
+# Projects v2 via PROJECTS_TOKEN and is fail-closed; the dependency gate reads
+# GitHub's native "Blocked by" relationships (plus any "Blocked by #N" /
+# "Depends on #N" written in the body) and is fail-closed too (a blocker that is
+# not CLOSED, or cannot be read, still blocks), so nothing is ever wrongly picked.
+#
+# Which eligible tickets actually run is decided by an agent, not a fixed slice:
+# the select job hands the whole eligible, dependency-annotated candidate set to
+# claude and lets it choose the subset (weighing priority, how much each unblocks,
+# and the per-run cap). The agent only proposes - a deterministic guardrail trims
+# its answer to real eligible numbers and falls back to a priority/FIFO slice if
+# the agent is unavailable, so the loop always makes safe forward progress.
 
 on:
   schedule:
@@ -75,7 +85,7 @@ jobs:
           gh issue list \
             --state open \
             --label "agent:ready" \
-            --json number,title,labels,createdAt,state \
+            --json number,title,labels,createdAt,state,body \
             --limit 100 > issues.json
           echo "agent:ready labelled (pre column-gate):"
           node -e 'JSON.parse(require("fs").readFileSync("issues.json","utf8")).forEach(i => console.log(`  #${i.number} ${i.title}`))'
@@ -94,16 +104,48 @@ jobs:
           echo "Board status per labelled issue:"
           node -e 'JSON.parse(require("fs").readFileSync("issues-with-status.json","utf8")).forEach(i => console.log(`  #${i.number} ${i.title} -> ${i.status ?? "(no status)"}`))'
 
-      - name: Pick top tickets
+      # Resolve each labelled issue's blockers - GitHub's native "Blocked by"
+      # relationships (the primary source) plus any "Blocked by #N" / "Depends on
+      # #N" written in the body - to their open/closed state, so the selector can
+      # hold back any ticket waiting on an unresolved prerequisite. Uses the
+      # default token (issues: read covers reading issue dependencies and sibling
+      # states) and is fail-closed: a blocker that is not CLOSED, or cannot be
+      # read, still blocks. Issues with no blockers pass through untouched.
+      # Diagnostics to stderr; stdout is the enriched JSON we feed forward.
+      - name: Annotate with blocker states (dependency gate)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          npx tsx scripts/agent-dispatch/enrichDependencies.cli.ts < issues-with-status.json > issues-ready.json
+          echo "Blocker states per labelled issue:"
+          node -e 'JSON.parse(require("fs").readFileSync("issues-ready.json","utf8")).forEach(i => { const b=(i.blockedBy||[]).map(x=>`#${x.number}:${x.state}`).join(", "); console.log(`  #${i.number} ${i.title} -> blockedBy [${b}]`); })'
+
+      # The agent selector needs the Claude CLI; install it just for this job.
+      - name: Install Claude Code CLI
+        run: |
+          set -eu
+          npm i -g @anthropic-ai/claude-code
+          claude --version
+
+      # Let the agent choose which eligible tickets to work this run. It reasons
+      # over the enriched candidates (priority, unblocks, the cap) and returns a
+      # subset; the CLI's deterministic guardrail trims that to real eligible
+      # numbers and falls back to a priority/FIFO slice if the agent is
+      # unavailable, so this step always emits a valid array.
+      - name: Pick tickets (agent decides the subset)
         id: pick
         env:
           # Pass the (possibly attacker-influenced) dispatch input through env and
           # reference the quoted variable - never interpolate event data straight
           # into a shell line. The CLI validates that it is a non-negative integer.
           MAX_INPUT: ${{ github.event.inputs.max || '3' }}
+          # The Claude subscription token that authenticates the selector agent;
+          # same secret the worker agents use.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           set -eu
-          numbers="$(npx tsx scripts/agent-dispatch/selectTickets.cli.ts --max "$MAX_INPUT" --require-ready-status < issues-with-status.json)"
+          numbers="$(npx tsx scripts/agent-dispatch/selectTicketsAgent.cli.ts --max "$MAX_INPUT" --require-ready-status < issues-ready.json)"
           echo "Selected: $numbers"
           echo "numbers=$numbers" >> "$GITHUB_OUTPUT"
 

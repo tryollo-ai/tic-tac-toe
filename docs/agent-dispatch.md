@@ -5,7 +5,7 @@ An opt-in, scheduled loop that turns Kanban tickets into reviewable pull request
 ## What it does
 
 You open tickets on the repository's GitHub issues / Project board and mark the ones you want worked.
-Twice a day a workflow picks up to three of those tickets by priority, claims them, and runs one agent per ticket.
+Twice a day a workflow gathers the eligible tickets and lets a selector agent choose up to three to work this run - weighing priority, dependencies, and how much each one unblocks - then claims them and runs one agent per ticket.
 Each agent implements its ticket, validates with no-mistakes, and opens a pull request.
 When you want changes on one of those PRs, you `@claude`-mention it in a comment and the Claude Code app wakes an agent to address the feedback.
 Nothing is ever merged automatically; every PR waits for you.
@@ -23,10 +23,11 @@ Both installer workflows authenticate with the `CLAUDE_CODE_OAUTH_TOKEN` secret 
 
 ## Opt-in: label **and** Ready column
 
-A ticket is eligible **only** when both of these hold, and it is not already `agent:in-progress`, `agent:done`, or `agent:needs-help`:
+A ticket is eligible **only** when all of these hold, and it is not already `agent:in-progress`, `agent:done`, or `agent:needs-help`:
 
 1. **It carries the `agent:ready` label.** This marks the ticket as *automatable* - something the loop is allowed to touch at all.
 2. **Its card sits in the board's "Ready" column** (Projects v2 Status = `Ready`, matched case-insensitively). This says *work it now*.
+3. **None of its blockers is still open.** A ticket can be marked "Blocked by" another issue - via GitHub's native relationship or a `Blocked by #N` / `Depends on #N` line in its body; while any blocker is still open the ticket is held back (see [Dependencies](#dependencies-blocked-by)).
 
 The two gates are independent and that is the point: you can keep an ordinary Project board with **no column-to-label automation**.
 Label the handful of tickets you are happy to automate, and they still stay put until you drag them into Ready - a labelled ticket parked in Backlog (or any non-Ready column) is invisible to the loop.
@@ -41,31 +42,67 @@ The Ready-column gate reads each labelled issue's board Status through the Proje
 It is **fail-closed**: if `PROJECTS_TOKEN` is missing, the issue is on no board, or its status cannot be read, the ticket counts as *not Ready* and is skipped - the loop never falls back to label-only and never pulls a Backlog card.
 So with the Ready-column gate active, `PROJECTS_TOKEN` is required for the loop to select anything, and the project's **Status** field must offer a `Ready` option.
 
-## Selection order
+## Dependencies (Blocked by)
 
-Eligible tickets are ordered by priority, highest first:
+A ticket's blockers come from two sources, and both are honored.
 
-`priority:critical` > `priority:high` > `priority:med` > `priority:low` > (no priority label).
+**1. GitHub's native "Blocked by" relationships (primary).**
+Open an issue, and under its **Relationships** add a "Blocked by" link to the issue it waits on (the same feature that shows the *"N tracked / blocked by"* summary on the card).
+This is the recommended way: it is structured, shows in the GitHub UI, and needs nothing in the issue text. For example, marking #34 *blocked by* #41 holds #34 until #41 closes - even though #34's body never mentions #41.
 
-Within a priority tier, the oldest ticket goes first (FIFO), so nothing starves.
-At most three tickets are taken per run (override with the `max` input on a manual run, or the `FM_AGENT_MAX_TICKETS` env on the selector CLI).
+**2. A `Blocked by` / `Depends on` line in the body (convenience).**
+For whoever prefers to write it in prose, a line like the following is parsed too:
 
-The selection logic is a pure TypeScript function, `selectTickets(issues, { max, requireReadyStatus })`, in `scripts/agent-dispatch/selectTickets.ts`, covered by `scripts/agent-dispatch/selectTickets.test.ts` (run with `npm test`).
-With `requireReadyStatus`, it also drops any issue whose `status` field is not `Ready` (case-insensitive); a missing/unknown status is treated as not Ready, so the gate is fail-closed at the pure-function level too.
-The function stays pure and offline - it never calls the network. The board Status it gates on is injected onto each issue upstream by the **enrich** step.
+```
+Blocked by #41
+Depends on #12, #13 and #14
+```
 
-The workflow runs two thin CLIs in sequence, both testable and runnable without the network:
+Both phrasings mean the same thing (hyphenated `blocked-by` / `depends-on` and a trailing colon are accepted; matching is case-insensitive).
 
-1. `scripts/agent-dispatch/enrichIssueStatus.cli.ts` (`npm run enrich-issue-status`) reads the labelled issue list on stdin and writes it back with each issue's board Status added, via the pure `getProjectStatus(...)` helper (`scripts/agent-dispatch/getProjectStatus.ts`, covered by `getProjectStatus.test.ts`). It authenticates with `PROJECTS_TOKEN`; with no token or an unreadable status it passes the issue through with no status (fail-closed), logging to stderr so stdout stays clean JSON.
-2. `scripts/agent-dispatch/selectTickets.cli.ts` (`npm run select-tickets`) reads the enriched list on stdin and prints the chosen numbers as a compact JSON array. The workflow passes `--require-ready-status` so the column gate is on.
+Either way, a blocker is satisfied once the referenced issue is **closed**; until then the dependent ticket is held back, even if it is labelled, in the Ready column, and high priority.
+This lets you queue a chain of work up front - file the whole chain `agent:ready` in Ready, link each one's blocker, and the loop naturally works it in dependency order, picking up each ticket only once the issues it waits on have merged and closed.
+
+The gate is **fail-closed**: a blocker that is not closed - or that cannot be read at all (a native read error, an unreadable body ref, or a `totalBlockedBy` count higher than the blockers GitHub returned, e.g. a cross-repo blocker) - is treated as `UNKNOWN` and still blocks, so a ticket is never worked on an unverified prerequisite.
+Tickets with no blockers from either source pass through untouched.
+The body parsing (`parseBlockerRefs`) and the two-source merge (`resolveBlockedBy`) are pure functions in `scripts/agent-dispatch/dependencies.ts` (covered by `dependencies.test.ts`); the network reads - the native `blockedBy` relationships and the state of any body-only refs - are done by `enrichDependencies.cli.ts` (`npm run enrich-dependencies`), which annotates each issue with `blockedBy: [{number, state}]` for the selector.
+
+## Selection: an agent picks, a guardrail keeps it safe
+
+Once the eligible candidates are gathered, **an agent chooses which subset to work this run** rather than a fixed top-N slice.
+It is given each candidate's priority, age, body summary, and an `unblocks` count (how many other open tickets are waiting on it), plus the per-run cap, and returns the ordered subset to work.
+This lets the loop make judgment calls a static sort cannot - e.g. preferring a ticket that unblocks three others over a slightly higher-priority dead end.
+
+The agent only **proposes**. A deterministic guardrail then trims its answer to real eligible candidate numbers, drops duplicates, preserves its order, and caps at `max` - so a hallucinated or blocked number can never reach the work matrix.
+And it **always has a fallback**: if the agent is unavailable (binary missing, timeout) or returns nothing usable, selection falls back to the deterministic order - priority, highest first:
+
+`priority:critical` > `priority:high` > `priority:med` > `priority:low` > (no priority label),
+
+with the oldest ticket first (FIFO) within a tier so nothing starves.
+The same fallback is used directly, skipping the agent, when every eligible ticket already fits under the cap (there is no subset to choose).
+At most three tickets are taken per run (override with the `max` input on a manual run, or the `FM_AGENT_MAX_TICKETS` env on either selector CLI).
+
+The pieces are pure and tested:
+
+- `selectTickets(issues, { max, requireReadyStatus })` in `scripts/agent-dispatch/selectTickets.ts` (covered by `selectTickets.test.ts`) - eligibility (label, Ready column, **and** the dependency gate), priority/FIFO order, cap. It stays pure and offline; the board Status and `blockedBy` it gates on are injected upstream by the enrich steps. This is both the agent's guardrail and its fallback.
+- `chooseTickets({ issues, max, requireReadyStatus, runAgent })` in `scripts/agent-dispatch/selectTicketsAgent.ts` (covered by `selectTicketsAgent.test.ts`) - builds the prompt, runs the injected agent, applies the guardrail, and falls back. The agent itself is wired in by the CLI as a no-tools `claude -p`, so the policy stays offline-testable.
+
+The workflow runs the thin CLIs in sequence, each testable and runnable without the network:
+
+1. `enrichIssueStatus.cli.ts` (`npm run enrich-issue-status`) adds each issue's board Status via the pure `getProjectStatus(...)` helper (`getProjectStatus.ts`, covered by `getProjectStatus.test.ts`). Authenticates with `PROJECTS_TOKEN`; with no token or an unreadable status it passes the issue through with no status (fail-closed).
+2. `enrichDependencies.cli.ts` (`npm run enrich-dependencies`) adds each issue's resolved `blockedBy` states (see [Dependencies](#dependencies-blocked-by)).
+3. `selectTicketsAgent.cli.ts` (`npm run select-tickets-agent`) reads the enriched list on stdin, lets the agent pick, applies the guardrail/fallback, and prints the chosen numbers as a compact JSON array. The workflow passes `--require-ready-status` so the column gate is on, and provides `CLAUDE_CODE_OAUTH_TOKEN` for the agent.
 
 ```sh
 gh issue list --state open --label agent:ready \
-  --json number,title,labels,createdAt,state --limit 100 \
+  --json number,title,labels,createdAt,state,body --limit 100 \
   | npm run --silent enrich-issue-status \
-  | npm run --silent select-tickets -- --max 3 --require-ready-status
-# -> e.g. [42,7,13]  (only tickets whose card is in the Ready column)
+  | npm run --silent enrich-dependencies \
+  | npm run --silent select-tickets-agent -- --max 3 --require-ready-status
+# -> e.g. [42,7,13]  (Ready-column, unblocked tickets the agent chose to work)
 ```
+
+The deterministic `selectTickets.cli.ts` (`npm run select-tickets`) is still available and is what the agent path falls back to; swap it in for `select-tickets-agent` above for a fully deterministic, agent-free selection.
 
 ## Claiming (idempotency)
 
