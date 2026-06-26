@@ -66,7 +66,7 @@ jobs:
         uses: actions/create-github-app-token@v3
         continue-on-error: true
         with:
-          app-id: ${{ secrets.PROJECTS_APP_ID }}
+          client-id: ${{ secrets.PROJECTS_APP_ID }}
           private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
 
       - uses: actions/setup-node@v5
@@ -195,7 +195,7 @@ jobs:
         uses: actions/create-github-app-token@v3
         continue-on-error: true
         with:
-          app-id: ${{ secrets.PROJECTS_APP_ID }}
+          client-id: ${{ secrets.PROJECTS_APP_ID }}
           private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
 
       # Check out WITH the App token when one was minted, so its credential is the
