@@ -112,7 +112,7 @@ const RoomGame = (props: Props) => {
   const { data: room, error } = useQuery<RoomView>({
     queryKey: roomKey,
     queryFn: ({ signal }) =>
-      fetchRoom(props.id, streamConnected ? undefined : playerId, signal),
+      fetchRoom(props.id, streamConnected ? null : playerId, signal),
     refetchInterval: paused
       ? false
       : streamConnected
