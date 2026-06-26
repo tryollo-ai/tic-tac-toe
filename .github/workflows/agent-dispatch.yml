@@ -136,24 +136,34 @@ jobs:
       # summarize and park steps below read this NDJSON for the end-of-run report.
       EXECUTION_FILE: execution.ndjson
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Mint the Projects v2 token from the PROJECTS_APP GitHub App for this job's
-      # board-sync steps (the default GITHUB_TOKEN cannot write Projects v2). With
-      # no `owner`, the installation is resolved from this repository; the
-      # repo-scoped token still carries the app's org-level organization_projects
-      # permission. (Setting `owner` does a user/org installation lookup that 404s
-      # here.) Non-fatal: absent app secrets or an uninstalled app yield an empty
-      # token and the sync steps (already continue-on-error) just no-op.
-      - name: Mint Projects token
-        id: projects_token
+      # Mint a token from the GitHub App BEFORE checkout so the whole job can run
+      # as the App rather than github-actions[bot]. This is what lets the agent
+      # push workflow-file changes: the default GITHUB_TOKEN is categorically
+      # forbidden from writing under .github/workflows/, while an App token carries
+      # the App's "Workflows: write" permission - plus the Contents / Pull requests
+      # / Issues permissions the push, PR, and claim steps need, and the org-level
+      # Projects permission the board-sync steps need, so one token serves the
+      # whole job. Minted with no `owner` so the installation resolves from this
+      # repository. continue-on-error keeps the job degrading gracefully: if the
+      # App secrets are absent the token output is empty and every consumer below
+      # falls back to ${{ github.token }}, which still works for any ticket that
+      # does not touch workflow files.
+      - name: Mint app token
+        id: app_token
         uses: actions/create-github-app-token@v1
         continue-on-error: true
         with:
           app-id: ${{ secrets.PROJECTS_APP_ID }}
           private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
+
+      # Check out WITH the App token when one was minted, so its credential is the
+      # one actions/checkout persists for git push - that is how no-mistakes' push
+      # to origin inherits the Workflows permission. Falls back to the default
+      # token when no App is configured.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app_token.outputs.token || github.token }}
 
       - name: Claim ticket
         env:
@@ -188,7 +198,7 @@ jobs:
       - name: Set board status to In Progress
         continue-on-error: true
         env:
-          PROJECTS_TOKEN: ${{ steps.projects_token.outputs.token }}
+          PROJECTS_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           npm run --silent set-project-status -- --issue "$ISSUE_NUMBER" --status "In Progress"
 
@@ -264,12 +274,15 @@ jobs:
         env:
           # The OAuth token (your Claude subscription) authenticates the CLI and the
           # OWN claude that no-mistakes' review step spawns - both read it from the
-          # environment. GH_TOKEN backs the agent's gh / no-mistakes push + PR steps.
-          # The CHROME_DEVTOOLS_AXI_* vars exported above reach chrome-devtools-axi
-          # the same way. --dangerously-skip-permissions keeps the run non-interactive
-          # on this ephemeral CI runner (there is no human to approve tool prompts).
+          # environment. GH_TOKEN backs the agent's git / gh / no-mistakes push + PR
+          # steps; it is the App token (when minted) so those pushes and the opened PR
+          # go out as the App and can touch workflow files under .github/workflows/,
+          # falling back to the default token otherwise. The CHROME_DEVTOOLS_AXI_*
+          # vars exported above reach chrome-devtools-axi the same way.
+          # --dangerously-skip-permissions keeps the run non-interactive on this
+          # ephemeral CI runner (there is no human to approve tool prompts).
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
           # Built from our validated matrix integer; routed through env so no event
           # data is interpolated into the command line.
           PROMPT: |
@@ -380,7 +393,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          PROJECTS_TOKEN: ${{ steps.projects_token.outputs.token }}
+          PROJECTS_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           set -u
           pr_count="$(gh pr list --head "$BRANCH" --state open --json number --jq 'length' 2>/dev/null)" || pr_count=""
