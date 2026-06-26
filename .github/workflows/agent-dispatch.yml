@@ -497,6 +497,42 @@ jobs:
             --execution-file "$EXECUTION_FILE" \
             --title "Agent run - issue #$ISSUE_NUMBER" >> "$GITHUB_STEP_SUMMARY"
 
+      # Guarantee the opened PR closes its ticket. no-mistakes builds the PR body
+      # from the agent's intent text, and step 5 of the prompt asks the agent to
+      # include "Closes #N" - but that is a soft instruction the model can miss
+      # (it did on #45, which merged without ever linking to its issue, while #34
+      # in the same batch complied). This step makes the link deterministic: if
+      # GitHub does not already register #N as a closing reference of the branch's
+      # open PR, prepend "Closes #N" to its body. Idempotent (an already-linked PR
+      # is left untouched) and best-effort (a linking hiccup never fails the job).
+      # Uses the App token when minted so the edit goes out as the same identity
+      # that opened the PR, falling back to the default token.
+      - name: Ensure PR closes its ticket
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
+        run: |
+          set -u
+          pr_number="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null)" || pr_number=""
+          if ! printf '%s' "$pr_number" | grep -qE '^[0-9]+$'; then
+            echo "No open PR for $BRANCH; nothing to link."
+            exit 0
+          fi
+          # Ask GitHub directly whether this PR already closes our ticket - the same
+          # closingIssuesReferences signal the link is rendered from - so we never
+          # double-prepend. index() returns the position (possibly 0) or null.
+          already="$(gh pr view "$pr_number" --json closingIssuesReferences \
+            --jq "[.closingIssuesReferences[].number] | index(${ISSUE_NUMBER})" 2>/dev/null)" || already="null"
+          if [ "$already" != "null" ] && [ -n "$already" ]; then
+            echo "PR #$pr_number already closes #$ISSUE_NUMBER; nothing to do."
+            exit 0
+          fi
+          echo "PR #$pr_number does not close #$ISSUE_NUMBER; prepending the reference."
+          body="$(gh pr view "$pr_number" --json body --jq '.body' 2>/dev/null)" || body=""
+          printf 'Closes #%s\n\n%s\n' "$ISSUE_NUMBER" "$body" > pr-body.md
+          gh pr edit "$pr_number" --body-file pr-body.md
+
       - name: Mark done if a PR was opened, else park
         if: always()
         env:
