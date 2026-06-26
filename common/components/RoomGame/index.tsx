@@ -19,7 +19,10 @@ import type { Direction, Player } from "@/utils/gameLogic";
 import { modeLabel, type RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
 import BoardHistory from "@/common/components/BoardHistory";
-import Status, { type StatusTone, playerTone } from "@/common/components/Status";
+import Status, {
+  type StatusTone,
+  playerTone,
+} from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
 import styles from "./styles.module.scss";
 
@@ -65,11 +68,11 @@ const RoomGame = (props: Props) => {
     (signal: AbortSignal) => fetchRoom(props.id, playerId, signal),
     [props.id, playerId],
   );
-  const { data: room, error, setData } = usePolling<RoomView>(
-    fetcher,
-    1500,
-    paused,
-  );
+  const {
+    data: room,
+    error,
+    setData,
+  } = usePolling<RoomView>(fetcher, 1500, paused);
 
   const notFound =
     error instanceof RoomError && error.code === "room-not-found";
