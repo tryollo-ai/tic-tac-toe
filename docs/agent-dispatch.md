@@ -27,7 +27,7 @@ A ticket is eligible **only** when all of these hold, and it is not already `age
 
 1. **It carries the `agent:ready` label.** This marks the ticket as *automatable* - something the loop is allowed to touch at all.
 2. **Its card sits in the board's "Ready" column** (Projects v2 Status = `Ready`, matched case-insensitively). This says *work it now*.
-3. **None of its declared blockers is still open.** A ticket can name prerequisites in its body as `Blocked by #N` or `Depends on #N`; while any referenced issue is still open the ticket is held back (see [Dependencies](#dependencies-blocked-by--depends-on)).
+3. **None of its blockers is still open.** A ticket can be marked "Blocked by" another issue - via GitHub's native relationship or a `Blocked by #N` / `Depends on #N` line in its body; while any blocker is still open the ticket is held back (see [Dependencies](#dependencies-blocked-by)).
 
 The two gates are independent and that is the point: you can keep an ordinary Project board with **no column-to-label automation**.
 Label the handful of tickets you are happy to automate, and they still stay put until you drag them into Ready - a labelled ticket parked in Backlog (or any non-Ready column) is invisible to the loop.
@@ -42,22 +42,30 @@ The Ready-column gate reads each labelled issue's board Status through the Proje
 It is **fail-closed**: if `PROJECTS_TOKEN` is missing, the issue is on no board, or its status cannot be read, the ticket counts as *not Ready* and is skipped - the loop never falls back to label-only and never pulls a Backlog card.
 So with the Ready-column gate active, `PROJECTS_TOKEN` is required for the loop to select anything, and the project's **Status** field must offer a `Ready` option.
 
-## Dependencies (Blocked by / Depends on)
+## Dependencies (Blocked by)
 
-A ticket can declare prerequisites in its body, on their own line:
+A ticket's blockers come from two sources, and both are honored.
+
+**1. GitHub's native "Blocked by" relationships (primary).**
+Open an issue, and under its **Relationships** add a "Blocked by" link to the issue it waits on (the same feature that shows the *"N tracked / blocked by"* summary on the card).
+This is the recommended way: it is structured, shows in the GitHub UI, and needs nothing in the issue text. For example, marking #34 *blocked by* #41 holds #34 until #41 closes - even though #34's body never mentions #41.
+
+**2. A `Blocked by` / `Depends on` line in the body (convenience).**
+For whoever prefers to write it in prose, a line like the following is parsed too:
 
 ```
 Blocked by #41
 Depends on #12, #13 and #14
 ```
 
-Both phrasings mean the same thing and read either way (hyphenated `blocked-by` / `depends-on` and a trailing colon are accepted; matching is case-insensitive).
-A blocker is satisfied once the referenced issue is **closed**; until then the dependent ticket is held back, even if it is labelled, in the Ready column, and high priority.
-This lets you queue a chain of work up front - file the whole chain `agent:ready` in Ready, and the loop naturally works it in dependency order, picking up each ticket only once the issues it waits on have merged and closed.
+Both phrasings mean the same thing (hyphenated `blocked-by` / `depends-on` and a trailing colon are accepted; matching is case-insensitive).
 
-The gate is **fail-closed**: a blocker whose state cannot be read (no token, deleted issue, API error) is recorded `UNKNOWN` and still blocks, so a ticket is never worked on an unverified prerequisite.
-Only tickets that *declare* blockers are affected - everything else passes through untouched, so a transient read failure never stalls independent work.
-Parsing is the pure `parseBlockerRefs(body)` in `scripts/agent-dispatch/dependencies.ts` (covered by `dependencies.test.ts`); resolving each blocker's open/closed state is done by `enrichDependencies.cli.ts` (`npm run enrich-dependencies`) in one GraphQL round trip, which annotates each issue with `blockedBy: [{number, state}]` for the selector.
+Either way, a blocker is satisfied once the referenced issue is **closed**; until then the dependent ticket is held back, even if it is labelled, in the Ready column, and high priority.
+This lets you queue a chain of work up front - file the whole chain `agent:ready` in Ready, link each one's blocker, and the loop naturally works it in dependency order, picking up each ticket only once the issues it waits on have merged and closed.
+
+The gate is **fail-closed**: a blocker that is not closed - or that cannot be read at all (a native read error, an unreadable body ref, or a `totalBlockedBy` count higher than the blockers GitHub returned, e.g. a cross-repo blocker) - is treated as `UNKNOWN` and still blocks, so a ticket is never worked on an unverified prerequisite.
+Tickets with no blockers from either source pass through untouched.
+The body parsing (`parseBlockerRefs`) and the two-source merge (`resolveBlockedBy`) are pure functions in `scripts/agent-dispatch/dependencies.ts` (covered by `dependencies.test.ts`); the network reads - the native `blockedBy` relationships and the state of any body-only refs - are done by `enrichDependencies.cli.ts` (`npm run enrich-dependencies`), which annotates each issue with `blockedBy: [{number, state}]` for the selector.
 
 ## Selection: an agent picks, a guardrail keeps it safe
 
@@ -82,7 +90,7 @@ The pieces are pure and tested:
 The workflow runs the thin CLIs in sequence, each testable and runnable without the network:
 
 1. `enrichIssueStatus.cli.ts` (`npm run enrich-issue-status`) adds each issue's board Status via the pure `getProjectStatus(...)` helper (`getProjectStatus.ts`, covered by `getProjectStatus.test.ts`). Authenticates with `PROJECTS_TOKEN`; with no token or an unreadable status it passes the issue through with no status (fail-closed).
-2. `enrichDependencies.cli.ts` (`npm run enrich-dependencies`) adds each issue's resolved `blockedBy` states (see [Dependencies](#dependencies-blocked-by--depends-on)).
+2. `enrichDependencies.cli.ts` (`npm run enrich-dependencies`) adds each issue's resolved `blockedBy` states (see [Dependencies](#dependencies-blocked-by)).
 3. `selectTicketsAgent.cli.ts` (`npm run select-tickets-agent`) reads the enriched list on stdin, lets the agent pick, applies the guardrail/fallback, and prints the chosen numbers as a compact JSON array. The workflow passes `--require-ready-status` so the column gate is on, and provides `CLAUDE_CODE_OAUTH_TOKEN` for the agent.
 
 ```sh

@@ -256,9 +256,9 @@ components.
   issue's Projects v2 board Status for the selector's Ready-column gate
   (fail-closed; no-ops to label-only data without `PROJECTS_TOKEN`)
 - `npm run enrich-dependencies` - annotate the issue JSON on stdin with each
-  issue's resolved `blockedBy` states (parsed from "Blocked by #N" / "Depends on
-  #N" in the body) for the selector's dependency gate (fail-closed; an
-  unresolvable blocker is recorded UNKNOWN and still blocks)
+  issue's resolved `blockedBy` states for the selector's dependency gate: GitHub's
+  native "Blocked by" relationships plus any "Blocked by #N" / "Depends on #N" in
+  the body (fail-closed; a blocker that is not CLOSED, or cannot be read, blocks)
 - `npm run set-project-status` - run the best-effort Projects v2 board-sync CLI
   (`--issue N --status "In Progress"`; non-fatal, no-ops without `PROJECTS_TOKEN`)
 
@@ -310,17 +310,22 @@ Conventions worth preserving when touching this code:
   back** to `selectTickets` when the agent adds no value (everything already fits)
   or returns nothing usable (binary missing, timeout, garbage) - the loop never
   stalls on the agent. The selector needs `CLAUDE_CODE_OAUTH_TOKEN`.
-- **Dependency gate: hold back blocked tickets, fail closed.** A ticket declares
-  prerequisites in its body as `Blocked by #N` / `Depends on #N` (parsed by the
-  pure, tested `dependencies.ts` `parseBlockerRefs`, comma/"and"/"&"-joined lists,
-  case-insensitive, hyphen or space). `enrichDependencies.cli.ts` (`npm run
-  enrich-dependencies`) resolves each referenced issue's open/closed state in one
-  GraphQL round trip and annotates `blockedBy: [{number,state}]`; `selectTickets`
-  then drops any issue with a blocker that is not `CLOSED`. An unresolvable blocker
-  is recorded `UNKNOWN` and still blocks (**fail closed**), but only issues that
-  *declare* blockers are gated - a missing token never stalls independent tickets.
+- **Dependency gate: hold back blocked tickets, fail closed.** A ticket's blockers
+  come from two sources, both honored: GitHub's **native "Blocked by" relationships**
+  (set in the issue UI, read via GraphQL `Issue.blockedBy` - the primary source),
+  and any `Blocked by #N` / `Depends on #N` written in the **body** (parsed by the
+  pure, tested `parseBlockerRefs`, comma/"and"/"&"-joined, case-insensitive, hyphen
+  or space). `enrichDependencies.cli.ts` (`npm run enrich-dependencies`) reads the
+  native `blockedBy` nodes (which carry each blocker's state) and `totalBlockedBy`
+  count, resolves any body-only refs' state, and merges them via the pure, tested
+  `resolveBlockedBy` into `blockedBy: [{number,state}]`; `selectTickets` then drops
+  any issue with a blocker that is not `CLOSED`. **Fail closed:** a native read
+  error, a body ref whose state can't be read, or a `totalBlockedBy` greater than
+  the blockers actually returned (cross-repo / paged out) all yield `UNKNOWN`
+  blockers that still block (`UNRESOLVED_BLOCKER` marks a padded/unreadable one).
   The `select` job pipes `gh issue list` (now including `body`) -> enrich-status
-  -> enrich-dependencies -> the agent selector. Keep the parsing pure and offline.
+  -> enrich-dependencies -> the agent selector. Keep parsing and merging pure and
+  offline; only the `blockedBy`/state reads touch the network (in the CLI).
 - **Two independent eligibility gates: the `agent:ready` label and the "Ready"
   board column.** The label (read by `gh issue list --label`) marks a ticket
   automatable; the column (Projects v2 `Status == "Ready"`, case-insensitive)

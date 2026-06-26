@@ -12,9 +12,10 @@ name: Trigger - issue agent
 # column says "work it now", and the dependency gate holds back tickets whose
 # prerequisites are unresolved. Tickets without `agent:ready`, parked in a
 # non-Ready column, or blocked, are invisible. The Ready-column gate reads
-# Projects v2 via PROJECTS_TOKEN and is fail-closed; the dependency gate parses
-# "Blocked by #N" / "Depends on #N" from each body and is fail-closed too (an
-# unresolvable blocker counts as still blocking), so nothing is ever wrongly picked.
+# Projects v2 via PROJECTS_TOKEN and is fail-closed; the dependency gate reads
+# GitHub's native "Blocked by" relationships (plus any "Blocked by #N" /
+# "Depends on #N" written in the body) and is fail-closed too (a blocker that is
+# not CLOSED, or cannot be read, still blocks), so nothing is ever wrongly picked.
 #
 # Which eligible tickets actually run is decided by an agent, not a fixed slice:
 # the select job hands the whole eligible, dependency-annotated candidate set to
@@ -103,13 +104,14 @@ jobs:
           echo "Board status per labelled issue:"
           node -e 'JSON.parse(require("fs").readFileSync("issues-with-status.json","utf8")).forEach(i => console.log(`  #${i.number} ${i.title} -> ${i.status ?? "(no status)"}`))'
 
-      # Resolve each labelled issue's "Blocked by #N" / "Depends on #N" relations
-      # to the referenced issues' open/closed state, so the selector can hold back
-      # any ticket waiting on an unresolved prerequisite. Uses the default token
-      # (issues: read is enough to read sibling issue states) and is fail-closed:
-      # a blocker whose state can't be read is recorded UNKNOWN and still blocks.
-      # Issues that declare no blockers pass through untouched. Diagnostics to
-      # stderr; stdout is the enriched JSON we feed forward.
+      # Resolve each labelled issue's blockers - GitHub's native "Blocked by"
+      # relationships (the primary source) plus any "Blocked by #N" / "Depends on
+      # #N" written in the body - to their open/closed state, so the selector can
+      # hold back any ticket waiting on an unresolved prerequisite. Uses the
+      # default token (issues: read covers reading issue dependencies and sibling
+      # states) and is fail-closed: a blocker that is not CLOSED, or cannot be
+      # read, still blocks. Issues with no blockers pass through untouched.
+      # Diagnostics to stderr; stdout is the enriched JSON we feed forward.
       - name: Annotate with blocker states (dependency gate)
         env:
           GH_TOKEN: ${{ github.token }}

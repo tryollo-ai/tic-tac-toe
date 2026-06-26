@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseBlockerRefs } from "./dependencies";
+import {
+  parseBlockerRefs,
+  resolveBlockedBy,
+  UNRESOLVED_BLOCKER,
+} from "./dependencies";
 
 describe("parseBlockerRefs", () => {
   it("returns no refs for an empty or absent body", () => {
@@ -55,5 +59,56 @@ describe("parseBlockerRefs", () => {
 
   it("ignores plain issue mentions that are not blocker relations", () => {
     expect(parseBlockerRefs("Related to #5, see also #6")).toEqual([]);
+  });
+});
+
+describe("resolveBlockedBy", () => {
+  const noBody = new Map<number, string>();
+
+  it("returns no blockers when native and body are both empty", () => {
+    expect(resolveBlockedBy({ blockers: [], total: 0 }, [], noBody)).toEqual([]);
+  });
+
+  it("uses native blockers (the primary source) with their states", () => {
+    // This is the #34 -> #41 case: a native 'Blocked by' set in the UI, with
+    // nothing in the body.
+    const native = { blockers: [{ number: 41, state: "OPEN" }], total: 1 };
+    expect(resolveBlockedBy(native, [], noBody)).toEqual([
+      { number: 41, state: "OPEN" },
+    ]);
+  });
+
+  it("merges native and body refs, de-duping by number (native state wins)", () => {
+    const native = { blockers: [{ number: 41, state: "OPEN" }], total: 1 };
+    const bodyStates = new Map([
+      [41, "CLOSED"],
+      [12, "OPEN"],
+    ]);
+    expect(resolveBlockedBy(native, [41, 12], bodyStates)).toEqual([
+      { number: 41, state: "OPEN" }, // native wins over the body's CLOSED
+      { number: 12, state: "OPEN" }, // body-only ref keeps its resolved state
+    ]);
+  });
+
+  it("resolves a body ref with no known state to UNKNOWN", () => {
+    expect(resolveBlockedBy({ blockers: [], total: 0 }, [12], noBody)).toEqual([
+      { number: 12, state: "UNKNOWN" },
+    ]);
+  });
+
+  it("fails closed with one UNKNOWN blocker when the native read errored", () => {
+    expect(resolveBlockedBy("error", [], noBody)).toEqual([
+      { number: UNRESOLVED_BLOCKER, state: "UNKNOWN" },
+    ]);
+  });
+
+  it("pads with UNKNOWN when GitHub counts more blockers than it returned", () => {
+    // totalBlockedBy is 2 but only one node came back (cross-repo / paged out):
+    // the shortfall becomes an UNKNOWN blocker so the ticket stays blocked.
+    const native = { blockers: [{ number: 41, state: "CLOSED" }], total: 2 };
+    expect(resolveBlockedBy(native, [], noBody)).toEqual([
+      { number: 41, state: "CLOSED" },
+      { number: UNRESOLVED_BLOCKER, state: "UNKNOWN" },
+    ]);
   });
 });
