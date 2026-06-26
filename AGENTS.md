@@ -332,6 +332,9 @@ Conventions worth preserving when touching this code:
   default `GITHUB_TOKEN` (passed as `github_token: ${{ github.token }}`). Each job
   that runs the action grants it `actions: read` alongside the existing
   `contents`/`issues`/`pull-requests: write`.
+- **`anthropics/claude-code-action` is intentionally left at `@v1`.** It is a
+  composite action with no node runtime, so the node20→node24 deprecation cycle
+  that drove the other action version bumps does not apply to it.
 - The `no-mistakes` CLI is installed on the runner by the dispatch workflow's
   "Install no-mistakes CLI" step (the hardcoded `docs/install.sh` curl one-liner);
   the only one-time setup is the `CLAUDE_CODE_OAUTH_TOKEN` secret (from the Claude
