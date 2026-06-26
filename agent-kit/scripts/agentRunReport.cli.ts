@@ -7,6 +7,10 @@
 //   --mode comment --execution-file <path> --outcome <success|failure> --run-url <url>
 //     Prints the parked-ticket comment (the workflow posts it with --body-file).
 //
+//   --mode usage --execution-file <path> [--title "Token usage - issue #N"]
+//     Prints a markdown token/cost breakdown for the run (the workflow appends it
+//     to $GITHUB_STEP_SUMMARY), so a maintainer can see where the tokens went.
+//
 // All formatting lives in the pure agentRunReport module; this file only parses
 // args, reads the file, and prints. It is defensive: a missing, empty, or
 // malformed execution_file is treated as "no events", never an error, so a
@@ -15,20 +19,22 @@
 import { readFileSync } from "node:fs";
 import {
   extractResult,
+  extractUsage,
   formatParkComment,
   formatTranscript,
+  formatUsageReport,
   parseEvents,
   parseEventStream,
   type RunEvent,
 } from "./agentRunReport";
 
-type Mode = "transcript" | "comment";
+type Mode = "transcript" | "comment" | "usage";
 // "json-array" is claude-code-action's execution_file (a single JSON array);
 // "ndjson" is the direct-CLI stream we tee to execution.ndjson (one event/line).
 type Format = "json-array" | "ndjson";
 
 const USAGE =
-  'usage: agent-run-report --mode transcript|comment --execution-file <path> ' +
+  'usage: agent-run-report --mode transcript|comment|usage --execution-file <path> ' +
   '[--format json-array|ndjson] [--title <text>] [--outcome <success|failure>] [--run-url <url>]';
 
 const fail = (message: string): never => {
@@ -68,8 +74,8 @@ const parseArgs = (argv: string[]): Args => {
     switch (arg) {
       case "--mode": {
         const value = next(arg);
-        if (value !== "transcript" && value !== "comment") {
-          fail("--mode must be transcript or comment");
+        if (value !== "transcript" && value !== "comment" && value !== "usage") {
+          fail("--mode must be transcript, comment, or usage");
         }
         args.mode = value as Mode;
         break;
@@ -128,6 +134,15 @@ const main = (): void => {
       transcript === ""
         ? "_No transcript was captured for this run (it may have failed or timed out before producing output)._"
         : transcript;
+    process.stdout.write(`## ${args.title}\n\n${body}\n`);
+    return;
+  }
+
+  if (args.mode === "usage") {
+    const body =
+      events.length === 0
+        ? "_No usage was captured for this run (it may have failed or timed out before reporting tokens)._"
+        : formatUsageReport(extractUsage(events));
     process.stdout.write(`## ${args.title}\n\n${body}\n`);
     return;
   }

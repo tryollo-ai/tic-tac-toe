@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   extractResult,
+  extractUsage,
   formatParkComment,
   formatStreamLines,
   formatTranscript,
+  formatUsageReport,
   parseEvents,
   parseEventStream,
+  totalTokens,
   type RunEvent,
 } from "./agentRunReport";
 
@@ -231,6 +234,139 @@ describe("formatParkComment", () => {
 
     expect(out).toContain("…");
     expect(out.length).toBeLessThan(long.length + 500);
+  });
+});
+
+describe("totalTokens", () => {
+  it("sums every token field, treating missing/non-numeric fields as 0", () => {
+    expect(
+      totalTokens({
+        input_tokens: 100,
+        output_tokens: 200,
+        cache_creation_input_tokens: 50,
+        cache_read_input_tokens: 1000,
+      }),
+    ).toBe(1350);
+    expect(totalTokens({ input_tokens: 100 })).toBe(100);
+    expect(totalTokens(undefined)).toBe(0);
+  });
+});
+
+describe("extractUsage", () => {
+  const resultEvent: RunEvent = {
+    type: "result",
+    subtype: "success",
+    result: "done",
+    num_turns: 12,
+    total_cost_usd: 3.4567,
+    usage: {
+      input_tokens: 1000,
+      output_tokens: 5000,
+      cache_creation_input_tokens: 20000,
+      cache_read_input_tokens: 900000,
+    },
+    modelUsage: {
+      "claude-opus-4-8": {
+        inputTokens: 1000,
+        outputTokens: 5000,
+        cacheCreationInputTokens: 20000,
+        cacheReadInputTokens: 900000,
+        costUSD: 3.4567,
+      },
+    },
+  };
+
+  it("reads the authoritative totals from the result event", () => {
+    const usage = extractUsage([{ type: "system", subtype: "init" }, resultEvent]);
+
+    expect(usage.inputTokens).toBe(1000);
+    expect(usage.outputTokens).toBe(5000);
+    expect(usage.cacheCreationTokens).toBe(20000);
+    expect(usage.cacheReadTokens).toBe(900000);
+    expect(usage.numTurns).toBe(12);
+    expect(usage.totalCostUsd).toBeCloseTo(3.4567);
+    expect(usage.perModel).toEqual([
+      { model: "claude-opus-4-8", usage: resultEvent.modelUsage!["claude-opus-4-8"] },
+    ]);
+  });
+
+  it("prefers the result event even when assistant turns also carry usage", () => {
+    const usage = extractUsage([
+      { type: "assistant", usage: { input_tokens: 999999 } },
+      resultEvent,
+    ]);
+    expect(usage.inputTokens).toBe(1000);
+  });
+
+  it("falls back to summing per-turn usage when there is no result event", () => {
+    const usage = extractUsage([
+      { type: "assistant", message: { usage: { input_tokens: 10, output_tokens: 20 } } },
+      { type: "user", message: { content: [{ type: "tool_result" }] } },
+      { type: "assistant", usage: { input_tokens: 5, cache_read_input_tokens: 100 } },
+    ]);
+
+    expect(usage.inputTokens).toBe(15);
+    expect(usage.outputTokens).toBe(20);
+    expect(usage.cacheReadTokens).toBe(100);
+    // Two assistant turns counted; no cost/result reported.
+    expect(usage.numTurns).toBe(2);
+    expect(usage.totalCostUsd).toBeNull();
+    expect(usage.perModel).toEqual([]);
+  });
+
+  it("returns an all-zero summary for an empty event list", () => {
+    const usage = extractUsage([]);
+    expect(usage.inputTokens).toBe(0);
+    expect(usage.cacheReadTokens).toBe(0);
+    expect(usage.numTurns).toBeNull();
+    expect(usage.totalCostUsd).toBeNull();
+  });
+});
+
+describe("formatUsageReport", () => {
+  it("renders the totals, the cache split, and a per-model breakdown", () => {
+    const out = formatUsageReport(
+      extractUsage([
+        {
+          type: "result",
+          subtype: "success",
+          num_turns: 10,
+          total_cost_usd: 2.5,
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 5000,
+            cache_creation_input_tokens: 20000,
+            cache_read_input_tokens: 900000,
+          },
+          modelUsage: {
+            "claude-opus-4-8": {
+              inputTokens: 1000,
+              outputTokens: 5000,
+              cacheReadInputTokens: 900000,
+              costUSD: 2.5,
+            },
+          },
+        },
+      ]),
+    );
+
+    // Total is the sum of every token field, thousands-grouped.
+    expect(out).toContain("| Total tokens | 926,000 |");
+    expect(out).toContain("| Cache reads | 900,000 |");
+    expect(out).toContain("| Turns | 10 |");
+    expect(out).toContain("| Reported cost (USD) | $2.5000 |");
+    expect(out).toContain("Per model:");
+    expect(out).toContain("| claude-opus-4-8 |");
+  });
+
+  it("omits the per-model table and cost/turn rows when none were reported", () => {
+    const out = formatUsageReport(
+      extractUsage([{ type: "assistant", usage: { input_tokens: 100, output_tokens: 50 } }]),
+    );
+
+    expect(out).toContain("| Total tokens | 150 |");
+    expect(out).not.toContain("Per model:");
+    expect(out).not.toContain("Reported cost");
   });
 });
 

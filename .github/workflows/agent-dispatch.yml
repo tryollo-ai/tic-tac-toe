@@ -727,6 +727,28 @@ jobs:
             --execution-file "$EXECUTION_FILE" \
             --title "Agent run - issue #$ISSUE_NUMBER" >> "$GITHUB_STEP_SUMMARY"
 
+      # Surface per-run token telemetry so a maintainer can see where the dispatch
+      # loop's token cost actually goes (#85). claude's stream-json result event
+      # carries the authoritative run totals - input/output, the cache write/read
+      # split (cache reads dominate a long agentic run: the whole 1M context is
+      # re-read every turn), turn count, and reported cost - all of which the live
+      # streamTranscript filter intentionally drops. This step reads the teed
+      # NDJSON and renders that breakdown to both the job log and the Summary tab.
+      # Cosmetic and best-effort: continue-on-error plus always() so a failed or
+      # timed-out run is still accounted for, and a usage hiccup never fails the job.
+      - name: Report token usage
+        if: always()
+        continue-on-error: true
+        run: |
+          set -u
+          report="$(npx tsx agent-kit/scripts/agentRunReport.cli.ts \
+            --mode usage \
+            --format ndjson \
+            --execution-file "$EXECUTION_FILE" \
+            --title "Token usage - issue #$ISSUE_NUMBER")"
+          printf '%s\n' "$report"
+          printf '%s\n' "$report" >> "$GITHUB_STEP_SUMMARY"
+
       # Guarantee the opened PR closes its ticket. no-mistakes builds the PR body
       # from the agent's intent text, and step 5 of the prompt asks the agent to
       # include "Closes #N" - but that is a soft instruction the model can miss
