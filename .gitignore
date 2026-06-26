@@ -25,6 +25,10 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# agent-dispatch run artifacts (generated at repo root by the CI harness)
+/ticket.json
+/execution.ndjson
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
