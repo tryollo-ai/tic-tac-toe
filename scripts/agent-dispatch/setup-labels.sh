@@ -3,15 +3,14 @@
 # Safe to re-run: existing labels are updated in place, missing ones are created.
 #
 # Labels:
-#   agent:ready           opt-in trigger; the ONLY thing that makes a ticket eligible
 #   priority:critical     ordering: worked first
 #   priority:high
 #   priority:med
 #   priority:low          ordering: worked last among eligible tickets
+#   agent:ready           opt-in trigger; the ONLY thing that makes a ticket eligible
 #   agent:in-progress     claim lock written when a run starts a ticket
-#   agent:done            done coding: the run opened a PR, waiting on the captain
-#   agent:needs-help      parked for the captain (a risky finding, or a failed run)
-#   type:tracking         optional marker for non-deliverable / tracking tickets
+#   agent:done            done coding: the run opened a PR, waiting on review
+#   agent:needs-help      parked for a maintainer (a risky finding, or a failed run)
 #
 # Uses plain `gh` (present on GitHub runners and locally). NOT gh-axi: its
 # `label create` requires `--name`, so the positional form below would fail.
@@ -57,9 +56,8 @@ ensure_label "priority:high"        "d93f0b" "Agent loop: high priority"
 ensure_label "priority:med"         "fbca04" "Agent loop: medium priority"
 ensure_label "priority:low"         "0e8a16" "Agent loop: low priority"
 ensure_label "agent:in-progress"    "1d76db" "Agent loop: claimed and in flight"
-ensure_label "agent:done"           "006b75" "Agent loop: done coding; PR open, waiting on the captain"
-ensure_label "agent:needs-help"     "5319e7" "Agent loop: parked for the captain's decision"
-ensure_label "type:tracking"        "c5def5" "Tracking / non-deliverable; not for the agent"
+ensure_label "agent:done"           "006b75" "Agent loop: done coding; PR open, waiting on review"
+ensure_label "agent:needs-help"     "5319e7" "Agent loop: parked for a maintainer's decision"
 
 if [ "$failures" -gt 0 ]; then
   echo "setup-labels: $failures label(s) could not be created or updated; check gh auth (gh auth status) and repo access" >&2

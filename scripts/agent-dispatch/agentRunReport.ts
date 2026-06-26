@@ -206,7 +206,7 @@ export type ParkCommentParams = {
   runUrl: string;
 };
 
-const PARK_HEADER = "**⚠️ Parked for the captain - no PR opened.**";
+const PARK_HEADER = "**⚠️ Parked for a maintainer - no PR opened.**";
 /** Cap the quoted explanation so the comment stays well under GitHub's limit. */
 const RESULT_MAX = 6000;
 

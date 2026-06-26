@@ -200,13 +200,13 @@ describe("setProjectStatus", () => {
 
     const result = await setProjectStatus({
       ...baseParams,
-      statusName: BOARD_STATUS.needsCaptain,
+      statusName: "No Such Status",
       graphql,
       log,
     });
 
     expect(result.updated).toBe(0);
-    expect(result.reason).toMatch(/Needs captain/);
+    expect(result.reason).toMatch(/No Such Status/);
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining("no Status option matching"),
     );

@@ -196,7 +196,7 @@ describe("formatParkComment", () => {
       runUrl,
     });
 
-    expect(out).toContain("Parked for the captain");
+    expect(out).toContain("Parked for a maintainer");
     expect(out).toContain("> Stopped: the Review stage flagged a regression.");
     expect(out).toContain(`(${runUrl})`);
   });

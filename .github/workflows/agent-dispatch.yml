@@ -3,7 +3,7 @@ name: Trigger - issue agent
 # Twice a day (and on demand), pick up to 3 opt-in tickets, claim them so a later
 # run won't re-pull them, and run one agent per ticket. Each agent implements its
 # ticket, runs no-mistakes, and opens a PR. Nothing merges automatically - every
-# PR waits for the captain.
+# PR waits for review.
 #
 # Opt-in: a ticket is eligible ONLY while it carries the `agent:ready` label AND
 # its card sits in the board's "Ready" column (Projects v2 Status = "Ready"), is
@@ -493,10 +493,10 @@ jobs:
                until it returns a final `checks-passed` or `passed` outcome. `--yes`
                auto-approves routine findings; if a finding is genuinely risky or
                irreversible, STOP without pushing and clearly explain why so the run
-               can park the ticket for the captain.
+               can park the ticket for a maintainer.
             5. no-mistakes opens the PR as its final step. Make sure the PR body says
                "Closes #${{ matrix.number }}".
-            Never merge anything. The captain merges.
+            Never merge anything. A maintainer merges.
         run: |
           set -euo pipefail
           # The PROMPT carries a %BRANCH% placeholder for the branch name, which is
@@ -580,16 +580,16 @@ jobs:
           set -u
           # Resilient by design: park on ANY uncertainty. The only branch that
           # marks the ticket done is a confirmed open PR (a numeric count greater
-          # than 0); everything else parks for the captain.
+          # than 0); everything else parks for a maintainer.
           pr_count="$(gh pr list --head "$BRANCH" --state open --json number --jq 'length' 2>/dev/null)" || pr_count=""
           if printf '%s' "$pr_count" | grep -qE '^[0-9]+$' && [ "$pr_count" -gt 0 ]; then
-            echo "PR open for $BRANCH; marking #$ISSUE_NUMBER agent:done for the captain to review."
+            echo "PR open for $BRANCH; marking #$ISSUE_NUMBER agent:done for review."
             gh issue edit "$ISSUE_NUMBER" \
               --remove-label "agent:in-progress" \
               --add-label "agent:done" || true
             exit 0
           fi
-          echo "No confirmed open PR for $BRANCH; parking #$ISSUE_NUMBER for the captain."
+          echo "No confirmed open PR for $BRANCH; parking #$ISSUE_NUMBER for a maintainer."
           gh issue edit "$ISSUE_NUMBER" \
             --remove-label "agent:in-progress" \
             --add-label "agent:needs-help" || true
@@ -602,16 +602,16 @@ jobs:
             --execution-file "$EXECUTION_FILE" \
             --outcome "$AGENT_OUTCOME" \
             --run-url "$RUN_URL" > park-comment.md \
-            || printf '%s\n' "The agent finished without opening a PR. Parked for the captain - see the run logs: $RUN_URL" > park-comment.md
+            || printf '%s\n' "The agent finished without opening a PR. Parked for a maintainer - see the run logs: $RUN_URL" > park-comment.md
           gh issue comment "$ISSUE_NUMBER" --body-file park-comment.md || true
 
-      # Best-effort board sync mirroring the done/park decision: an open PR moves
-      # the card to "In Review" (alongside the agent:done label); otherwise it
-      # moves to "Needs captain" alongside the agent:needs-help label set above.
-      # Runs on always() (so it follows a
-      # failed/timed-out agent run too) and never fails the job. The merge ->
-      # Done transition is left to GitHub Projects' native workflow.
-      - name: Sync board status (In Review or Needs captain)
+      # Best-effort board sync: an open PR moves the card to "In Review" (alongside
+      # the agent:done label). A parked run sets no status - the card stays in its
+      # current column and the agent:needs-help label is the only signal. Runs on
+      # always() (so it follows a failed/timed-out agent run too) and never fails
+      # the job. The merge -> Done transition is left to GitHub Projects' native
+      # workflow.
+      - name: Sync board status to In Review when a PR opened
         if: always()
         continue-on-error: true
         env:
@@ -621,9 +621,8 @@ jobs:
           set -u
           pr_count="$(gh pr list --head "$BRANCH" --state open --json number --jq 'length' 2>/dev/null)" || pr_count=""
           if printf '%s' "$pr_count" | grep -qE '^[0-9]+$' && [ "$pr_count" -gt 0 ]; then
-            status="In Review"
+            echo "Setting board status to: In Review"
+            yarn --silent set-project-status --issue "$ISSUE_NUMBER" --status "In Review"
           else
-            status="Needs captain"
+            echo "No open PR for $BRANCH; leaving the card in place (agent:needs-help flags it)."
           fi
-          echo "Setting board status to: $status"
-          yarn --silent set-project-status --issue "$ISSUE_NUMBER" --status "$status"

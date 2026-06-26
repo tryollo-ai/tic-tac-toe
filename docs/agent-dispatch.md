@@ -34,7 +34,7 @@ Label the handful of tickets you are happy to automate, and they still stay put 
 Anything without `agent:ready` is invisible regardless of column, so you can file freely:
 
 - **Backfilling resolved issues** - file them closed, or open without `agent:ready`; closed tickets are never pulled.
-- **Tracking / non-deliverable tickets** - leave `agent:ready` off (optionally add `type:tracking`); they live on the board but the agent ignores them.
+- **Tracking / non-deliverable tickets** - leave `agent:ready` off; they live on the board but the agent ignores them.
 
 To hand a ticket to the agent, add `agent:ready` plus a `priority:*` label **and** move its card into the Ready column.
 
@@ -154,7 +154,7 @@ The board's Status field is used in two directions, both via a `PROJECTS_TOKEN` 
 To enable both:
 
 1. **Secrets.** Register a GitHub App with **Projects** read+write (organization) permission, install it on this repository, and add its credentials as two repository secrets: `PROJECTS_APP_ID` and `PROJECTS_APP_PRIVATE_KEY`. Each job mints a short-lived installation token from them (via `actions/create-github-app-token`, resolved from this repo - no `owner`, which would do a user/org lookup that 404s) and passes it to the scripts as `PROJECTS_TOKEN`. The repo-scoped token still carries the app's org-level Projects permission. A GitHub App is used rather than a PAT because the default `GITHUB_TOKEN` cannot read or write user/org Projects v2, and an App token is short-lived and not tied to a single user.
-2. **Status options.** On the project, the **Status** field must offer a `Ready` option (the selection gate) plus `In Progress`, `In Review`, and `Needs captain` (board sync), all matched case-insensitively.
+2. **Status options.** On the project, the **Status** field must offer a `Ready` option (the selection gate) plus `In Progress` and `In Review` (board sync), all matched case-insensitively.
    `Backlog` (or any other non-`Ready` column) needs no special option - it is simply "not Ready" to the gate.
    `Done` is **not** required here: the merge -> `Done` transition is handled natively by GitHub Projects' built-in "pull request merged / item closed -> Done" workflow, and tickets close via `Closes #<n>` in the PR body.
 
@@ -162,7 +162,7 @@ Once set up, the workflows move the card automatically:
 
 - **Claimed** -> `In Progress` (dispatch, right after `agent:in-progress` is added).
 - **PR opened** -> `In Review` (dispatch, alongside the `agent:done` label when an open PR exists for the branch).
-- **Parked** -> `Needs captain` (dispatch, alongside the `agent:needs-help` label when no PR was opened).
+- **Parked** -> no column change; the card stays in its current column and the `agent:needs-help` label flags it (dispatch, when no PR was opened).
 
 `@claude` follow-ups on an existing PR (via the installer's `claude.yml`) do not move the card; the PR is already in `In Review` and stays there until you merge it.
 
@@ -181,7 +181,7 @@ The loop is built so you can prove it before trusting the schedule:
 
 ## Safety
 
-- Nothing merges automatically - the captain merges every PR.
+- Nothing merges automatically - a maintainer merges every PR.
 - PR follow-ups only fire on an explicit `@claude` mention (the installer's `claude.yml`), so the agent acts when you ask it to rather than on every comment.
 - Event data (the dispatch `max` input, PR numbers) is never interpolated into a shell `run:` line; it is passed through `env:` and referenced as a quoted variable, which avoids GitHub Actions script injection.
 - no-mistakes runs in full; routine findings are auto-approved, and genuinely risky or irreversible ones stop the run cleanly. Any run that ends without an open PR - a clean risky stop or an outright failure - parks the ticket to `agent:needs-help` rather than leaving it stuck in `agent:in-progress`.

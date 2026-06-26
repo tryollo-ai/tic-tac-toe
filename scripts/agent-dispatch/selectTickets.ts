@@ -94,9 +94,9 @@ export const READY_LABEL = "agent:ready";
 export const READY_STATUS = "Ready";
 /** Claim lock written when a run starts a ticket. */
 export const IN_PROGRESS_LABEL = "agent:in-progress";
-/** Done coding: set when the run opens a PR, which then waits for the captain. */
+/** Done coding: set when the run opens a PR, which then waits for review. */
 export const DONE_LABEL = "agent:done";
-/** Parked for the captain (a risky finding, or a failed run). */
+/** Parked for a maintainer (a risky finding, or a failed run). */
 export const HOLD_LABEL = "agent:needs-help";
 
 /** Priority labels, highest priority first; the index is the sort rank. */

@@ -1,6 +1,7 @@
 // Move an issue's card on a GitHub Projects v2 board to follow the agent loop's
-// lifecycle (claimed -> In Progress, PR open -> In Review, parked -> Needs
-// captain). Projects v2 columns are driven by the project's single-select
+// lifecycle (claimed -> In Progress, PR open -> In Review). A parked run sets no
+// status: the card stays where it is and the agent:needs-help label is the only
+// signal. Projects v2 columns are driven by the project's single-select
 // "Status" field, not by issue labels, so moving a card means setting that field
 // via the GraphQL API - which the default GITHUB_TOKEN cannot write, hence the
 // separate PROJECTS_TOKEN (see setProjectStatus.cli.ts).
@@ -24,7 +25,6 @@
 export const BOARD_STATUS = {
   inProgress: "In Progress",
   inReview: "In Review",
-  needsCaptain: "Needs captain",
 } as const;
 
 /**
