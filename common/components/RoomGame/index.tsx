@@ -102,6 +102,21 @@ const RoomGame = (props: Props) => {
     setActionError(null);
   }, [queryClient, roomKey]);
 
+  // Shared lifecycle for the non-optimistic writes (claim/leave/shift/reset):
+  // pause+abort before, adopt the authoritative room on success, surface a
+  // fallback message on error, resume polling when settled. Only the request
+  // function and the error fallback differ, so each mutation supplies just those.
+  const writeOptions = useCallback(
+    (fallback: string) => ({
+      onMutate: beginWrite,
+      onSuccess: setRoom,
+      onError: (err: unknown) =>
+        setActionError(roomErrorMessage(err, fallback)),
+      onSettled: () => setPaused(false),
+    }),
+    [beginWrite, setRoom],
+  );
+
   const moveMutation = useMutation({
     mutationFn: (index: number) => makeMove(props.id, playerId as string, index),
     onMutate: async (index: number) => {
@@ -130,39 +145,23 @@ const RoomGame = (props: Props) => {
 
   const claimMutation = useMutation({
     mutationFn: (seat: Player) => claimSeat(props.id, playerId as string, seat),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not claim that seat.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not claim that seat."),
   });
 
   const leaveMutation = useMutation({
     mutationFn: () => leaveSeat(props.id, playerId as string),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not leave the seat.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not leave the seat."),
   });
 
   const shiftMutation = useMutation({
     mutationFn: (direction: Direction) =>
       shiftRoom(props.id, playerId as string, direction),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not shift the grid.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not shift the grid."),
   });
 
   const resetMutation = useMutation({
     mutationFn: () => resetRoom(props.id, playerId as string),
-    onMutate: beginWrite,
-    onSuccess: (updated) => setRoom(updated),
-    onError: (err) =>
-      setActionError(roomErrorMessage(err, "Could not start a new game.")),
-    onSettled: () => setPaused(false),
+    ...writeOptions("Could not start a new game."),
   });
 
   // Best-effort instant seat release: on tab close via `pagehide`, and on
