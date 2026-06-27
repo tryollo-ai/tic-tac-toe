@@ -147,6 +147,74 @@ describe("shiftBoard", () => {
   });
 });
 
+describe("shiftBoard collapse mode", () => {
+  it("matches the ticket's worked example for a right shift", () => {
+    // x o o        _ _ x
+    // o x o  --->  _ o x   (collapse right)
+    // o x _        _ o x
+    const board: Board = ["X", "O", "O", "O", "X", "O", "O", "X", null];
+    expect(shiftBoard(board, "right", "collapse")).toEqual([
+      null, null, "X",
+      null, "O", "X",
+      null, "O", "X",
+    ]);
+  });
+
+  it("slides every mark to the leading edge, not just one cell", () => {
+    // A lone mark in the trailing corner travels the full width/height.
+    const topLeft = emptyBoard();
+    topLeft[0] = "O";
+    expect(shiftBoard(topLeft, "right", "collapse")[2]).toBe("O");
+    expect(shiftBoard(topLeft, "bottom", "collapse")[6]).toBe("O");
+  });
+
+  it("lets X plough through and remove O marks in its path", () => {
+    // X O O on the top row, shifted right: X travels to the wall, removing both
+    // O marks ahead of it on the way.
+    const row: Board = ["X", "O", "O", null, null, null, null, null, null];
+    expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
+      null,
+      null,
+      "X",
+    ]);
+  });
+
+  it("blocks O behind an X (O cannot capture X)", () => {
+    // O _ X shifted right: X is already at the wall, O stops next to it.
+    const row: Board = ["O", null, "X", null, null, null, null, null, null];
+    expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
+      null,
+      "O",
+      "X",
+    ]);
+  });
+
+  it("stacks same-kind marks against the leading edge", () => {
+    // O O _ shifted right: both O slide and stack at the right edge.
+    const row: Board = ["O", "O", null, null, null, null, null, null, null];
+    expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
+      null,
+      "O",
+      "O",
+    ]);
+  });
+
+  it("does not mutate the input board", () => {
+    const board: Board = ["X", "O", "O", "O", "X", "O", "O", "X", null];
+    const snapshot = board.slice();
+    shiftBoard(board, "right", "collapse");
+    expect(board).toEqual(snapshot);
+  });
+
+  it("defaults to the classic single-cell translation", () => {
+    const board = emptyBoard();
+    board[4] = "X";
+    // No mode argument == classic: the center mark moves exactly one cell.
+    expect(shiftBoard(board, "right")[5]).toBe("X");
+    expect(shiftBoard(board, "right")[2]).toBeNull();
+  });
+});
+
 describe("boardAfterActions", () => {
   const actions: GameAction[] = [
     { kind: "place", index: 0 }, // 0: X
@@ -155,6 +223,28 @@ describe("boardAfterActions", () => {
     { kind: "shift", dir: "bottom" }, // 3: O shifts the whole grid down
     { kind: "place", index: 2 }, // 4: X
   ];
+
+  it("replays each shift with the mode it was recorded with", () => {
+    // Same prefix, two shift modes: the rebuilt board must differ accordingly.
+    const place: GameAction[] = [
+      { kind: "place", index: 0 }, // X top-left
+      { kind: "place", index: 1 }, // O top-middle
+    ];
+    const classic = boardAfterActions(
+      [...place, { kind: "shift", dir: "right", mode: "classic" }],
+      3,
+    );
+    const collapse = boardAfterActions(
+      [...place, { kind: "shift", dir: "right", mode: "collapse" }],
+      3,
+    );
+    // Classic: X 0->1, O 1->2 (one cell each).
+    expect(classic[1]).toBe("X");
+    expect(classic[2]).toBe("O");
+    // Collapse: X ploughs to the wall removing O, so only X survives at 2.
+    expect(collapse[2]).toBe("X");
+    expect(collapse.filter((c) => c === "O")).toHaveLength(0);
+  });
 
   it("returns an empty board for a count of 0", () => {
     expect(boardAfterActions(actions, 0)).toEqual(emptyBoard());

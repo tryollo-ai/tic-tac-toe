@@ -14,15 +14,37 @@ export const DIRECTIONS: readonly Direction[] = [
 ];
 
 /**
+ * How O's shift moves the grid (a POC-configurable rule variant):
+ * - "classic": rigid translation by exactly one cell (the original behaviour);
+ *   marks pushed off the leading edge are removed and the shift can never win.
+ * - "collapse": every mark slides as far as it can in the direction, stacking
+ *   against the leading edge; X marks plough through and remove O marks in their
+ *   path while O marks are blocked by X. Unlike "classic", this can complete a
+ *   line, so the store settles the game after a collapse shift.
+ *
+ * The active mode is chosen server-side (see `lib/gameConfig.ts`) and recorded
+ * on each shift action, so it only governs *new* shifts and never rewrites
+ * history - replays and completed-game rebuilds always use the mode the shift
+ * was actually played with.
+ */
+export type ShiftMode = "classic" | "collapse";
+export const SHIFT_MODES: readonly ShiftMode[] = ["classic", "collapse"];
+
+/** Mode used for shift actions recorded before the POC variant existed. */
+export const DEFAULT_SHIFT_MODE: ShiftMode = "classic";
+
+/**
  * One turn's action. Players alternate strictly - X takes the even-indexed
  * actions, O the odd ones - and on a turn a player either places a mark or, as
  * O's once-per-game option, shifts the whole grid (which uses up the turn
- * instead of placing). The ordered action list is a game's single source of
- * truth, so replaying any prefix of it rebuilds the board exactly.
+ * instead of placing). A shift carries the `mode` it was played with (absent on
+ * legacy actions, which default to "classic"). The ordered action list is a
+ * game's single source of truth, so replaying any prefix of it rebuilds the
+ * board exactly.
  */
 export type GameAction =
   | { kind: "place"; index: number }
-  | { kind: "shift"; dir: Direction };
+  | { kind: "shift"; dir: Direction; mode?: ShiftMode };
 
 export interface WinnerResult {
   winner: Player;
@@ -73,12 +95,11 @@ export function otherPlayer(player: Player): Player {
 }
 
 /**
- * Slide the whole grid one cell in `direction`. Any marks pushed off the leading
- * edge are removed and the trailing edge comes in empty; the dimensions are
- * unchanged. Returns a fresh board; the input is not mutated. This is O's
- * once-per-game shift action.
+ * Slide the whole grid one cell in `direction` ("classic" shift). Any marks
+ * pushed off the leading edge are removed and the trailing edge comes in empty;
+ * the dimensions are unchanged. Returns a fresh board; the input is not mutated.
  */
-export function shiftBoard(board: Board, direction: Direction): Board {
+function shiftBoardClassic(board: Board, direction: Direction): Board {
   const size = INITIAL_SIZE;
   const next: Board = Array(size * size).fill(null);
   for (let r = 0; r < size; r++) {
@@ -99,6 +120,78 @@ export function shiftBoard(board: Board, direction: Direction): Board {
 }
 
 /**
+ * Collapse one line of cells toward its END (highest index). Each mark slides as
+ * far as it can: it passes through empty cells, and an X ploughs through (and
+ * removes) any O ahead of it, while an O is blocked by an X and a mark of either
+ * kind is blocked by its own kind. Processing from the leading edge inward keeps
+ * already-settled marks fixed, so order-of-resolution is well defined.
+ */
+function collapseLineTowardEnd(line: Cell[]): Cell[] {
+  const n = line.length;
+  const result: Cell[] = Array(n).fill(null);
+  for (let i = n - 1; i >= 0; i--) {
+    const mark = line[i];
+    if (mark === null) continue;
+    let pos = i;
+    while (pos + 1 < n) {
+      const ahead = result[pos + 1];
+      if (ahead === null) {
+        pos += 1; // glide across empty space
+      } else if (mark === "X" && ahead === "O") {
+        result[pos + 1] = null; // X captures the O in its path and rolls on
+        pos += 1;
+      } else {
+        break; // stopped by a same-kind mark, or O halted by an X
+      }
+    }
+    result[pos] = mark;
+  }
+  return result;
+}
+
+/**
+ * "Collapse" shift: instead of translating by one cell, every mark slides all
+ * the way to the leading edge in `direction`, stacking up and resolving
+ * collisions per `collapseLineTowardEnd`. Returns a fresh board; the input is
+ * not mutated.
+ */
+function shiftBoardCollapse(board: Board, direction: Direction): Board {
+  const size = INITIAL_SIZE;
+  const next: Board = Array(size * size).fill(null);
+  const horizontal = direction === "left" || direction === "right";
+  const towardEnd = direction === "right" || direction === "bottom";
+  for (let i = 0; i < size; i++) {
+    // The flat indices of line i (a row when shifting left/right, a column when
+    // shifting up/down), oriented so the shift always moves toward the end.
+    const indices: number[] = [];
+    for (let j = 0; j < size; j++) {
+      indices.push(horizontal ? i * size + j : j * size + i);
+    }
+    const order = towardEnd ? indices : indices.slice().reverse();
+    const collapsed = collapseLineTowardEnd(order.map((k) => board[k]));
+    order.forEach((k, p) => {
+      next[k] = collapsed[p];
+    });
+  }
+  return next;
+}
+
+/**
+ * Slide the whole grid in `direction` using the given shift `mode`. This is O's
+ * once-per-game shift action; see `ShiftMode` for how the variants differ.
+ * Returns a fresh board; the input is not mutated.
+ */
+export function shiftBoard(
+  board: Board,
+  direction: Direction,
+  mode: ShiftMode = DEFAULT_SHIFT_MODE,
+): Board {
+  return mode === "collapse"
+    ? shiftBoardCollapse(board, direction)
+    : shiftBoardClassic(board, direction);
+}
+
+/**
  * Reconstruct a game's board after its first `count` actions. Players alternate
  * strictly (X takes the even-indexed actions, O the odd ones); each action
  * either places that player's mark or applies O's whole-grid shift. The board is
@@ -115,7 +208,7 @@ export function boardAfterActions(
     if (action.kind === "place") {
       board[action.index] = i % 2 === 0 ? "X" : "O";
     } else {
-      board = shiftBoard(board, action.dir);
+      board = shiftBoard(board, action.dir, action.mode ?? DEFAULT_SHIFT_MODE);
     }
   }
   return board;
@@ -234,6 +327,7 @@ export function chooseAiAction(
   board: Board,
   aiPlayer: Player,
   canShift: boolean,
+  shiftMode: ShiftMode = DEFAULT_SHIFT_MODE,
 ): GameAction | null {
   const me = aiPlayer;
   const opponent = otherPlayer(me);
@@ -254,9 +348,11 @@ export function chooseAiAction(
   const placeMyThreats = immediateThreats(placedBoard, me);
   const placeOppThreats = immediateThreats(placedBoard, opponent);
 
+  // Evaluate (and later record) each shift under the active mode so the AI
+  // weighs the same outcome the human would get.
   let bestShift: { dir: Direction; board: Board; score: number } | null = null;
   for (const dir of DIRECTIONS) {
-    const shifted = shiftBoard(board, dir);
+    const shifted = shiftBoard(board, dir, shiftMode);
     const score = value(shifted);
     if (!bestShift || score > bestShift.score) {
       bestShift = { dir, board: shifted, score };
@@ -269,7 +365,7 @@ export function chooseAiAction(
     (immediateThreats(bestShift.board, me) > placeMyThreats ||
       immediateThreats(bestShift.board, opponent) < placeOppThreats);
   if (bestShift.score > placeScore || tiedButUseful) {
-    best = { kind: "shift", dir: bestShift.dir };
+    best = { kind: "shift", dir: bestShift.dir, mode: shiftMode };
   }
   return best;
 }

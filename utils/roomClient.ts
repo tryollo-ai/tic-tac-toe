@@ -1,4 +1,4 @@
-import type { Direction } from "@/utils/gameLogic";
+import type { Direction, ShiftMode } from "@/utils/gameLogic";
 import type {
   CompletedGameSummary,
   CompletedGameView,
@@ -145,6 +145,20 @@ export function shiftRoom(
   direction: Direction,
 ): Promise<RoomView> {
   return sendJson(`/api/rooms/${id}/shift`, "POST", { playerId, direction });
+}
+
+/** Read the internal POC game config (currently just the active shift mode). */
+export function fetchGameConfig(signal?: AbortSignal): Promise<ShiftMode> {
+  return getJson<ShiftMode>("/api/internal/game-config", "shiftMode", signal);
+}
+
+/** Set the active shift mode for new shifts, returning the persisted value. */
+export function setGameShiftMode(mode: ShiftMode): Promise<ShiftMode> {
+  return fetch("/api/internal/game-config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shiftMode: mode }),
+  }).then((res) => readField<ShiftMode>(res, "shiftMode"));
 }
 
 export function fetchCompletedGames(

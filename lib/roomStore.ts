@@ -5,6 +5,7 @@ import type {
   Room as RoomRow,
 } from "@prisma/client";
 import { AI_SEAT, INITIAL_SIZE } from "@/constants/game";
+import { getShiftMode } from "@/lib/gameConfig";
 import prisma from "@/lib/prisma";
 import {
   boardAfterActions,
@@ -16,6 +17,7 @@ import {
   type Board,
   type Direction,
   type Player,
+  type ShiftMode,
 } from "@/utils/gameLogic";
 import {
   type CompletedGame,
@@ -245,12 +247,13 @@ function runAiTurn(room: Room, archive: Archive): void {
 
   // Only O ever has the once-per-game grid shift.
   const canShift = seat === "O" && !room.oShiftUsed;
-  const action = chooseAiAction(room.board, seat, canShift);
+  const action = chooseAiAction(room.board, seat, canShift, getShiftMode());
   if (!action) return;
 
   if (action.kind === "shift") {
-    applyShift(room, action.dir);
+    applyShift(room, action.dir, action.mode ?? getShiftMode());
     room.oShiftUsed = true;
+    if (settle(room, archive)) return; // a collapse shift can end the game
     room.xIsNext = true; // the shift was O's whole turn; X plays next
   } else {
     room.board[action.index] = seat;
@@ -260,10 +263,13 @@ function runAiTurn(room: Room, archive: Archive): void {
   }
 }
 
-/** Slide the grid in place in the given direction, recording it for replay. */
-function applyShift(room: Room, direction: Direction): void {
-  room.board = shiftBoard(room.board, direction);
-  room.actions.push({ kind: "shift", dir: direction });
+/**
+ * Slide the grid in place in the given direction and mode, recording the shift
+ * (with its mode) for faithful replay.
+ */
+function applyShift(room: Room, direction: Direction, mode: ShiftMode): void {
+  room.board = shiftBoard(room.board, direction, mode);
+  room.actions.push({ kind: "shift", dir: direction, mode });
 }
 
 /**
@@ -571,9 +577,11 @@ export async function makeMove(
 }
 
 /**
- * Apply O's one-time whole-grid shift. Shifting is an alternative to placing a
- * mark and uses up O's turn, so only O may call it, only on O's turn, and only
- * once per game. A shift can never complete a line, so play simply passes to X.
+ * Apply O's one-time whole-grid shift, using the server's active shift mode.
+ * Shifting is an alternative to placing a mark and uses up O's turn, so only O
+ * may call it, only on O's turn, and only once per game. A "classic" shift can
+ * never complete a line and play simply passes to X; a "collapse" shift can, so
+ * the round is settled first and the turn only passes when the game continues.
  */
 export async function shiftBoardAction(
   id: string,
@@ -594,10 +602,12 @@ export async function shiftBoardAction(
       return { ok: false, error: "shift-used" };
     }
 
-    applyShift(room, direction);
+    applyShift(room, direction, getShiftMode());
     room.oShiftUsed = true;
-    room.xIsNext = true; // the shift was O's whole turn; X plays next
-    runAiTurn(room, archive); // AI X replies when a human O shifts against it
+    if (!settle(room, archive)) {
+      room.xIsNext = true; // the shift was O's whole turn; X plays next
+      runAiTurn(room, archive); // AI X replies when a human O shifts against it
+    }
     return touched(room);
   });
 }
