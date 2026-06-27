@@ -92,9 +92,20 @@ with `npx prisma ...`, which works regardless of package manager; the equivalent
 Set the **same** `DATABASE_URL` in the Vercel project's environment variables
 (**Project -> Settings -> Environment Variables**, for the Production
 environment) so the deployed app connects to the same Neon database.
-After setting it, run the migrations against that database once with
-`npx prisma migrate deploy` (it is safe to re-run; already-applied migrations are
-skipped).
+
+Migrations are applied automatically on every production deploy: the `build`
+script checks `$VERCEL_ENV` and runs `prisma migrate deploy` before `next build`
+when deploying to production, so each Vercel production build first applies any
+pending migrations against `DATABASE_URL` before building the app. Preview and
+development builds skip the migration step and go straight to `next build`.
+This keeps the database schema in lockstep with the deployed code - a committed
+migration can never be left unapplied (which would surface as Prisma `P2022`
+"column does not exist" errors at runtime). `prisma migrate deploy` is
+non-interactive and idempotent, so re-running it on an up-to-date database is a
+no-op.
+
+You can still run `npx prisma migrate deploy` (`yarn db:migrate`) by hand against
+the production database if you ever need to apply migrations out of band.
 
 ## Changing the schema (for contributors)
 
@@ -107,4 +118,6 @@ npx prisma migrate dev --name <change_name>
 
 (equivalently: `yarn db:migrate:dev`.)
 Commit the generated `prisma/migrations/<timestamp>_<change_name>/` directory.
-Then `npx prisma migrate deploy` (`yarn db:migrate`) rolls it out everywhere.
+Once it lands on `main`, the production deploy's `build` step applies it
+automatically (`prisma migrate deploy && next build`); locally, `yarn db:migrate`
+rolls it out on demand.
