@@ -161,7 +161,9 @@ export function fetchCompletedGames(
 
 export function fetchCompletedGame(
   id: string,
+  playerId: string,
   signal?: AbortSignal,
 ): Promise<CompletedGameView> {
-  return getJson<CompletedGameView>(`/api/completed/${id}`, "game", signal);
+  const query = `?playerId=${encodeURIComponent(playerId)}`;
+  return getJson<CompletedGameView>(`/api/completed/${id}${query}`, "game", signal);
 }
