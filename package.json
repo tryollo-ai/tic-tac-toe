@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "yarn@1.22.21",
   "scripts": {
-    "build": "prisma migrate deploy && next build",
+    "build": "[ \"$VERCEL_ENV\" = \"production\" ] && prisma migrate deploy; next build",
     "start": "next dev",
     "lint": "next lint",
     "test": "vitest run",
