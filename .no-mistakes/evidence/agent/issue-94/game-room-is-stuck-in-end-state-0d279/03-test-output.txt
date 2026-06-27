@@ -1,0 +1,7 @@
+ ✓ lib/roomStore.test.ts > auto-resetting a stuck finished game on seat claim > starts a fresh round when a player takes a seat in a finished room 84ms
+ ✓ lib/roomStore.test.ts > auto-resetting a stuck finished game on seat claim > does not reset when one player is still seated in the finished room 85ms
+ ✓ lib/roomStore.test.ts > auto-resetting a stuck finished game on seat claim > leaves an in-progress game untouched when a seat is claimed 30ms
+
+ Test Files  11 passed (11)
+      Tests  162 passed (162)
+   Duration  4.91s

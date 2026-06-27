@@ -17,6 +17,7 @@ Store invariants:
 - Every read-modify-write is row-locked, so per-room mutations are serialized; a finished game is scored and archived in the same transaction, capturing the seat holders so each game is permanently attributed to its participants.
 - `status` and `winningLine` are derived at serialization, never stored.
 - Domain types use epoch-ms numbers; conversion to/from Postgres `timestamptz` happens only at the store boundary.
+- **Round-reset ownership**: the primary reset path is client-side (a `setTimeout` a few seconds after a game ends, while both players are still seated). `claimSeat` contains a server-side fallback: if both seats were vacant and the game is already over when a player claims a seat, `claimSeat` starts a fresh round in the same transaction. This prevents a room from staying permanently stuck in a finished state when all players left before the client timer fired. An in-progress game is never touched by this fallback; running scores are preserved across both reset paths.
 
 Game rules (not plain tic-tac-toe):
 - Player O has one once-per-game **shift** that slides the whole grid one cell (marks pushed off the edge are removed). It consumes O's turn instead of placing and can never complete a line, so it never wins. This is deliberate balance for X's first-move edge advantage.
