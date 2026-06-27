@@ -5,12 +5,113 @@
 .root {
   --board-col: 380px;
 
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 14px;
   width: 100%;
   max-width: var(--board-col);
   margin: 0 auto;
+}
+
+// Total time the "new round" banner is mounted: the full pop-in / hold / fade-out
+// run below. RoomGame reads it back (via :export) to unmount the banner once the
+// animation has finished.
+$round-announce-raw: 2600;
+$round-announce-ms: $round-announce-raw * 1ms;
+
+:export {
+  roundAnnouncementMs: $round-announce-raw;
+}
+
+// A round starts when the previous game is reset, which swaps the two players'
+// seats. This banner flashes over the board to make that changeover obvious: it
+// pops in, holds, then fades out, announcing whether the local player now moves
+// first (X) or second (O). It is purely an overlay, so it never intercepts clicks
+// on the board beneath it.
+.roundBanner {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 22px;
+  text-align: center;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: roundBannerPop $round-announce-ms ease both;
+}
+
+.roundBannerKicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.roundBannerSeat {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.roundBannerSeatX {
+  color: var(--x-color);
+}
+
+.roundBannerSeatO {
+  color: var(--o-color);
+}
+
+@keyframes roundBannerPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.82);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  18% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+
+// Reduced motion: skip the pop/scale and just hold the banner, letting opacity
+// carry it in and out (mirrors the board/arrow reduced-motion handling below).
+@media (prefers-reduced-motion: reduce) {
+  .roundBanner {
+    animation-name: roundBannerFade;
+  }
+
+  @keyframes roundBannerFade {
+    0% {
+      opacity: 0;
+    }
+    10%,
+    82% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
 }
 
 .seatBar {

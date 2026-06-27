@@ -20,7 +20,8 @@ Store invariants:
 
 Game rules (not plain tic-tac-toe):
 - Player O has one once-per-game **shift** that slides the whole grid one cell (marks pushed off the edge are removed). It consumes O's turn instead of placing and can never complete a line, so it never wins. This is deliberate balance for X's first-move edge advantage.
-- When changing the rules, keep the win check, the shift, and the store's turn state machine in sync.
+- After each completed game in a two-player room, `resetGame` calls `swapSeats` to exchange the X and O seat holders (and their heartbeats and accumulated scores), so the first-move advantage alternates each round. AI rooms are excluded — O is permanently the computer and the AI turn logic is keyed to the O seat.
+- When changing the rules, keep the win check, the shift, the seat swap, and the store's turn state machine in sync.
 
 History & replay:
 - Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. Per-action labels come from `utils/historyLabels.ts`; reuse it. Use `describeAction` for the compact history-panel label (player + short move) and `actionSentence` for the full-sentence replay caption ("X marked center" / "O shifted the grid left").

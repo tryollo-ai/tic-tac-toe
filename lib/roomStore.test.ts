@@ -299,6 +299,43 @@ describe("scoring and completed-game archival on settle", () => {
     expect(room?.actions).toHaveLength(0);
     expect(room?.xIsNext).toBe(true);
   });
+
+  it("resetGame swaps the two players' seats so they alternate going first", async () => {
+    const { id } = await seatedRoom(); // PX in X, PO in O
+
+    // PX (X) wins the top row so the round is scored before the reset.
+    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+    expect((await makeMove(id, 3, PO)).ok).toBe(true);
+    expect((await makeMove(id, 1, PX)).ok).toBe(true);
+    expect((await makeMove(id, 5, PO)).ok).toBe(true);
+    expect((await makeMove(id, 2, PX)).ok).toBe(true); // X wins
+
+    expect((await resetGame(id, PX)).ok).toBe(true);
+
+    const room = await getRoom(id);
+    // The seats are swapped: PO now moves first as X, PX plays O.
+    expect(room?.seats).toEqual({ X: PO, O: PX });
+    // The scores swap alongside the seats so each tally still follows its player:
+    // PX's win is now recorded under the O seat it currently holds.
+    expect(room?.scores).toEqual({ X: 0, O: 1, draws: 0 });
+    expect(room?.xIsNext).toBe(true);
+
+    // PO, now in the X seat, makes the opening move of the new round.
+    expect((await makeMove(id, 4, PO)).ok).toBe(true);
+    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+  });
+
+  it("resetGame keeps O as the AI in AI rooms (no seat swap)", async () => {
+    const created = await createRoom("ai room", "ai");
+    if (!created.ok) throw new Error("room creation failed");
+    const id = created.room.id;
+    expect((await claimSeat(id, "X", PX)).ok).toBe(true);
+
+    expect((await resetGame(id, PX)).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seats).toEqual({ X: PX, O: AI_SEAT });
+  });
 });
 
 describe("seat TTL sweeping", () => {

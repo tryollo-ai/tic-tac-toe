@@ -266,6 +266,20 @@ function applyShift(room: Room, direction: Direction): void {
   room.actions.push({ kind: "shift", dir: direction });
 }
 
+/**
+ * Swap the X and O seat holders (and their heartbeats) so the two players
+ * alternate which mark they play - and therefore who moves first - on each new
+ * round. The scores swap alongside them so each tally keeps following its player
+ * across the seat change rather than the mark. A no-op in AI mode, where the
+ * human keeps the side they chose and the AI keeps the opposite seat.
+ */
+function swapSeats(room: Room): void {
+  if (room.mode === "ai") return;
+  [room.seats.X, room.seats.O] = [room.seats.O, room.seats.X];
+  [room.seatSeen.X, room.seatSeen.O] = [room.seatSeen.O, room.seatSeen.X];
+  [room.scores.X, room.scores.O] = [room.scores.O, room.scores.X];
+}
+
 /** Stamp the room's activity and return a success result. */
 function touched(room: Room): StoreResult {
   room.lastActivity = now();
@@ -597,10 +611,14 @@ export async function resetGame(
     if (room.seats.X !== playerId && room.seats.O !== playerId) {
       return { ok: false, error: "not-participant" };
     }
+    const roundFinished = isGameOver(room.board);
     room.board = EMPTY_BOARD.slice();
     room.actions = [];
     room.xIsNext = true;
     room.oShiftUsed = false;
+    // Alternate who moves first each round by swapping the two players' seats
+    // (a no-op in AI rooms, where the human keeps the side they chose).
+    if (roundFinished) swapSeats(room);
     runAiTurn(room, archive); // if the AI holds X, it opens the fresh game
     return touched(room);
   });

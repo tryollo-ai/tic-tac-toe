@@ -82,6 +82,12 @@ const ACTIVE_POLL_MS = 1500;
 
 const SHIFT_ANIMATION_MS = Number(squareStyles.shiftSlideMs);
 
+/**
+ * How long the "new round" banner stays on screen after a reset before fading
+ * out. Matches the total of its CSS pop-in/hold/fade-out animation.
+ */
+const ROUND_ANNOUNCEMENT_MS = Number(styles.roundAnnouncementMs);
+
 /** Map a thrown error to a known room-error message, or the given fallback. */
 function roomErrorMessage(err: unknown, fallback: string): string {
   return ROOM_ERROR_MESSAGES[roomErrorCode(err)] ?? fallback;
@@ -342,6 +348,37 @@ const RoomGame = (props: Props) => {
     return () => clearTimeout(timer);
   }, [shiftAnimation]);
 
+  // Announce the start of each new round. A reset swaps the two players' seats
+  // (see resetGame), so the seat I now hold tells me whether I move first (X) or
+  // second (O). The action log emptying after a played-out game is the signal a
+  // round just began - it fires for both players alike. We capture the new seat
+  // (read live via a ref so the effect can depend only on the count) and flash a
+  // banner with it. The ref seeds on first load so joining mid-game doesn't flash
+  // it, and only a shrink from a non-empty log counts, so the opening round - which
+  // has no swap to announce - stays silent.
+  const [roundAnnouncement, setRoundAnnouncement] = useState<Player | null>(null);
+  const mySeatRef = useRef(mySeat);
+  mySeatRef.current = mySeat;
+  const prevRoundActionsRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (actionCount === null) return;
+    const prev = prevRoundActionsRef.current;
+    prevRoundActionsRef.current = actionCount;
+    if (prev !== null && prev > 0 && actionCount === 0 && mySeatRef.current) {
+      setRoundAnnouncement(mySeatRef.current);
+    }
+  }, [actionCount]);
+
+  // Retire the banner once its animation has played out.
+  useEffect(() => {
+    if (!roundAnnouncement) return;
+    const timer = setTimeout(
+      () => setRoundAnnouncement(null),
+      ROUND_ANNOUNCEMENT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [roundAnnouncement]);
+
   if (notFound) {
     return (
       <RoomNotFound
@@ -396,6 +433,27 @@ const RoomGame = (props: Props) => {
 
   return (
     <div className={styles.root}>
+      {roundAnnouncement && (
+        <div
+          key={roundAnnouncement}
+          className={styles.roundBanner}
+          role="status"
+          aria-live="polite"
+        >
+          <span className={styles.roundBannerKicker}>New round</span>
+          <span
+            className={classNames(styles.roundBannerSeat, {
+              [styles.roundBannerSeatX]: roundAnnouncement === "X",
+              [styles.roundBannerSeatO]: roundAnnouncement === "O",
+            })}
+          >
+            {roundAnnouncement === "X"
+              ? "You're going first — X"
+              : "You're going second — O"}
+          </span>
+        </div>
+      )}
+
       <RoomHeader name={room.name} mode={room.mode} />
 
       <Status message={status.message} tone={status.tone} />
