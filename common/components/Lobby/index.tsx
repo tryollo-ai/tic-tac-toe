@@ -326,14 +326,14 @@ const Lobby = () => {
               To balance going second, player O gets one special ability: a
               once-per-game <strong>grid collapse</strong>. On O&apos;s turn,
               instead of placing a mark, O can collapse the whole grid - up,
-              down, left, or right. Every mark slides as far as it can that way
-              and stacks against the leading edge.
+              down, left, or right. Each row or column collapses toward the edge
+              it moves toward.
             </p>
             <p className={styles.howToParagraph}>
-              Collisions are decided by who is moving: an X ploughs through and
-              removes any O in its path, while an O is blocked by an X, and
-              same-kind marks stack against each other. The collapse uses up
-              O&apos;s turn, and because marks can line up, a collapse
+              Reading inward from that edge, the leading run of matching marks is
+              swept off the board and the first mark that differs settles against
+              the edge - the rest of that line is cleared. The collapse uses up
+              O&apos;s turn, and because a mark can line up, a collapse
               <em> can</em> complete three in a row and win on the spot.
             </p>
           </>

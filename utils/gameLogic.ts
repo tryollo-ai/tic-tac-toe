@@ -17,10 +17,11 @@ export const DIRECTIONS: readonly Direction[] = [
  * How O's shift moves the grid (a POC-configurable rule variant):
  * - "classic": rigid translation by exactly one cell (the original behaviour);
  *   marks pushed off the leading edge are removed and the shift can never win.
- * - "collapse": every mark slides as far as it can in the direction, stacking
- *   against the leading edge; X marks plough through and remove O marks in their
- *   path while O marks are blocked by X. Unlike "classic", this can complete a
- *   line, so the store settles the game after a collapse shift.
+ * - "collapse": each line collapses toward the leading edge - reading inward from
+ *   the edge, the leading run of cells matching the edge value is swept off and
+ *   the first cell that differs settles against the edge, clearing the rest of
+ *   the line (a uniform line is left untouched). Unlike "classic", this can
+ *   complete a line, so the store settles the game after a collapse shift.
  *
  * The active mode is chosen server-side (see `lib/gameConfig.ts`) and recorded
  * on each shift action, so it only governs *new* shifts and never rewrites
@@ -120,32 +121,21 @@ function shiftBoardClassic(board: Board, direction: Direction): Board {
 }
 
 /**
- * Collapse one line of cells toward its END (highest index). Each mark slides as
- * far as it can: it passes through empty cells, and an X ploughs through (and
- * removes) any O ahead of it, while an O is blocked by an X and a mark of either
- * kind is blocked by its own kind. Processing from the leading edge inward keeps
- * already-settled marks fixed, so order-of-resolution is well defined.
+ * Collapse one line of cells toward its END (highest index, the leading edge).
+ * Reading inward from the edge, the leading run of cells equal to the edge value
+ * is swept away and the first cell that differs settles against the edge; every
+ * other cell is cleared. A line whose cells are all equal (a full line or an
+ * empty one) is returned unchanged, so an already-formed line is never destroyed.
  */
 function collapseLineTowardEnd(line: Cell[]): Cell[] {
   const n = line.length;
+  const edge = line[n - 1];
+  // Scan inward from the cell behind the edge for the first value that differs.
+  let i = n - 2;
+  while (i >= 0 && line[i] === edge) i -= 1;
+  if (i < 0) return line.slice(); // uniform line: nothing collapses
   const result: Cell[] = Array(n).fill(null);
-  for (let i = n - 1; i >= 0; i--) {
-    const mark = line[i];
-    if (mark === null) continue;
-    let pos = i;
-    while (pos + 1 < n) {
-      const ahead = result[pos + 1];
-      if (ahead === null) {
-        pos += 1; // glide across empty space
-      } else if (mark === "X" && ahead === "O") {
-        result[pos + 1] = null; // X captures the O in its path and rolls on
-        pos += 1;
-      } else {
-        break; // stopped by a same-kind mark, or O halted by an X
-      }
-    }
-    result[pos] = mark;
-  }
+  result[n - 1] = line[i]; // the first differing cell settles against the edge
   return result;
 }
 

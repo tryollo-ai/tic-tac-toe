@@ -148,52 +148,55 @@ describe("shiftBoard", () => {
 });
 
 describe("shiftBoard collapse mode", () => {
-  it("matches the ticket's worked example for a right shift", () => {
-    // x o o        _ _ x
-    // o x o  --->  _ o x   (collapse right)
-    // o x _        _ o x
-    const board: Board = ["X", "O", "O", "O", "X", "O", "O", "X", null];
-    expect(shiftBoard(board, "right", "collapse")).toEqual([
-      null, null, "X",
-      null, "O", "X",
-      null, "O", "X",
+  it("matches the worked example for a left shift", () => {
+    // x x o        o _ _
+    // _ o _  --->  o _ _   (collapse left)
+    // x _ _        _ _ _
+    const board: Board = ["X", "X", "O", null, "O", null, "X", null, null];
+    expect(shiftBoard(board, "left", "collapse")).toEqual([
+      "O", null, null,
+      "O", null, null,
+      null, null, null,
     ]);
   });
 
-  it("slides every mark to the leading edge, not just one cell", () => {
-    // A lone mark in the trailing corner travels the full width/height.
+  it("sweeps the leading run and settles the first differing mark", () => {
+    // O X X shifted right: the run of X at the edge is swept off and the O
+    // settles against the wall.
+    const row: Board = ["O", "X", "X", null, null, null, null, null, null];
+    expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
+      null,
+      null,
+      "O",
+    ]);
+  });
+
+  it("pulls a lone mark across empty space to the leading edge", () => {
+    // A lone mark in the trailing corner travels the full width/height because
+    // the edge is empty and it is the first cell that differs.
     const topLeft = emptyBoard();
     topLeft[0] = "O";
     expect(shiftBoard(topLeft, "right", "collapse")[2]).toBe("O");
     expect(shiftBoard(topLeft, "bottom", "collapse")[6]).toBe("O");
   });
 
-  it("lets X plough through and remove O marks in its path", () => {
-    // X O O on the top row, shifted right: X travels to the wall, removing both
-    // O marks ahead of it on the way.
-    const row: Board = ["X", "O", "O", null, null, null, null, null, null];
+  it("sweeps a mark sitting on the leading edge when the line continues", () => {
+    // _ _ X shifted right: the edge X is swept off and the empty cell behind it
+    // settles, clearing the line.
+    const row: Board = [null, null, "X", null, null, null, null, null, null];
     expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
       null,
       null,
-      "X",
+      null,
     ]);
   });
 
-  it("blocks O behind an X (O cannot capture X)", () => {
-    // O _ X shifted right: X is already at the wall, O stops next to it.
-    const row: Board = ["O", null, "X", null, null, null, null, null, null];
+  it("leaves a uniform line untouched", () => {
+    // O O O shifted right: every cell matches the edge, so nothing collapses and
+    // the existing line is preserved.
+    const row: Board = ["O", "O", "O", null, null, null, null, null, null];
     expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
-      null,
       "O",
-      "X",
-    ]);
-  });
-
-  it("stacks same-kind marks against the leading edge", () => {
-    // O O _ shifted right: both O slide and stack at the right edge.
-    const row: Board = ["O", "O", null, null, null, null, null, null, null];
-    expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
-      null,
       "O",
       "O",
     ]);
@@ -241,9 +244,10 @@ describe("boardAfterActions", () => {
     // Classic: X 0->1, O 1->2 (one cell each).
     expect(classic[1]).toBe("X");
     expect(classic[2]).toBe("O");
-    // Collapse: X ploughs to the wall removing O, so only X survives at 2.
-    expect(collapse[2]).toBe("X");
-    expect(collapse.filter((c) => c === "O")).toHaveLength(0);
+    // Collapse: the empty edge sweeps off the X and settles the O at the wall,
+    // so only O survives at 2.
+    expect(collapse[2]).toBe("O");
+    expect(collapse.filter((c) => c === "X")).toHaveLength(0);
   });
 
   it("returns an empty board for a count of 0", () => {

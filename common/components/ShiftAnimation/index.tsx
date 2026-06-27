@@ -14,7 +14,7 @@ type SceneMark = {
   col: number;
   // Where the mark ends up after the shift fires: a destination column, or how
   // it leaves the board - "fall" (classic: pushed off the leading edge) or
-  // "captured" (collapse: an X ploughed over this O in its path).
+  // "captured" (collapse: swept off as the line collapses against the edge).
   to: number | "fall" | "captured";
 };
 
@@ -39,18 +39,18 @@ const SCENES: Record<ShiftMode, Scene> = {
       { id: "x-br", player: "X", row: 2, col: 2, to: "fall" },
     ],
   },
-  // Collapse: every mark slides as far right as it can and stacks against the
-  // edge. Row 0 shows an X ploughing through (and removing) the O ahead of it;
-  // row 1 shows an O blocked by an X; row 2 shows same-kind marks stacking.
+  // Collapse: each row collapses toward the leading (right) edge - the leading
+  // run of matching cells is swept off and the first cell that differs settles
+  // at the edge. Row 0 sweeps the two X at the edge and lands the trailing O;
+  // row 1 slides a lone O across; row 2 sweeps a lone mark sitting on the edge.
   collapse: {
     caption: "O collapses the grid to the right",
     marks: [
-      { id: "c-x-plough", player: "X", row: 0, col: 0, to: 2 },
-      { id: "c-o-eaten", player: "O", row: 0, col: 2, to: "captured" },
-      { id: "c-o-blocked", player: "O", row: 1, col: 0, to: 1 },
-      { id: "c-x-block", player: "X", row: 1, col: 1, to: 2 },
-      { id: "c-o-stack-a", player: "O", row: 2, col: 0, to: 1 },
-      { id: "c-o-stack-b", player: "O", row: 2, col: 1, to: 2 },
+      { id: "c-o-settle", player: "O", row: 0, col: 0, to: 2 },
+      { id: "c-x-swept-a", player: "X", row: 0, col: 1, to: "captured" },
+      { id: "c-x-swept-b", player: "X", row: 0, col: 2, to: "captured" },
+      { id: "c-o-slide", player: "O", row: 1, col: 1, to: 2 },
+      { id: "c-x-edge", player: "X", row: 2, col: 2, to: "captured" },
     ],
   },
 };
@@ -65,8 +65,9 @@ const HOLD_MS = 1100;
  * Looping, decorative illustration of player O's grid shift, shown at the bottom
  * of the "How to play" dialog. A directional arrow fades in and drifts, then the
  * marks resolve the shift for the active {@link ShiftMode}: in "classic" each
- * mark slides one cell (edge marks fall away), while in "collapse" marks slide
- * all the way to the edge, X ploughs through O, and same-kind marks stack.
+ * mark slides one cell (edge marks fall away), while in "collapse" each line
+ * collapses toward the edge - the leading run of matching marks is swept off and
+ * the first differing mark settles against the edge.
  * Honours `prefers-reduced-motion` by holding the starting board still.
  */
 const ShiftAnimation = ({ mode = DEFAULT_SHIFT_MODE }: { mode?: ShiftMode }) => {
