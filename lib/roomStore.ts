@@ -465,13 +465,17 @@ export async function claimSeat(
       return { ok: false, error: "seat-taken" };
     }
 
+    const otherSeat = seat === "X" ? "O" : "X";
+    const otherSeatWasEmpty = room.seats[otherSeat] === null;
     room.seats[seat] = playerId;
     room.seatSeen[seat] = now();
     // The next round normally auto-resets on a seated player's client, but if
     // everyone left while the result was still on screen the finished game is
     // left persisted with nobody to clear it. Someone returning and taking a
     // seat is exactly that moment, so start a fresh round here as the fallback.
-    if (isGameOver(room.board)) startNewRound(room);
+    // Only trigger when the other seat is also empty — if the other player is
+    // still seated their client timer is already running and owns the reset.
+    if (isGameOver(room.board) && otherSeatWasEmpty) startNewRound(room);
     return touched(room);
   });
 }

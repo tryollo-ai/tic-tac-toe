@@ -308,6 +308,21 @@ describe("auto-resetting a stuck finished game on seat claim", () => {
     expect(reset?.seats.X).toBe(PX);
   });
 
+  it("does not reset when one player is still seated in the finished room", async () => {
+    const { id } = await seatedRoom();
+    await playToDraw(id);
+
+    // Only O leaves; X remains seated with their client timer still running.
+    expect((await leaveSeat(id, PO)).ok).toBe(true);
+
+    // O re-joins the finished room — the other seat (X) is still occupied, so
+    // the server must not reset and cut X's result screen short.
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true);
+    const room = await getRoom(id);
+    expect(room?.board.every((cell) => cell !== null)).toBe(true);
+    expect(room?.scores.draws).toBe(1);
+  });
+
   it("leaves an in-progress game untouched when a seat is claimed", async () => {
     const created = await createRoom("mid-game", "two-player");
     if (!created.ok) throw new Error("room creation failed");
