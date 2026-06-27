@@ -531,7 +531,20 @@ const RoomGame = (props: Props) => {
         </aside>
       </div>
 
-      {gameOver && <p className={styles.nextGame}>Next game starting…</p>}
+      {gameOver && (
+        <div className={styles.nextGame}>
+          <p className={styles.nextGameLabel}>Next game starting…</p>
+          {/* Countdown bar shrinking from full width to 0 over the same delay
+              that schedules the auto-reset, so the wait reads as a visible
+              timer. Duration comes from AUTO_RESET_MS so the two never drift. */}
+          <div className={styles.countdownTrack} aria-hidden="true">
+            <div
+              className={styles.countdownBar}
+              style={{ animationDuration: `${AUTO_RESET_MS}ms` }}
+            />
+          </div>
+        </div>
+      )}
 
       {actionError && <p className={styles.actionError}>{actionError}</p>}
 
