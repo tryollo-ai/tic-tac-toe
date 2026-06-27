@@ -37,8 +37,13 @@ $shift-gap: 10px;
 $shift-slide-raw: 280;
 $shift-slide-ms: $shift-slide-raw * 1ms;
 
+// One-shot drop-in for a freshly placed mark (used by the replay viewer).
+$place-raw: 320;
+$place-ms: $place-raw * 1ms;
+
 :export {
   shiftSlideMs: $shift-slide-raw;
+  placeMs: $place-raw;
 }
 
 .mark {
@@ -63,6 +68,24 @@ $shift-slide-ms: $shift-slide-raw * 1ms;
 
 .slideBottom {
   animation: slideFromTop $shift-slide-ms ease;
+}
+
+.place {
+  animation: dropIn $place-ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes dropIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes slideFromRight {
@@ -93,7 +116,8 @@ $shift-slide-ms: $shift-slide-raw * 1ms;
   .slideLeft,
   .slideRight,
   .slideTop,
-  .slideBottom {
+  .slideBottom,
+  .place {
     animation: none;
   }
 }

@@ -14,6 +14,12 @@ type Props = {
    * renders the mark in place with no motion.
    */
   shiftDirection?: Direction | null;
+  /**
+   * When true, the mark plays a one-shot drop-in animation, used to draw the eye
+   * to the cell just marked (e.g. as the replay steps through moves). Ignored
+   * while a shift is animating so the two motions never fight.
+   */
+  justPlaced?: boolean;
 };
 
 /** Slide-in animation class per shift direction; the mark enters from the source cell. */
@@ -43,7 +49,9 @@ const Square = (props: Props) => {
             styles.mark,
             props.shiftDirection
               ? SHIFT_SLIDE_CLASS[props.shiftDirection]
-              : undefined,
+              : props.justPlaced
+                ? styles.place
+                : undefined,
           )}
         >
           {props.value}

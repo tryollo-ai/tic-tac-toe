@@ -56,6 +56,13 @@ game.
   Archived games can no longer be played, but each one can be replayed turn by
   turn (step forward/back, jump to start/end, or auto-play) on its own
   `/replay/[id]` page.
+  Each forward step is animated: placed marks drop in, and O's grid-shift plays
+  the same sliding-mark animation as the live game, accompanied by a transient
+  directional arrow that sweeps and fades across the board.
+  A caption below the board narrates every move ("X marked center" /
+  "O shifted the grid left") so a shift turn is never mistaken for a skipped move.
+  Jumps and backward steps show the position with no motion; animations and the
+  directional arrow are suppressed under `prefers-reduced-motion`.
   The archive survives the room being reset for a new round, so a single room can
   accumulate a history of games. A finished game auto-resets to a fresh round
   after a short delay (no manual button), with a "Next game starting…" note shown
@@ -115,7 +122,7 @@ utils/gameLogic.ts        # Pure game logic: winner detection, O's whole-grid
 utils/roomClient.ts       # Browser fetch helpers for the room API; `subscribeRoom` opens an SSE stream
 utils/apiHelpers.ts       # Shared request/response helpers for the room API routes
 utils/winningLineGeometry.ts # Pure winning-line overlay geometry (cell-center percentages)
-utils/historyLabels.ts    # Pure move-history labels: player parity + cell/shift names
+utils/historyLabels.ts    # Pure move-history labels: player parity, cell/shift names (`describeAction`), and full-sentence replay captions (`actionSentence`)
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id

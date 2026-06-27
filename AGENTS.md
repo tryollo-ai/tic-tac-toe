@@ -23,7 +23,7 @@ Game rules (not plain tic-tac-toe):
 - When changing the rules, keep the win check, the shift, and the store's turn state machine in sync.
 
 History & replay:
-- Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. Per-action labels come from `utils/historyLabels.ts`; reuse it.
+- Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. Per-action labels come from `utils/historyLabels.ts`; reuse it. Use `describeAction` for the compact history-panel label (player + short move) and `actionSentence` for the full-sentence replay caption ("X marked center" / "O shifted the grid left").
 
 Reuse the shared components rather than duplicating them: `UIDialog` for any modal, `MiniBoard` for board previews, `WinningLine` for the win-line overlay, and `Spinner` for first-fetch loading states (all under `common/components/`). The "How to play" dialog lives on the lobby, not in `RoomGame`.
 

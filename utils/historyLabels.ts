@@ -50,3 +50,16 @@ export function describeAction(action: GameAction, index: number): ActionSummary
       : `shift ${SHIFT_WORDS[action.dir]}`;
   return { player, move };
 }
+
+/**
+ * A full-sentence narration of the action at `index`, for the replay's per-move
+ * caption: e.g. "X marked center" for a placement, or "O shifted the grid down"
+ * for O's whole-grid shift - the latter spelled out so a shift turn never reads
+ * as a no-op.
+ */
+export function actionSentence(action: GameAction, index: number): string {
+  const player: Player = index % 2 === 0 ? "X" : "O";
+  return action.kind === "place"
+    ? `${player} marked ${cellName(action.index)}`
+    : `${player} shifted the grid ${SHIFT_WORDS[action.dir]}`;
+}

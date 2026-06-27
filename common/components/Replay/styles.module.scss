@@ -22,6 +22,100 @@
   font-variant-numeric: tabular-nums;
 }
 
+// A one-word-shorter-than-a-sentence narration of the move just shown. Reserves
+// a line of height so the layout doesn't jump as the caption changes per move.
+.moveCaption {
+  margin: 0;
+  min-height: 1.25rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+// O's grid shift is easy to miss, so its caption is called out in O's colour.
+.moveCaptionShift {
+  color: var(--o-color);
+  font-weight: 800;
+}
+
+// Positioning context for the transient shift arrow overlaid on the board.
+.boardWrap {
+  position: relative;
+}
+
+// How long the directional arrow sweeps and fades; mirrored in TS as
+// SHIFT_ANIMATION_MS to time when the cue is cleared.
+$shift-arrow-raw: 620;
+$shift-arrow-ms: $shift-arrow-raw * 1ms;
+
+:export {
+  shiftArrowMs: $shift-arrow-raw;
+}
+
+// The arrow centres over the board and points in the shift direction (the icon
+// faces right; each direction class rotates it). It sweeps in that direction and
+// fades, cueing the whole-grid slide happening beneath it.
+.shiftArrow {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--accent);
+  z-index: 2;
+}
+
+.arrowRight {
+  transform: rotate(0deg);
+}
+
+.arrowLeft {
+  transform: rotate(180deg);
+}
+
+.arrowTop {
+  transform: rotate(-90deg);
+}
+
+.arrowBottom {
+  transform: rotate(90deg);
+}
+
+.shiftArrowIcon {
+  width: clamp(3rem, 22vw, 4.5rem);
+  height: clamp(3rem, 22vw, 4.5rem);
+  filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.5));
+  // translateX runs along the (rotated) arrow's pointing direction, so one
+  // keyframe set serves all four directions.
+  animation: shiftArrowSweep $shift-arrow-ms ease forwards;
+}
+
+@keyframes shiftArrowSweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-35%);
+  }
+  30% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.95;
+    transform: translateX(30%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(45%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shiftArrow {
+    display: none;
+  }
+}
+
 .controls {
   display: flex;
   align-items: center;
