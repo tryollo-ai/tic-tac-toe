@@ -93,9 +93,11 @@ Set the **same** `DATABASE_URL` in the Vercel project's environment variables
 (**Project -> Settings -> Environment Variables**, for the Production
 environment) so the deployed app connects to the same Neon database.
 
-Migrations are applied automatically on every deploy: the `build` script runs
-`prisma migrate deploy && next build`, so each Vercel production build first
-applies any pending migrations against `DATABASE_URL` before building the app.
+Migrations are applied automatically on every production deploy: the `build`
+script checks `$VERCEL_ENV` and runs `prisma migrate deploy` before `next build`
+when deploying to production, so each Vercel production build first applies any
+pending migrations against `DATABASE_URL` before building the app. Preview and
+development builds skip the migration step and go straight to `next build`.
 This keeps the database schema in lockstep with the deployed code - a committed
 migration can never be left unapplied (which would surface as Prisma `P2022`
 "column does not exist" errors at runtime). `prisma migrate deploy` is
