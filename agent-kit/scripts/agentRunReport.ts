@@ -25,15 +25,47 @@ export type ContentBlock = {
   input?: Record<string, unknown>;
 };
 
+/** The token-accounting block claude attaches to a message / the result event.
+ * Field names follow the Anthropic usage shape; every field is optional because
+ * a partial or malformed event may carry only some of them. */
+export type Usage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
+
+/** Per-model totals claude reports on the final `result` event under
+ * `modelUsage` (camelCase, unlike the per-message `usage` above). Optional
+ * throughout for the same defensive reason. */
+export type ModelUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  costUSD?: number;
+};
+
 /** One entry in the execution_file array. Only the fields we read are typed. */
 export type RunEvent = {
   type?: string;
   subtype?: string;
   /** The final summary text, present on the `result` event. */
   result?: string;
+  /** Wall-clock turns claude took; present on the `result` event. */
+  num_turns?: number;
+  /** Total billed cost in USD; present on the `result` event. */
+  total_cost_usd?: number;
+  /** Token counts. On the `result` event this is the run total; on an
+   * `assistant` event it is that turn's usage. */
+  usage?: Usage;
+  /** Per-model token + cost totals, present on the `result` event. */
+  modelUsage?: Record<string, ModelUsage>;
   message?: {
     role?: string;
     content?: ContentBlock[] | string;
+    /** Per-turn usage also rides on the assistant message itself. */
+    usage?: Usage;
   };
 };
 
@@ -134,6 +166,155 @@ export const formatStreamLines = (event: RunEvent): string[] => {
   }
 
   return lines;
+};
+
+/** A run's token-and-cost totals, distilled from the events for logging. All
+ * counts default to 0 so a partial run still produces a coherent report. */
+export type UsageSummary = {
+  /** Fresh prompt tokens billed at full input rate. */
+  inputTokens: number;
+  /** Generated tokens. */
+  outputTokens: number;
+  /** Tokens written into the prompt cache (billed at the write rate). */
+  cacheCreationTokens: number;
+  /** Tokens served from the prompt cache (billed at the cheap read rate, but
+   * by far the largest count on a long agentic run - re-reading the whole
+   * context every turn is where the apparent token volume comes from). */
+  cacheReadTokens: number;
+  /** Reported total billed cost in USD, or null when the run never reported one. */
+  totalCostUsd: number | null;
+  /** Turns claude took, or null when not reported. */
+  numTurns: number | null;
+  /** Per-model breakdown from the result event's `modelUsage`, empty when absent. */
+  perModel: Array<{ model: string; usage: ModelUsage }>;
+};
+
+const num = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+/** Every token count a usage block carries, summed - the single number that
+ * best captures "how much context moved through the model" on a turn/run. */
+export const totalTokens = (usage: Usage | undefined): number =>
+  num(usage?.input_tokens) +
+  num(usage?.output_tokens) +
+  num(usage?.cache_creation_input_tokens) +
+  num(usage?.cache_read_input_tokens);
+
+/**
+ * Pull a run's token + cost totals from its events. Prefers the final `result`
+ * event (claude reports the authoritative run totals there); if the run died
+ * before emitting one, falls back to summing the per-turn usage on each
+ * assistant event so a timed-out run still yields a meaningful breakdown.
+ * Never throws on a partial/malformed stream - missing fields read as 0/null.
+ */
+export const extractUsage = (events: RunEvent[]): UsageSummary => {
+  const result = [...events]
+    .reverse()
+    .find((event) => event.type === "result");
+
+  if (result) {
+    const usage = result.usage ?? {};
+    const perModel = Object.entries(result.modelUsage ?? {}).map(
+      ([model, usage]) => ({ model, usage }),
+    );
+    return {
+      inputTokens: num(usage.input_tokens),
+      outputTokens: num(usage.output_tokens),
+      cacheCreationTokens: num(usage.cache_creation_input_tokens),
+      cacheReadTokens: num(usage.cache_read_input_tokens),
+      totalCostUsd:
+        typeof result.total_cost_usd === "number" ? result.total_cost_usd : null,
+      numTurns: typeof result.num_turns === "number" ? result.num_turns : null,
+      perModel,
+    };
+  }
+
+  // No result event (killed/timed-out run): aggregate the per-turn usage that
+  // rides on each assistant message instead, so the report is still useful.
+  const summary: UsageSummary = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    totalCostUsd: null,
+    numTurns: null,
+    perModel: [],
+  };
+  let turns = 0;
+  for (const event of events) {
+    if (event.type !== "assistant") continue;
+    turns += 1;
+    const usage = event.usage ?? event.message?.usage;
+    if (!usage) continue;
+    summary.inputTokens += num(usage.input_tokens);
+    summary.outputTokens += num(usage.output_tokens);
+    summary.cacheCreationTokens += num(usage.cache_creation_input_tokens);
+    summary.cacheReadTokens += num(usage.cache_read_input_tokens);
+  }
+  if (turns > 0) summary.numTurns = turns;
+  return summary;
+};
+
+/** Group US digits with thousands separators without locale surprises. */
+const grouped = (n: number): string =>
+  Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+/**
+ * Render a run's token usage as a compact markdown table for the job's Summary
+ * tab - the per-run telemetry that answers "where is the token cost going?".
+ * Leads with the total token volume and cost, then the input/output/cache split
+ * (cache reads dominate a long agentic run), then a per-model breakdown when
+ * claude reported one. Pure and defensive: an all-zero summary still renders.
+ */
+export const formatUsageReport = (summary: UsageSummary): string => {
+  const total =
+    summary.inputTokens +
+    summary.outputTokens +
+    summary.cacheCreationTokens +
+    summary.cacheReadTokens;
+
+  const lines: string[] = [];
+  lines.push("| Metric | Value |");
+  lines.push("| --- | ---: |");
+  lines.push(`| Total tokens | ${grouped(total)} |`);
+  lines.push(`| Input (uncached) | ${grouped(summary.inputTokens)} |`);
+  lines.push(`| Output | ${grouped(summary.outputTokens)} |`);
+  lines.push(`| Cache writes | ${grouped(summary.cacheCreationTokens)} |`);
+  lines.push(`| Cache reads | ${grouped(summary.cacheReadTokens)} |`);
+  if (summary.numTurns !== null) {
+    lines.push(`| Turns | ${grouped(summary.numTurns)} |`);
+    if (summary.numTurns > 0) {
+      lines.push(`| Avg tokens / turn | ${grouped(total / summary.numTurns)} |`);
+    }
+  }
+  if (summary.totalCostUsd !== null) {
+    lines.push(`| Reported cost (USD) | $${summary.totalCostUsd.toFixed(4)} |`);
+  }
+
+  let report = lines.join("\n");
+
+  if (summary.perModel.length > 0) {
+    const modelLines: string[] = [
+      "",
+      "Per model:",
+      "",
+      "| Model | Input | Output | Cache write | Cache read | Cost (USD) |",
+      "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ];
+    for (const { model, usage } of summary.perModel) {
+      const cost =
+        typeof usage.costUSD === "number" ? `$${usage.costUSD.toFixed(4)}` : "-";
+      modelLines.push(
+        `| ${model} | ${grouped(num(usage.inputTokens))} | ` +
+          `${grouped(num(usage.outputTokens))} | ` +
+          `${grouped(num(usage.cacheCreationInputTokens))} | ` +
+          `${grouped(num(usage.cacheReadInputTokens))} | ${cost} |`,
+      );
+    }
+    report += `\n${modelLines.join("\n")}`;
+  }
+
+  return report;
 };
 
 /**
