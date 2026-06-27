@@ -3,6 +3,7 @@ import {
   claimSeat,
   createRoom,
   getRoom,
+  leaveSeat,
   listCompletedGames,
   listRooms,
   makeMove,
@@ -177,13 +178,23 @@ describe("shiftBoardAction validation", () => {
   });
 });
 
-describe("AI follow-up inside makeMove", () => {
-  it("plays O's reply server-side and hands the turn back to the human", async () => {
+describe("AI seating and follow-up", () => {
+  it("opens an AI room with both seats free until the human picks a side", async () => {
+    const created = await createRoom("ai room", "ai");
+    if (!created.ok) throw new Error("room creation failed");
+    // Neither seat is pre-assigned; the human chooses on claim.
+    expect(created.room.seats).toEqual({ X: null, O: null });
+  });
+
+  it("seats the AI opposite a human who plays X and replies as O", async () => {
     const created = await createRoom("ai room", "ai");
     if (!created.ok) throw new Error("room creation failed");
     const id = created.room.id;
-    expect(created.room.seats.O).toBe(AI_SEAT); // O is the computer
     expect((await claimSeat(id, "X", PX)).ok).toBe(true);
+
+    const seated = await getRoom(id);
+    expect(seated?.seats.O).toBe(AI_SEAT); // AI took the open seat
+    expect(seated?.xIsNext).toBe(true); // human X opens, AI has not moved yet
 
     // X plays the center; the AI must reply within the same call.
     expect((await makeMove(id, 4, PX)).ok).toBe(true);
@@ -194,6 +205,37 @@ describe("AI follow-up inside makeMove", () => {
     expect(room?.actions[1]?.kind).toBe("place");
     expect(room?.board[4]).toBe("X");
     expect(room?.board.filter((cell) => cell === "O")).toHaveLength(1);
+  });
+
+  it("seats the AI as X and opens the game when the human plays O", async () => {
+    const created = await createRoom("ai room", "ai");
+    if (!created.ok) throw new Error("room creation failed");
+    const id = created.room.id;
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seats.X).toBe(AI_SEAT); // AI took the open seat
+    expect(room?.xIsNext).toBe(false); // AI X has already opened; O to move
+    expect(room?.actions).toHaveLength(1); // the AI's opening placement
+    expect(room?.board.filter((cell) => cell === "X")).toHaveLength(1);
+  });
+
+  it("frees the AI seat and resets when the human leaves, so a side is re-choosable", async () => {
+    const created = await createRoom("ai room", "ai");
+    if (!created.ok) throw new Error("room creation failed");
+    const id = created.room.id;
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true);
+    expect((await leaveSeat(id, PO)).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seats).toEqual({ X: null, O: null });
+    expect(room?.actions).toHaveLength(0);
+    expect(room?.board.every((cell) => cell === null)).toBe(true);
+
+    // The next player can now take the other side.
+    expect((await claimSeat(id, "X", PX)).ok).toBe(true);
+    const after = await getRoom(id);
+    expect(after?.seats.O).toBe(AI_SEAT);
   });
 });
 

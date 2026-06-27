@@ -199,36 +199,77 @@ function bestPlacement(
 }
 
 /**
- * Choose O's action for the current turn when O is the AI: either its best
- * placement, or - when `canShift` - its once-per-game whole-grid shift if that
- * yields a strictly better position. Because shifting uses up the turn, the two
- * options are weighed head to head by the same lookahead (the value of the
- * resulting position with X to move). Returns null only if the board is full.
+ * Count a player's immediate winning threats: lines that already hold two of
+ * that player's marks and one empty cell, so the player could complete them on
+ * their next placement.
+ */
+function immediateThreats(board: Board, player: Player): number {
+  let count = 0;
+  for (const [a, b, c] of WINNING_LINES) {
+    const cells = [board[a], board[b], board[c]];
+    const mine = cells.filter((cell) => cell === player).length;
+    const empty = cells.filter((cell) => cell === null).length;
+    if (mine === 2 && empty === 1) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Choose the AI's action for the current turn. `aiPlayer` is the seat the AI
+ * holds (X or O); the result is always a placement for X, and for O may instead
+ * be its once-per-game whole-grid shift when `canShift` is true. Returns null
+ * only if the board is full.
+ *
+ * Placing and shifting both consume the whole turn, so they are weighed head to
+ * head by the same lookahead (the value of the resulting position with the
+ * opponent to move). The shift is chosen when it either strictly improves that
+ * value - the only way it can be the outright best move, e.g. scattering an
+ * opponent fork no placement could block - or, at no cost to the game-theoretic
+ * outcome (an equal value), it is genuinely useful this turn: it builds an
+ * immediate threat the best placement would not, or defuses more of the
+ * opponent's threats. This keeps the one-time shift an active part of the AI's
+ * play without ever trading away a forced win or draw.
  */
 export function chooseAiAction(
   board: Board,
+  aiPlayer: Player,
   canShift: boolean,
 ): GameAction | null {
-  const me: Player = "O";
+  const me = aiPlayer;
+  const opponent = otherPlayer(me);
   const { index: placeIndex, score: placeScore } = bestPlacement(board, me);
   if (placeIndex === -1) return null;
 
-  // Value of a position with X (the opponent) to move next, from O's view.
-  // The best placement's value is already known from bestPlacement, so only
-  // the shift candidates need a fresh lookahead.
-  const value = (b: Board) => minimax(b, "X", me, 1, -Infinity, Infinity);
-
   let best: GameAction = { kind: "place", index: placeIndex };
-  let bestScore = placeScore;
+  if (!canShift) return best;
 
-  if (canShift) {
-    for (const dir of DIRECTIONS) {
-      const score = value(shiftBoard(board, dir));
-      if (score > bestScore) {
-        bestScore = score;
-        best = { kind: "shift", dir };
-      }
+  // Value of a position with the opponent to move next, from the AI's view. The
+  // best placement's value is already known, so only shifts need a fresh look.
+  const value = (b: Board) => minimax(b, opponent, me, 1, -Infinity, Infinity);
+
+  // The board after the AI's best placement, used to compare how each option
+  // shifts the immediate-threat balance.
+  const placedBoard = board.slice();
+  placedBoard[placeIndex] = me;
+  const placeMyThreats = immediateThreats(placedBoard, me);
+  const placeOppThreats = immediateThreats(placedBoard, opponent);
+
+  let bestShift: { dir: Direction; board: Board; score: number } | null = null;
+  for (const dir of DIRECTIONS) {
+    const shifted = shiftBoard(board, dir);
+    const score = value(shifted);
+    if (!bestShift || score > bestShift.score) {
+      bestShift = { dir, board: shifted, score };
     }
+  }
+  if (!bestShift) return best;
+
+  const tiedButUseful =
+    bestShift.score === placeScore &&
+    (immediateThreats(bestShift.board, me) > placeMyThreats ||
+      immediateThreats(bestShift.board, opponent) < placeOppThreats);
+  if (bestShift.score > placeScore || tiedButUseful) {
+    best = { kind: "shift", dir: bestShift.dir };
   }
   return best;
 }

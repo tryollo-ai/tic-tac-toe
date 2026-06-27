@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   boardAfterActions,
   calculateWinner,
+  chooseAiAction,
   DIRECTIONS,
   isBoardFull,
   shiftBoard,
@@ -189,5 +190,45 @@ describe("boardAfterActions", () => {
     // The shift at action index 3 only translates the existing marks, so the
     // replayed board still has no winner immediately after it.
     expect(calculateWinner(boardAfterActions(actions, 4))).toBeNull();
+  });
+});
+
+describe("chooseAiAction", () => {
+  // Shorthand board builder: "X" / "O" / "." per cell, left to right.
+  const b = (spec: string): Board =>
+    spec
+      .replace(/\s+/g, "")
+      .split("")
+      .map((c) => (c === "." ? null : (c as Player)));
+
+  it("returns null only when the board is full", () => {
+    expect(chooseAiAction(b("XOXOXOXOX"), "O", true)).toBeNull();
+  });
+
+  it("plays a placement for the AI as X (X never has the shift)", () => {
+    // The AI can hold either seat now; as X it opens with a placement.
+    const action = chooseAiAction(b("........."), "X", false);
+    expect(action?.kind).toBe("place");
+  });
+
+  it("blocks a single opponent threat by placing, sparing its shift", () => {
+    // X threatens the top row at cell 2; O can simply block by placing there,
+    // so it must not squander its one-time shift on a threat a placement covers.
+    expect(chooseAiAction(b("XX. .O. ..."), "O", true)).toEqual({
+      kind: "place",
+      index: 2,
+    });
+  });
+
+  it("spends its shift to scatter an opponent fork no placement can block", () => {
+    // X has a double threat (rows {0,1,2} and column {0,3,6}); placing blocks
+    // only one, so the AI shifts to break the fork instead.
+    const action = chooseAiAction(b("XX. X.. ..O"), "O", true);
+    expect(action?.kind).toBe("shift");
+  });
+
+  it("never shifts when the shift is unavailable, even facing a fork", () => {
+    const action = chooseAiAction(b("XX. X.. ..O"), "O", false);
+    expect(action?.kind).toBe("place");
   });
 });

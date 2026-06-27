@@ -15,6 +15,7 @@ import {
 } from "@/utils/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
 import { useRoomStream } from "@/lib/useRoomStream";
+import { AI_SEAT } from "@/constants/game";
 import type { Direction, Player } from "@/utils/gameLogic";
 import type { RoomView } from "@/lib/roomTypes";
 import Board from "@/common/components/Board";
@@ -402,9 +403,13 @@ const RoomGame = (props: Props) => {
       ? (room.board[room.winningLine[0]] as Player)
       : null;
   const bothSeated = room.seats.X !== null && room.seats.O !== null;
-  const xLabel = mySeat === "X" ? "You (X)" : "Player X";
-  const oLabel =
-    room.mode === "ai" ? "AI (O)" : mySeat === "O" ? "You (O)" : "Player O";
+  const seatLabel = (seat: Player): string => {
+    if (room.seats[seat] === AI_SEAT) return `AI (${seat})`;
+    if (mySeat === seat) return `You (${seat})`;
+    return `Player ${seat}`;
+  };
+  const xLabel = seatLabel("X");
+  const oLabel = seatLabel("O");
 
   // Terminal and pure spectator states share their wording with the replay
   // viewer (spectatorStatus); only the seat-aware mid-game lines are bespoke.

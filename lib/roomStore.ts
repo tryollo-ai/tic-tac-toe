@@ -11,6 +11,7 @@ import {
   calculateWinner,
   chooseAiAction,
   isGameOver,
+  otherPlayer,
   shiftBoard,
   type Board,
   type Direction,
@@ -221,28 +222,42 @@ function settle(room: Room, archive: Archive): boolean {
   return false;
 }
 
+/** Which seat the AI holds in an AI room, or null when no AI is seated. */
+function aiSeat(room: Room): Player | null {
+  if (room.mode !== "ai") return null;
+  if (room.seats.X === AI_SEAT) return "X";
+  if (room.seats.O === AI_SEAT) return "O";
+  return null;
+}
+
 /**
  * Take the AI's single action for its turn in place: either place its best move
- * or spend its one-time whole-grid shift, whichever the lookahead prefers. A
- * no-op unless it is the AI's turn in an AI room. Leaves it as the human's turn
- * (unless the AI's placement ended the game).
+ * or, when it holds O, spend its one-time whole-grid shift, whichever the
+ * lookahead prefers. A no-op unless it is the AI's turn in an AI room. Leaves it
+ * as the human's turn (unless the AI's placement ended the game). The AI plays
+ * whichever seat it holds, so it both opens as X and replies as O.
  */
 function runAiTurn(room: Room, archive: Archive): void {
-  if (room.mode !== "ai" || room.xIsNext || room.seats.O !== AI_SEAT) return;
-  if (isGameOver(room.board)) return;
+  const seat = aiSeat(room);
+  if (seat === null || isGameOver(room.board)) return;
+  const turn: Player = room.xIsNext ? "X" : "O";
+  if (turn !== seat) return; // not the AI's move yet
 
-  const action = chooseAiAction(room.board, !room.oShiftUsed);
+  // Only O ever has the once-per-game grid shift.
+  const canShift = seat === "O" && !room.oShiftUsed;
+  const action = chooseAiAction(room.board, seat, canShift);
   if (!action) return;
 
   if (action.kind === "shift") {
     applyShift(room, action.dir);
     room.oShiftUsed = true;
+    room.xIsNext = true; // the shift was O's whole turn; X plays next
   } else {
-    room.board[action.index] = "O";
+    room.board[action.index] = seat;
     room.actions.push(action);
     if (settle(room, archive)) return; // AI's placement ended the game
+    room.xIsNext = seat !== "X"; // hand the turn to the other player
   }
-  room.xIsNext = true; // hand the turn back to the human
 }
 
 /** Slide the grid in place in the given direction, recording it for replay. */
@@ -255,8 +270,8 @@ function applyShift(room: Room, direction: Direction): void {
  * Swap the X and O seat holders (and their heartbeats) so the two players
  * alternate which mark they play - and therefore who moves first - on each new
  * round. The scores swap alongside them so each tally keeps following its player
- * across the seat change rather than the mark. A no-op in AI mode, where O is
- * permanently the computer and the AI turn logic is keyed to the O seat.
+ * across the seat change rather than the mark. A no-op in AI mode, where the
+ * human keeps the side they chose and the AI keeps the opposite seat.
  */
 function swapSeats(room: Room): void {
   if (room.mode === "ai") return;
@@ -350,8 +365,9 @@ export async function createRoom(
     actions: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
-    // In AI mode O is the computer and can never be claimed by a human.
-    seats: { X: null, O: mode === "ai" ? AI_SEAT : null },
+    // Both seats start open; in an AI room the human picks a side and the AI
+    // takes the other seat on claim (see claimSeat).
+    seats: { X: null, O: null },
     mode,
     oShiftUsed: false,
     seatSeen: { X: null, O: null },
@@ -458,7 +474,7 @@ export async function claimSeat(
   seat: "X" | "O",
   playerId: string,
 ): Promise<StoreResult> {
-  return withRoomTx(id, (room) => {
+  return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
     const holder = room.seats[seat];
@@ -473,6 +489,17 @@ export async function claimSeat(
 
     room.seats[seat] = playerId;
     room.seatSeen[seat] = now();
+
+    // In an AI room the human chooses a side; the AI fills the opposite seat and
+    // - if that seat is X - opens the game immediately.
+    if (room.mode === "ai") {
+      const other = otherPlayer(seat);
+      if (room.seats[other] === null) {
+        room.seats[other] = AI_SEAT;
+        room.seatSeen[other] = null;
+      }
+      runAiTurn(room, archive);
+    }
     return touched(room);
   });
 }
@@ -482,12 +509,30 @@ export async function leaveSeat(
   playerId: string,
 ): Promise<StoreResult> {
   return withRoomTx(id, (room) => {
+    let left = false;
     SEATS.forEach((seat) => {
       if (room.seats[seat] === playerId) {
         room.seats[seat] = null;
         room.seatSeen[seat] = null;
+        left = true;
       }
     });
+    // In an AI room the AI only occupies its seat to partner the human who chose
+    // the other side, so when that human leaves, vacate the AI too and reset the
+    // round - the next player is then free to pick either side again.
+    if (left && room.mode === "ai") {
+      SEATS.forEach((seat) => {
+        if (room.seats[seat] === AI_SEAT) {
+          room.seats[seat] = null;
+          room.seatSeen[seat] = null;
+        }
+      });
+      room.board = EMPTY_BOARD.slice();
+      room.actions = [];
+      room.xIsNext = true;
+      room.oShiftUsed = false;
+      room.scores = { ...INITIAL_SCORES };
+    }
     return touched(room);
   });
 }
@@ -535,7 +580,7 @@ export async function shiftBoardAction(
   direction: Direction,
   playerId: string,
 ): Promise<StoreResult> {
-  return withRoomTx(id, (room) => {
+  return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
     if (isGameOver(room.board)) {
@@ -552,6 +597,7 @@ export async function shiftBoardAction(
     applyShift(room, direction);
     room.oShiftUsed = true;
     room.xIsNext = true; // the shift was O's whole turn; X plays next
+    runAiTurn(room, archive); // AI X replies when a human O shifts against it
     return touched(room);
   });
 }
@@ -560,7 +606,7 @@ export async function resetGame(
   id: string,
   playerId: string,
 ): Promise<StoreResult> {
-  return withRoomTx(id, (room) => {
+  return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
     if (room.seats.X !== playerId && room.seats.O !== playerId) {
       return { ok: false, error: "not-participant" };
@@ -570,8 +616,10 @@ export async function resetGame(
     room.actions = [];
     room.xIsNext = true;
     room.oShiftUsed = false;
-    // Alternate who moves first each round by swapping the two players' seats.
+    // Alternate who moves first each round by swapping the two players' seats
+    // (a no-op in AI rooms, where the human keeps the side they chose).
     if (roundFinished) swapSeats(room);
+    runAiTurn(room, archive); // if the AI holds X, it opens the fresh game
     return touched(room);
   });
 }

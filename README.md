@@ -34,10 +34,12 @@ game.
   Shifting is an alternative to placing a mark and uses up O's turn, so O weighs
   reshaping the board against taking a square.
   A win is always three in a row.
-- **AI opponent:** in a vs-AI room the computer plays O server-side with minimax,
-  and never loses on the 3x3 board.
-  As O it also decides when to spend its one-time grid shift, weighing the shift
-  against its best placement each turn.
+- **AI opponent:** in a vs-AI room both seats start open; use the seat buttons to
+  pick X or O and the AI claims the opposite seat instantly. The computer plays
+  either side server-side with minimax and never loses on the 3x3 board. When the
+  AI holds O it also decides when to spend the one-time grid shift, weighing it
+  against its best placement each turn. Leaving your seat fully resets the round
+  so the next visitor can pick either side again.
 - **Move history:** one mini-board snapshot per move, oldest first and newest
   last, each labelled with who moved and what they did (a named cell or O's
   grid shift). On desktop it appears as a faded column to the left of the board,
