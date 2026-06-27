@@ -517,6 +517,7 @@ export async function leaveSeat(
       room.actions = [];
       room.xIsNext = true;
       room.oShiftUsed = false;
+      room.scores = { ...INITIAL_SCORES };
     }
     return touched(room);
   });
