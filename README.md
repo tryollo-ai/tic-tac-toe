@@ -47,6 +47,11 @@ game.
   scrolling is used instead, so a growing history never pushes the board down
   the page.
 - **Scoreboard** tracking wins for each side and draws across rounds.
+- **Mark alternation:** after each completed game the two players swap marks —
+  whoever held X (and moved first) becomes O for the next round, so the
+  first-move advantage alternates. An animated "New round" banner appears over
+  the board announcing each player's new mark. Only two-player rooms alternate;
+  in vs-AI rooms O is permanently the computer.
 - **Win-line highlight:** the three winning cells are highlighted and a green
   line is drawn connecting them, alongside a clear turn/winner status indicator.
   The same overlay appears in replay and over a completed three-in-a-row in the
