@@ -10,7 +10,8 @@ Players join rooms from a lobby and play across browsers or against an AI, can s
 Architecture:
 - **Game logic** (pure, no React): `utils/gameLogic.ts`. The board is a fixed 3x3, stored as a flat 9-cell array.
 - **Store**: `lib/roomStore.ts` - Prisma/Postgres-backed (Neon in prod), fully async, every mutation transactional and row-locked. Schema in `prisma/schema.prisma`; cached Prisma client in `lib/prisma.ts`; domain types in `lib/roomTypes.ts`. DB setup: [docs/database.md](./docs/database.md).
-- **API**: `app/api/rooms/**` and read-only `app/api/completed/**` (both endpoints require `?playerId=` and scope results to that player); shared helpers in `utils/apiHelpers.ts`.
+- **Game config**: `lib/gameConfig.ts` - in-memory, `globalThis`-backed server singleton (same pattern as `lib/prisma.ts`) that holds the active `ShiftMode`. Deliberately not persisted: resets to `"classic"` on restart; no schema migration needed for an internal POC flag.
+- **API**: `app/api/rooms/**` and read-only `app/api/completed/**` (both endpoints require `?playerId=` and scope results to that player); shared helpers in `utils/apiHelpers.ts`. Internal POC tooling lives under `app/api/internal/game-config` (unauthenticated GET/POST to read/set the active shift mode).
 - **Replay**: `app/replay/[id]/`.
 
 Store invariants:
@@ -19,12 +20,16 @@ Store invariants:
 - Domain types use epoch-ms numbers; conversion to/from Postgres `timestamptz` happens only at the store boundary.
 
 Game rules (not plain tic-tac-toe):
-- Player O has one once-per-game **shift** that slides the whole grid one cell (marks pushed off the edge are removed). It consumes O's turn instead of placing and can never complete a line, so it never wins. This is deliberate balance for X's first-move edge advantage.
+- Player O has one once-per-game **shift** that slides the whole grid (consuming O's turn instead of placing). This is deliberate balance for X's first-move edge advantage.
+- The active **shift mode** is a POC-configurable toggle (see `lib/gameConfig.ts` and `/internal/game-config`). Two modes exist:
+  - **classic** (default): translates the grid one cell; marks pushed off the leading edge are removed; can never complete a line.
+  - **collapse**: every mark slides as far as it can toward the leading edge; X ploughs through and removes O marks in its path while O is blocked by X; unlike classic, this **can complete a line** and end the game.
+- Each recorded shift action carries the `mode` it was played with (`GameAction.shift.mode`; absent on legacy actions, which default to `"classic"`). The store settles the game (checks for a winner) after every shift, not just after placements.
 - After each completed game in a two-player room, `resetGame` calls `swapSeats` to exchange the X and O seat holders (and their heartbeats and accumulated scores), so the first-move advantage alternates each round. AI rooms are excluded — O is permanently the computer and the AI turn logic is keyed to the O seat.
-- When changing the rules, keep the win check, the shift, the seat swap, and the store's turn state machine in sync.
+- When changing the rules, keep the win check, the shift implementations, the seat swap, and the store's turn state machine in sync.
 
 History & replay:
-- Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. Per-action labels come from `utils/historyLabels.ts`; reuse it. Use `describeAction` for the compact history-panel label (player + short move) and `actionSentence` for the full-sentence replay caption ("X marked center" / "O shifted the grid left").
+- Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. A shift action carries the `mode` it was played with (`mode?: ShiftMode`); absent on legacy actions, which default to `"classic"`. Per-action labels come from `utils/historyLabels.ts`; reuse it. Use `describeAction` for the compact history-panel label (player + short move) and `actionSentence` for the full-sentence replay caption ("X marked center" / "O shifted the grid left").
 
 Reuse the shared components rather than duplicating them: `UIDialog` for any modal, `MiniBoard` for board previews, `WinningLine` for the win-line overlay, and `Spinner` for first-fetch loading states (all under `common/components/`). The "How to play" dialog lives on the lobby, not in `RoomGame`.
 

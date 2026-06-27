@@ -124,14 +124,17 @@ app/                      # App Router: lobby, /room/[id], /replay/[id], styles
 app/api/rooms/            # REST endpoints: list/create rooms, seats, moves,
                           #   reset, shift; [id]/stream — SSE live-room feed
 app/api/completed/        # REST endpoints: list completed games + fetch one for replay
+app/api/internal/         # Internal POC endpoints: game-config (GET/POST shift mode)
+app/internal/             # Internal POC pages: /internal/game-config toggle UI
 common/components/<Name>/ # One folder per shared component: index.tsx entry + styles.module.scss
 utils/gameLogic.ts        # Pure game logic: winner detection, O's whole-grid
-                          #   shift, and the minimax AI
+                          #   shift (classic + collapse modes), and the minimax AI
 utils/roomClient.ts       # Browser fetch helpers for the room API; `subscribeRoom` opens an SSE stream
 utils/apiHelpers.ts       # Shared request/response helpers for the room API routes
 utils/winningLineGeometry.ts # Pure winning-line overlay geometry (cell-center percentages)
 utils/historyLabels.ts    # Pure move-history labels: player parity, cell/shift names (`describeAction`), and full-sentence replay captions (`actionSentence`)
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
+lib/gameConfig.ts         # Server-side POC config singleton (active ShiftMode); globalThis-backed, not persisted
 lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 lib/useRoomStream.ts      # Client hook: SSE subscription for live room updates
