@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { cellName, describeAction } from "@/utils/historyLabels";
+import {
+  actionSentence,
+  cellName,
+  describeAction,
+} from "@/utils/historyLabels";
 
 describe("cellName", () => {
   it("names every cell of the 3×3 board", () => {
@@ -48,6 +52,26 @@ describe("describeAction", () => {
     );
     expect(describeAction({ kind: "shift", dir: "right" }, 1).move).toBe(
       "shift right",
+    );
+  });
+});
+
+describe("actionSentence", () => {
+  it("narrates a placement with the marking player and named cell", () => {
+    expect(actionSentence({ kind: "place", index: 4 }, 0)).toBe(
+      "X marked center",
+    );
+    expect(actionSentence({ kind: "place", index: 0 }, 1)).toBe(
+      "O marked top-left",
+    );
+  });
+
+  it("spells out O's grid shift with its plain-word direction", () => {
+    expect(actionSentence({ kind: "shift", dir: "top" }, 1)).toBe(
+      "O shifted the grid up",
+    );
+    expect(actionSentence({ kind: "shift", dir: "bottom" }, 1)).toBe(
+      "O shifted the grid down",
     );
   });
 });

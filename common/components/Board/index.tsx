@@ -14,6 +14,11 @@ type Props = {
    * from the cell it came from; null/omitted renders the board with no motion.
    */
   shiftDirection?: Direction | null;
+  /**
+   * Index of the cell just marked, which plays a one-shot drop-in. Null/omitted
+   * (or -1) leaves every mark static.
+   */
+  placedIndex?: number | null;
 };
 
 const Board = (props: Props) => {
@@ -33,6 +38,7 @@ const Board = (props: Props) => {
           onClick={() => props.onSquareClick(index)}
           disabled={props.disabled}
           shiftDirection={props.shiftDirection}
+          justPlaced={props.placedIndex === index}
         />
       ))}
       {props.winningLine && <WinningLine line={props.winningLine} />}
