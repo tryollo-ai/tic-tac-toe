@@ -10,11 +10,11 @@ Players join rooms from a lobby and play across browsers or against an AI, can s
 Architecture:
 - **Game logic** (pure, no React): `utils/gameLogic.ts`. The board is a fixed 3x3, stored as a flat 9-cell array.
 - **Store**: `lib/roomStore.ts` - Prisma/Postgres-backed (Neon in prod), fully async, every mutation transactional and row-locked. Schema in `prisma/schema.prisma`; cached Prisma client in `lib/prisma.ts`; domain types in `lib/roomTypes.ts`. DB setup: [docs/database.md](./docs/database.md).
-- **API**: `app/api/rooms/**` and read-only `app/api/completed/**`; shared helpers in `utils/apiHelpers.ts`.
+- **API**: `app/api/rooms/**` and read-only `app/api/completed/**` (both endpoints require `?playerId=` and scope results to that player); shared helpers in `utils/apiHelpers.ts`.
 - **Replay**: `app/replay/[id]/`.
 
 Store invariants:
-- Every read-modify-write is row-locked, so per-room mutations are serialized; a finished game is scored and archived in the same transaction.
+- Every read-modify-write is row-locked, so per-room mutations are serialized; a finished game is scored and archived in the same transaction, capturing the seat holders so each game is permanently attributed to its participants.
 - `status` and `winningLine` are derived at serialization, never stored.
 - Domain types use epoch-ms numbers; conversion to/from Postgres `timestamptz` happens only at the store boundary.
 

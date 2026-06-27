@@ -51,8 +51,9 @@ game.
   line is drawn connecting them, alongside a clear turn/winner status indicator.
   The same overlay appears in replay and over a completed three-in-a-row in the
   lobby and completed-game board previews.
-- **Completed games & replay:** every finished game is archived and listed on the
-  lobby below the active rooms.
+- **Completed games & replay:** every finished game is archived; the lobby lists
+  only the games the current browser's player took part in ("Your completed
+  games").
   Archived games can no longer be played, but each one can be replayed turn by
   turn (step forward/back, jump to start/end, or auto-play) on its own
   `/replay/[id]` page.
