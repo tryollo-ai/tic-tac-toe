@@ -21,6 +21,8 @@ function makeView(overrides: Partial<RoomView> = {}): RoomView {
     id: "r1",
     name: "Test Room",
     board: EMPTY_BOARD,
+    size: 3,
+    winLength: 3,
     actions: [],
     xIsNext: true,
     scores: { X: 0, O: 0, draws: 0 },

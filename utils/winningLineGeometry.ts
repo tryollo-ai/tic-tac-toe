@@ -1,5 +1,3 @@
-import { INITIAL_SIZE } from "@/constants/game";
-
 /** Start and end points of the winning-line overlay, as percentages (0-100). */
 export interface WinningLineCoords {
   x1: number;
@@ -9,15 +7,18 @@ export interface WinningLineCoords {
 }
 
 /**
- * Center of cell `index` as `{ x, y }` percentages (0-100) of the board's
- * grid area. Columns and rows are derived from the flat index
- * (`col = index % size`, `row = index / size`) and each cell's center sits at
- * `(n + 0.5) / size`, so the geometry stays correct at any board size.
+ * Center of cell `index` on a `size`×`size` board as `{ x, y }` percentages
+ * (0-100) of the board's grid area. Columns and rows are derived from the flat
+ * index (`col = index % size`, `row = index / size`) and each cell's center sits
+ * at `(n + 0.5) / size`, so the geometry stays correct at any board size.
  */
-export function cellCenter(index: number): { x: number; y: number } {
-  const col = index % INITIAL_SIZE;
-  const row = Math.floor(index / INITIAL_SIZE);
-  const unit = 100 / INITIAL_SIZE;
+export function cellCenter(
+  index: number,
+  size: number,
+): { x: number; y: number } {
+  const col = index % size;
+  const row = Math.floor(index / size);
+  const unit = 100 / size;
   return { x: (col + 0.5) * unit, y: (row + 0.5) * unit };
 }
 
@@ -31,22 +32,27 @@ export function cellCenter(index: number): { x: number; y: number } {
 const ENDPOINT_EXTEND = 0.7;
 
 /**
- * Endpoints for a line drawn through a winning triple, extended outward past the
- * first and last cells' centers toward those cells' outer edges. The winning
- * triple is always ordered along the line, so the first and last indices are its
- * two ends, which yields a correct overlay for all eight wins (rows, columns,
- * both diagonals).
+ * Endpoints for a line drawn through a winning run, extended outward past the
+ * first and last cells' centers toward those cells' outer edges. The winning run
+ * is always ordered along the line, so the first and last indices are its two
+ * ends, which yields a correct overlay for every win (rows, columns, both
+ * diagonals) at any board size and run length.
  *
- * The center-to-center vector spans two cells, so a quarter of it is the
- * half-cell distance from an end cell's center to its outer edge. Each endpoint
- * is pushed out by that quarter, scaled by `ENDPOINT_EXTEND`, along the same
- * line - so it stays resize-safe (everything is percentages) for every
- * orientation.
+ * The center-to-center vector spans `line.length - 1` cells, so a half-cell - the
+ * distance from an end cell's center to its outer edge - is `0.5 / (length - 1)`
+ * of it. Each endpoint is pushed out by that half-cell, scaled by
+ * `ENDPOINT_EXTEND`, along the same line; dividing by the run length keeps the
+ * overshoot a fixed fraction of a single cell rather than of the whole run, so a
+ * longer run (e.g. 4-in-a-row) no longer shoots past the board edge. Everything
+ * is percentages, so it stays resize-safe for every orientation.
  */
-export function winningLineCoords(line: readonly number[]): WinningLineCoords {
-  const start = cellCenter(line[0]);
-  const end = cellCenter(line[line.length - 1]);
-  const ext = ENDPOINT_EXTEND * 0.25;
+export function winningLineCoords(
+  line: readonly number[],
+  size: number,
+): WinningLineCoords {
+  const start = cellCenter(line[0], size);
+  const end = cellCenter(line[line.length - 1], size);
+  const ext = (ENDPOINT_EXTEND * 0.5) / (line.length - 1);
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   return {

@@ -103,7 +103,7 @@ const Replay = (props: Props) => {
             kind: "shift",
             direction: action.dir,
             mode: action.mode ?? DEFAULT_SHIFT_MODE,
-            from: boardAfterActions(actions, current - 1),
+            from: boardAfterActions(actions, current - 1, game?.size),
           };
     },
     step,
@@ -138,8 +138,8 @@ const Replay = (props: Props) => {
     );
   }
 
-  const board = boardAfterActions(game.actions, step);
-  const result = calculateWinner(board);
+  const board = boardAfterActions(game.actions, step, game.size);
+  const result = calculateWinner(board, game.winLength);
   const atStart = step === 0;
   const atEnd = step === total;
   // The action just shown, narrated below the board (e.g. "O shifted the grid
@@ -207,7 +207,9 @@ const Replay = (props: Props) => {
         })}
         aria-live="polite"
       >
-        {lastAction ? actionSentence(lastAction, step - 1) : "Start of game"}
+        {lastAction
+          ? actionSentence(lastAction, step - 1, game.size)
+          : "Start of game"}
       </p>
 
       <div

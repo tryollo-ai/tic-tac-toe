@@ -22,12 +22,11 @@ const SHIFT_WORDS: Record<Direction, string> = {
 };
 
 /**
- * Name a flat cell index for the fixed 3×3 board, e.g. 0 → "top-left",
- * 1 → "top", 4 → "center". Falls back to a 1-based "cell N" for any other board
- * size so the label stays correct if the board ever stops being 3×3.
+ * Name a flat cell index on a `size`×`size` board, e.g. 0 → "top-left",
+ * 1 → "top", 4 → "center" on the classic 3×3. The friendly grid names only make
+ * sense there, so any other size falls back to a 1-based "cell N".
  */
-export function cellName(index: number): string {
-  const size = INITIAL_SIZE;
+export function cellName(index: number, size: number = INITIAL_SIZE): string {
   if (size !== 3) return `cell ${index + 1}`;
   const row = Math.floor(index / size);
   const col = index % size;
@@ -42,11 +41,15 @@ export function cellName(index: number): string {
  * the player who moved (X on even indices, O on odd) and a compact description
  * of the move (a named cell for a placement, or "shift <direction>").
  */
-export function describeAction(action: GameAction, index: number): ActionSummary {
+export function describeAction(
+  action: GameAction,
+  index: number,
+  size: number = INITIAL_SIZE,
+): ActionSummary {
   const player: Player = index % 2 === 0 ? "X" : "O";
   const move =
     action.kind === "place"
-      ? cellName(action.index)
+      ? cellName(action.index, size)
       : `shift ${SHIFT_WORDS[action.dir]}`;
   return { player, move };
 }
@@ -57,9 +60,13 @@ export function describeAction(action: GameAction, index: number): ActionSummary
  * for O's whole-grid shift - the latter spelled out so a shift turn never reads
  * as a no-op.
  */
-export function actionSentence(action: GameAction, index: number): string {
+export function actionSentence(
+  action: GameAction,
+  index: number,
+  size: number = INITIAL_SIZE,
+): string {
   const player: Player = index % 2 === 0 ? "X" : "O";
   return action.kind === "place"
-    ? `${player} marked ${cellName(action.index)}`
+    ? `${player} marked ${cellName(action.index, size)}`
     : `${player} shifted the grid ${SHIFT_WORDS[action.dir]}`;
 }

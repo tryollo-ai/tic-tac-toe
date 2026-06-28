@@ -19,6 +19,10 @@ export interface Room {
   id: string;
   name: string;
   board: Board;
+  /** Board side length, fixed for the room's life at creation. */
+  size: number;
+  /** Consecutive run needed to win, fixed for the room's life at creation. */
+  winLength: number;
   /** Every action this round, in turn order; X takes even indices, O odd. */
   actions: GameAction[];
   xIsNext: boolean;
@@ -36,8 +40,9 @@ export interface Room {
 export interface RoomView extends Room {
   /** Derived at serialization time from the board, never stored. */
   status: RoomStatus;
-  /** Derived at serialization time via calculateWinner, never stored. */
-  winningLine: [number, number, number] | null;
+  /** Derived at serialization time via calculateWinner, never stored. Its length
+   *  is the room's win run length. */
+  winningLine: number[] | null;
 }
 
 export interface RoomSummary {
@@ -62,6 +67,10 @@ export interface CompletedGame {
   roomId: string;
   name: string;
   mode: RoomMode;
+  /** Board side length and win run length the game was played at, so its replay
+   *  rebuilds at the right size and scores wins by the right rule. */
+  size: number;
+  winLength: number;
   /** Every action in play order; X takes even indices, O odd. */
   actions: GameAction[];
   /**
@@ -92,6 +101,10 @@ export interface CompletedGameView {
   id: string;
   name: string;
   mode: RoomMode;
+  /** Board side length and win run length, so the replay rebuilds the board at
+   *  the right size and highlights wins by the right rule. */
+  size: number;
+  winLength: number;
   /** Every action in play order; X takes even indices, O odd. */
   actions: GameAction[];
   completedAt: number;

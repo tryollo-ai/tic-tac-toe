@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   boardAfterActions,
+  boardSize,
   calculateWinner,
   chooseAiAction,
   DIRECTIONS,
   isBoardFull,
   shiftBoard,
   shiftPlan,
+  winningLines,
   type Board,
   type Cell,
   type GameAction,
@@ -392,6 +394,106 @@ describe("chooseAiAction", () => {
 
   it("never shifts when the shift is unavailable, even facing a fork", () => {
     const action = chooseAiAction(b("XX. X.. ..O"), "O", false);
+    expect(action?.kind).toBe("place");
+  });
+});
+
+// --- Configurable board size and win length --------------------------------
+
+/** Build an N×N board from a string of "X"/"O"/"." (whitespace ignored), where
+ *  N is inferred as the square root of the cell count. */
+function nBoard(spec: string): Board {
+  return spec
+    .replace(/\s+/g, "")
+    .split("")
+    .map((c) => (c === "." ? null : (c as Player)));
+}
+
+describe("winningLines", () => {
+  it("yields the classic eight lines for a 3×3 board, run 3", () => {
+    expect(winningLines(3, 3)).toHaveLength(8);
+  });
+
+  it("yields 10 lines for a 4×4 board, run 4 (4 rows + 4 cols + 2 diagonals)", () => {
+    expect(winningLines(4, 4)).toHaveLength(10);
+  });
+
+  it("yields every run-3 placement on a 4×4 board (24 lines)", () => {
+    // rows 4*2 + cols 4*2 + each diagonal (4-2)^2 * 2 = 8 + 8 + 8.
+    expect(winningLines(4, 3)).toHaveLength(24);
+  });
+
+  it("makes each line exactly the run length, ordered along the line", () => {
+    for (const line of winningLines(5, 4)) {
+      expect(line).toHaveLength(4);
+    }
+  });
+});
+
+describe("calculateWinner with a configurable win length", () => {
+  it("detects a full run-4 row on a 4×4 board", () => {
+    const result = calculateWinner(nBoard("XXXX OOO. .... ...."), 4);
+    expect(result?.winner).toBe("X");
+    expect(result?.line).toEqual([0, 1, 2, 3]);
+  });
+
+  it("detects a run-4 column and diagonal", () => {
+    expect(calculateWinner(nBoard("X... X... X... X..."), 4)?.line).toEqual([
+      0, 4, 8, 12,
+    ]);
+    expect(calculateWinner(nBoard("O... .O.. ..O. ...O"), 4)?.winner).toBe("O");
+  });
+
+  it("does not count three in a row when the win length is four", () => {
+    expect(calculateWinner(nBoard("XXX. .... .... ...."), 4)).toBeNull();
+  });
+
+  it("counts the same three in a row when the win length is three", () => {
+    expect(calculateWinner(nBoard("XXX. .... .... ...."), 3)?.winner).toBe("X");
+  });
+
+  it("derives the board size from the cell count", () => {
+    expect(boardSize(nBoard("X... .... .... ...."))).toBe(4);
+  });
+});
+
+describe("shiftBoard on a larger board", () => {
+  it("classic shift right moves marks one cell and drops the leading edge", () => {
+    const shifted = shiftBoard(nBoard("X..O .... .... ...."), "right", "classic");
+    expect(shifted[1]).toBe("X"); // X slid one cell right
+    expect(shifted.includes("O")).toBe(false); // O rode off the right edge
+  });
+});
+
+describe("chooseAiAction on a larger board", () => {
+  it("completes its own run-3 line on a 4×4 board", () => {
+    const action = chooseAiAction(
+      nBoard("XX.. .... .... ...."),
+      "X",
+      false,
+      "classic",
+      3,
+    );
+    expect(action).toEqual({ kind: "place", index: 2 });
+  });
+
+  it("blocks the opponent's immediate run-3 threat on a 4×4 board", () => {
+    const action = chooseAiAction(
+      nBoard("OO.. X... .... ...."),
+      "X",
+      false,
+      "classic",
+      3,
+    );
+    expect(action).toEqual({ kind: "place", index: 2 });
+  });
+
+  it("returns a bounded placement on a large, mostly-empty board", () => {
+    const big = Array<Cell>(100).fill(null);
+    big[44] = "X";
+    big[45] = "X";
+    big[55] = "O";
+    const action = chooseAiAction(big, "X", false, "classic", 5);
     expect(action?.kind).toBe("place");
   });
 });

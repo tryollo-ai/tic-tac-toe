@@ -24,15 +24,15 @@ function expectCoords(actual: WinningLineCoords, expected: WinningLineCoords) {
 
 describe("cellCenter", () => {
   it("places each cell center at (col + 0.5) / 3 and (row + 0.5) / 3", () => {
-    expect(cellCenter(0)).toEqual({ x: SIXTH, y: SIXTH });
-    expect(cellCenter(4)).toEqual({ x: HALF, y: HALF });
-    expect(cellCenter(8)).toEqual({ x: 5 * SIXTH, y: 5 * SIXTH });
+    expect(cellCenter(0, 3)).toEqual({ x: SIXTH, y: SIXTH });
+    expect(cellCenter(4, 3)).toEqual({ x: HALF, y: HALF });
+    expect(cellCenter(8, 3)).toEqual({ x: 5 * SIXTH, y: 5 * SIXTH });
   });
 });
 
 describe("winningLineCoords", () => {
   it("extends the top row outward toward both end cells' edges", () => {
-    expectCoords(winningLineCoords([0, 1, 2]), {
+    expectCoords(winningLineCoords([0, 1, 2], 3), {
       x1: NEAR,
       y1: SIXTH,
       x2: FAR,
@@ -41,7 +41,7 @@ describe("winningLineCoords", () => {
   });
 
   it("extends the left column outward toward both end cells' edges", () => {
-    expectCoords(winningLineCoords([0, 3, 6]), {
+    expectCoords(winningLineCoords([0, 3, 6], 3), {
       x1: SIXTH,
       y1: NEAR,
       x2: SIXTH,
@@ -50,7 +50,7 @@ describe("winningLineCoords", () => {
   });
 
   it("extends the main diagonal (top-left to bottom-right) outward", () => {
-    expectCoords(winningLineCoords([0, 4, 8]), {
+    expectCoords(winningLineCoords([0, 4, 8], 3), {
       x1: NEAR,
       y1: NEAR,
       x2: FAR,
@@ -59,7 +59,7 @@ describe("winningLineCoords", () => {
   });
 
   it("extends the anti-diagonal (top-right to bottom-left) outward", () => {
-    expectCoords(winningLineCoords([2, 4, 6]), {
+    expectCoords(winningLineCoords([2, 4, 6], 3), {
       x1: FAR,
       y1: NEAR,
       x2: NEAR,
@@ -67,9 +67,21 @@ describe("winningLineCoords", () => {
     });
   });
 
+  it("scales the extension to the run length so a 4-in-a-row stays on board", () => {
+    // Top row of a 4×4 (cell centers at 12.5% and 87.5%): the endpoints extend
+    // by a fixed fraction of one cell, landing inside 0-100% rather than
+    // shooting past the board edge the way a fixed quarter-of-the-line would.
+    expectCoords(winningLineCoords([0, 1, 2, 3], 4), {
+      x1: 3.75,
+      y1: 12.5,
+      x2: 96.25,
+      y2: 12.5,
+    });
+  });
+
   it("keeps the line centered on the middle cell (no net offset there)", () => {
     // The middle cell/row stays at 50% on the unchanged axis for every line.
-    expect(winningLineCoords([0, 1, 2]).y1).toBeCloseTo(SIXTH, 6);
-    expect(winningLineCoords([3, 4, 5]).y1).toBeCloseTo(HALF, 6);
+    expect(winningLineCoords([0, 1, 2], 3).y1).toBeCloseTo(SIXTH, 6);
+    expect(winningLineCoords([3, 4, 5], 3).y1).toBeCloseTo(HALF, 6);
   });
 });

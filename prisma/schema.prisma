@@ -24,6 +24,11 @@ datasource db {
 model AppConfig {
   id        String @id
   shiftMode String @default("classic") @map("shift_mode")
+  /// Side length new games are created at, and the consecutive run needed to win
+  /// them. Like shiftMode these govern only *new* games; each game records the
+  /// size/run it was created with, so changing these never rewrites history.
+  boardSize Int    @default(3) @map("board_size")
+  winLength Int    @default(3) @map("win_length")
 
   @@map("app_config")
 }
@@ -34,6 +39,10 @@ model Room {
   id          String   @id
   name        String
   board       Json
+  /// Board side length and the consecutive run needed to win, fixed for the
+  /// room's life at creation from the active config.
+  size        Int      @default(3)
+  winLength   Int      @default(3) @map("win_length")
   /// Every action this round, in turn order; X takes even indices, O odd.
   actions     Json
   xIsNext     Boolean  @map("x_is_next")
@@ -62,6 +71,10 @@ model CompletedGame {
   roomId      String   @map("room_id")
   name        String
   mode        String
+  /// Board side length and win run length the game was played at, so its replay
+  /// rebuilds at the right size regardless of the current config.
+  size        Int      @default(3)
+  winLength   Int      @default(3) @map("win_length")
   /// Every action in play order; X takes even indices, O odd.
   actions     Json
   /// Seat holders at archive time, so a game can be shown only to its players.

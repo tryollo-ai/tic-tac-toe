@@ -1,4 +1,4 @@
-import { INITIAL_SIZE } from "@/constants/game";
+import { DEFAULT_WIN_LENGTH, INITIAL_SIZE } from "@/constants/game";
 
 export type Player = "X" | "O";
 export type Cell = Player | null;
@@ -50,33 +50,72 @@ export type GameAction =
 
 export interface WinnerResult {
   winner: Player;
-  line: [number, number, number];
+  /** The winning cells as flat indices, ordered along the line. Its length is
+   *  the game's win run length (3 on a classic board, more on larger ones). */
+  line: number[];
+}
+
+/** Side length of a (square) board, derived from its cell count. */
+export function boardSize(board: Board): number {
+  return Math.round(Math.sqrt(board.length));
 }
 
 /**
- * The eight winning triples of the fixed 3×3 board, as flat cell indices: the
- * three rows, the three columns, then the two diagonals.
+ * Every winning line on a `size`×`size` board: each straight run of exactly
+ * `winLength` consecutive cells, horizontally, vertically, or along either
+ * diagonal, as flat indices ordered along the line. On the classic 3×3 board
+ * with a run of 3 this is the familiar eight lines (three rows, three columns,
+ * two diagonals); larger boards or shorter runs yield every place such a run can
+ * sit. Memoized per (size, winLength) since the set is fixed and read on every
+ * win check and AI evaluation.
  */
-const WINNING_LINES: readonly [number, number, number][] = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
-];
+const lineCache = new Map<string, number[][]>();
+export function winningLines(size: number, winLength: number): number[][] {
+  const key = `${size}:${winLength}`;
+  const cached = lineCache.get(key);
+  if (cached) return cached;
+
+  const lines: number[][] = [];
+  // Step vectors for the four orientations a run can take; their reverses would
+  // only retrace the same cells, so four suffice.
+  const steps: [number, number][] = [
+    [0, 1], // horizontal
+    [1, 0], // vertical
+    [1, 1], // ↘ diagonal
+    [1, -1], // ↙ diagonal
+  ];
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      for (const [dr, dc] of steps) {
+        const endR = r + dr * (winLength - 1);
+        const endC = c + dc * (winLength - 1);
+        if (endR < 0 || endR >= size || endC < 0 || endC >= size) continue;
+        const line: number[] = [];
+        for (let k = 0; k < winLength; k++) {
+          line.push((r + dr * k) * size + (c + dc * k));
+        }
+        lines.push(line);
+      }
+    }
+  }
+  lineCache.set(key, lines);
+  return lines;
+}
 
 /**
  * Returns the winning player and the line that won, or null if there is no
- * winner yet. A win is always three in a row.
+ * winner yet. A win is `winLength` of the same mark in a consecutive straight
+ * line (row, column, or diagonal); the board size is read from `board`.
  */
-export function calculateWinner(board: Board): WinnerResult | null {
-  for (const line of WINNING_LINES) {
-    const [a, b, c] = line;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return { winner: board[a] as Player, line };
+export function calculateWinner(
+  board: Board,
+  winLength: number = DEFAULT_WIN_LENGTH,
+): WinnerResult | null {
+  const size = boardSize(board);
+  for (const line of winningLines(size, winLength)) {
+    const first = board[line[0]];
+    if (first && line.every((i) => board[i] === first)) {
+      return { winner: first as Player, line };
     }
   }
   return null;
@@ -88,8 +127,11 @@ export function isBoardFull(board: Board): boolean {
 }
 
 /** True when the game is over (someone won or the board is full). */
-export function isGameOver(board: Board): boolean {
-  return calculateWinner(board) !== null || isBoardFull(board);
+export function isGameOver(
+  board: Board,
+  winLength: number = DEFAULT_WIN_LENGTH,
+): boolean {
+  return calculateWinner(board, winLength) !== null || isBoardFull(board);
 }
 
 export function otherPlayer(player: Player): Player {
@@ -108,7 +150,7 @@ export function shiftBoard(
   direction: Direction,
   mode: ShiftMode = DEFAULT_SHIFT_MODE,
 ): Board {
-  const size = INITIAL_SIZE;
+  const size = boardSize(board);
   const next: Board = Array(size * size).fill(null);
   for (const motion of shiftPlan(board, direction, mode)) {
     if (motion.departs) continue;
@@ -166,7 +208,7 @@ export function shiftPlan(
   direction: Direction,
   mode: ShiftMode = DEFAULT_SHIFT_MODE,
 ): ShiftMotion[] {
-  const size = INITIAL_SIZE;
+  const size = boardSize(board);
   const [dr, dc] = DIRECTION_STEPS[direction];
   const coord = (index: number): CellCoord => ({
     row: Math.floor(index / size),
@@ -218,14 +260,17 @@ export function shiftPlan(
 /**
  * Reconstruct a game's board after its first `count` actions. Players alternate
  * strictly (X takes the even-indexed actions, O the odd ones); each action
- * either places that player's mark or applies O's whole-grid shift. The board is
- * always 3×3, so the action list alone rebuilds any point in the game.
+ * either places that player's mark or applies O's whole-grid shift. A game's
+ * board side length is fixed for its whole life, so `size` (the side the game
+ * was played at, defaulting to the classic 3×3) plus the action list rebuilds
+ * any point in the game.
  */
 export function boardAfterActions(
   actions: readonly GameAction[],
   count: number,
+  size: number = INITIAL_SIZE,
 ): Board {
-  let board: Board = Array(INITIAL_SIZE * INITIAL_SIZE).fill(null);
+  let board: Board = Array(size * size).fill(null);
   const upTo = Math.max(0, Math.min(count, actions.length));
   for (let i = 0; i < upTo; i++) {
     const action = actions[i];
@@ -241,8 +286,22 @@ export function boardAfterActions(
 /** Terminal scores dwarf depth so a real win is always chosen. */
 const WIN_SCORE = 1_000_000;
 
-// The board is always 3×3, so a full, exact minimax is always affordable - no
-// depth limit or heuristic cutoff is needed.
+/** Side length at or below which the board is solved exactly (the classic 3×3,
+ *  small enough that a full minimax is always affordable). Larger boards use the
+ *  bounded heuristic search below so the server can never hang. */
+const EXACT_SIZE = 3;
+
+/** Plies the heuristic search looks ahead on boards too large to solve exactly:
+ *  the AI's move and the opponent's reply, enough to take an immediate win and
+ *  block an immediate one. */
+const HEURISTIC_DEPTH = 2;
+
+/**
+ * Exact minimax for a small board (≤ {@link EXACT_SIZE}): explores every empty
+ * cell to the end of the game, with alpha-beta pruning. A win needs `winLength`
+ * in a row; the score rewards the AI's wins (sooner is better) and penalizes the
+ * opponent's.
+ */
 function minimax(
   board: Board,
   current: Player,
@@ -250,8 +309,9 @@ function minimax(
   depth: number,
   alpha: number,
   beta: number,
+  winLength: number,
 ): number {
-  const result = calculateWinner(board);
+  const result = calculateWinner(board, winLength);
   if (result) {
     return result.winner === aiPlayer ? WIN_SCORE - depth : depth - WIN_SCORE;
   }
@@ -269,6 +329,7 @@ function minimax(
       depth + 1,
       alpha,
       beta,
+      winLength,
     );
     board[i] = null;
     if (isMaximizing) {
@@ -283,29 +344,155 @@ function minimax(
   return best;
 }
 
+/** How much a line counts toward a player's score when it holds `count` of their
+ *  marks and none of the opponent's: steeply rising so a near-complete line far
+ *  outweighs scattered marks (one mark short of a win is worth most). */
+function lineWeight(count: number): number {
+  return Math.pow(10, count - 1);
+}
+
 /**
- * Best placement for `aiPlayer` together with its minimax score (the value of
- * the resulting position with the opponent to move, from `aiPlayer`'s view).
- * `index` is -1 and `score` is -Infinity when the board is full.
+ * Static evaluation for boards too large to solve exactly: score every winning
+ * line by how near each side is to completing it. A line holding both players'
+ * marks is dead and scores nothing; otherwise a line with `k` of one player's
+ * marks (and no opponent mark) is worth {@link lineWeight}. The result is the
+ * AI's total minus the opponent's, with a settled win dominating everything.
+ */
+function evaluateBoard(
+  board: Board,
+  aiPlayer: Player,
+  winLength: number,
+): number {
+  const result = calculateWinner(board, winLength);
+  if (result) return result.winner === aiPlayer ? WIN_SCORE : -WIN_SCORE;
+
+  const opponent = otherPlayer(aiPlayer);
+  let score = 0;
+  for (const line of winningLines(boardSize(board), winLength)) {
+    let mine = 0;
+    let theirs = 0;
+    for (const i of line) {
+      if (board[i] === aiPlayer) mine += 1;
+      else if (board[i] === opponent) theirs += 1;
+    }
+    if (mine > 0 && theirs > 0) continue; // contested - completable by neither
+    if (mine > 0) score += lineWeight(mine);
+    else if (theirs > 0) score -= lineWeight(theirs);
+  }
+  return score;
+}
+
+/**
+ * Empty cells worth considering on a large board: those within one step
+ * (including diagonally) of an existing mark, where all meaningful play
+ * happens - this keeps the branching factor small on a mostly-empty big board.
+ * An empty board has no neighbours, so it opens in the middle.
+ */
+function candidateCells(board: Board): number[] {
+  const size = boardSize(board);
+  if (board.every((cell) => cell === null)) {
+    return [Math.floor(board.length / 2)];
+  }
+  const cells = new Set<number>();
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] === null) continue;
+    const r = Math.floor(i / size);
+    const c = i % size;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        const j = nr * size + nc;
+        if (board[j] === null) cells.add(j);
+      }
+    }
+  }
+  return [...cells];
+}
+
+/**
+ * Depth-limited negamax over {@link candidateCells} with alpha-beta pruning,
+ * falling back to {@link evaluateBoard} at the depth cap. Used for boards larger
+ * than {@link EXACT_SIZE}, where a full search is intractable; it is bounded so
+ * the AI always responds promptly, at the cost of not playing perfectly.
+ */
+function heuristicSearch(
+  board: Board,
+  current: Player,
+  aiPlayer: Player,
+  depth: number,
+  alpha: number,
+  beta: number,
+  winLength: number,
+): number {
+  // A settled win dominates, and a sooner one (found with more depth to spare)
+  // outranks a later one - so the AI takes an immediate win over a slower forced
+  // one, mirroring the exact minimax's depth preference.
+  const winner = calculateWinner(board, winLength);
+  if (winner) {
+    return winner.winner === aiPlayer ? WIN_SCORE + depth : -(WIN_SCORE + depth);
+  }
+  if (depth === 0 || isBoardFull(board)) {
+    return evaluateBoard(board, aiPlayer, winLength);
+  }
+  const isMaximizing = current === aiPlayer;
+  let best = isMaximizing ? -Infinity : Infinity;
+  for (const i of candidateCells(board)) {
+    board[i] = current;
+    const score = heuristicSearch(
+      board,
+      otherPlayer(current),
+      aiPlayer,
+      depth - 1,
+      alpha,
+      beta,
+      winLength,
+    );
+    board[i] = null;
+    if (isMaximizing) {
+      best = Math.max(best, score);
+      alpha = Math.max(alpha, best);
+    } else {
+      best = Math.min(best, score);
+      beta = Math.min(beta, best);
+    }
+    if (beta <= alpha) break;
+  }
+  return best;
+}
+
+/**
+ * Best placement for `aiPlayer` together with its score (the value of the
+ * resulting position with the opponent to move, from `aiPlayer`'s view). Solves
+ * the board exactly when it is small enough, otherwise uses the bounded
+ * heuristic search. `index` is -1 when the board is full.
  */
 function bestPlacement(
   board: Board,
   aiPlayer: Player,
+  winLength: number,
 ): { index: number; score: number } {
   const work = board.slice();
+  const exact = boardSize(board) <= EXACT_SIZE;
+  const candidates = exact
+    ? work.map((_, i) => i).filter((i) => work[i] === null)
+    : candidateCells(work);
   let bestScore = -Infinity;
   let bestMove = -1;
-  for (let i = 0; i < work.length; i++) {
-    if (work[i] !== null) continue;
+  for (const i of candidates) {
     work[i] = aiPlayer;
-    const score = minimax(
-      work,
-      otherPlayer(aiPlayer),
-      aiPlayer,
-      1,
-      -Infinity,
-      Infinity,
-    );
+    const score = exact
+      ? minimax(work, otherPlayer(aiPlayer), aiPlayer, 1, -Infinity, Infinity, winLength)
+      : heuristicSearch(
+          work,
+          otherPlayer(aiPlayer),
+          aiPlayer,
+          HEURISTIC_DEPTH,
+          -Infinity,
+          Infinity,
+          winLength,
+        );
     work[i] = null;
     if (score > bestScore) {
       bestScore = score;
@@ -315,18 +502,46 @@ function bestPlacement(
   return { index: bestMove, score: bestScore };
 }
 
+/** Value of a position with the opponent to move, from the AI's view, using the
+ *  same engine (exact or heuristic) as {@link bestPlacement} - so a shift is
+ *  weighed against a placement on the same footing. */
+function positionValue(
+  board: Board,
+  aiPlayer: Player,
+  winLength: number,
+): number {
+  return boardSize(board) <= EXACT_SIZE
+    ? minimax(board, otherPlayer(aiPlayer), aiPlayer, 1, -Infinity, Infinity, winLength)
+    : heuristicSearch(
+        board,
+        otherPlayer(aiPlayer),
+        aiPlayer,
+        HEURISTIC_DEPTH,
+        -Infinity,
+        Infinity,
+        winLength,
+      );
+}
+
 /**
- * Count a player's immediate winning threats: lines that already hold two of
- * that player's marks and one empty cell, so the player could complete them on
- * their next placement.
+ * Count a player's immediate winning threats: lines one mark short of a win -
+ * holding `winLength - 1` of that player's marks and a single empty cell - so
+ * the player could complete them on their next placement.
  */
-function immediateThreats(board: Board, player: Player): number {
+function immediateThreats(
+  board: Board,
+  player: Player,
+  winLength: number,
+): number {
   let count = 0;
-  for (const [a, b, c] of WINNING_LINES) {
-    const cells = [board[a], board[b], board[c]];
-    const mine = cells.filter((cell) => cell === player).length;
-    const empty = cells.filter((cell) => cell === null).length;
-    if (mine === 2 && empty === 1) count += 1;
+  for (const line of winningLines(boardSize(board), winLength)) {
+    let mine = 0;
+    let empty = 0;
+    for (const i of line) {
+      if (board[i] === player) mine += 1;
+      else if (board[i] === null) empty += 1;
+    }
+    if (mine === winLength - 1 && empty === 1) count += 1;
   }
   return count;
 }
@@ -352,32 +567,33 @@ export function chooseAiAction(
   aiPlayer: Player,
   canShift: boolean,
   shiftMode: ShiftMode = DEFAULT_SHIFT_MODE,
+  winLength: number = DEFAULT_WIN_LENGTH,
 ): GameAction | null {
   const me = aiPlayer;
   const opponent = otherPlayer(me);
-  const { index: placeIndex, score: placeScore } = bestPlacement(board, me);
+  const { index: placeIndex, score: placeScore } = bestPlacement(
+    board,
+    me,
+    winLength,
+  );
   if (placeIndex === -1) return null;
 
   let best: GameAction = { kind: "place", index: placeIndex };
   if (!canShift) return best;
 
-  // Value of a position with the opponent to move next, from the AI's view. The
-  // best placement's value is already known, so only shifts need a fresh look.
-  const value = (b: Board) => minimax(b, opponent, me, 1, -Infinity, Infinity);
-
   // The board after the AI's best placement, used to compare how each option
   // shifts the immediate-threat balance.
   const placedBoard = board.slice();
   placedBoard[placeIndex] = me;
-  const placeMyThreats = immediateThreats(placedBoard, me);
-  const placeOppThreats = immediateThreats(placedBoard, opponent);
+  const placeMyThreats = immediateThreats(placedBoard, me, winLength);
+  const placeOppThreats = immediateThreats(placedBoard, opponent, winLength);
 
   // Evaluate (and later record) each shift under the active mode so the AI
   // weighs the same outcome the human would get.
   let bestShift: { dir: Direction; board: Board; score: number } | null = null;
   for (const dir of DIRECTIONS) {
     const shifted = shiftBoard(board, dir, shiftMode);
-    const score = value(shifted);
+    const score = positionValue(shifted, me, winLength);
     if (!bestShift || score > bestShift.score) {
       bestShift = { dir, board: shifted, score };
     }
@@ -386,8 +602,8 @@ export function chooseAiAction(
 
   const tiedButUseful =
     bestShift.score === placeScore &&
-    (immediateThreats(bestShift.board, me) > placeMyThreats ||
-      immediateThreats(bestShift.board, opponent) < placeOppThreats);
+    (immediateThreats(bestShift.board, me, winLength) > placeMyThreats ||
+      immediateThreats(bestShift.board, opponent, winLength) < placeOppThreats);
   if (bestShift.score > placeScore || tiedButUseful) {
     best = { kind: "shift", dir: bestShift.dir, mode: shiftMode };
   }

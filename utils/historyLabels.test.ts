@@ -7,7 +7,7 @@ import {
 
 describe("cellName", () => {
   it("names every cell of the 3×3 board", () => {
-    expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(cellName)).toEqual([
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => cellName(i))).toEqual([
       "top-left",
       "top",
       "top-right",
@@ -18,6 +18,11 @@ describe("cellName", () => {
       "bottom",
       "bottom-right",
     ]);
+  });
+
+  it("falls back to a 1-based cell number on a non-3×3 board", () => {
+    expect(cellName(0, 4)).toBe("cell 1");
+    expect(cellName(9, 4)).toBe("cell 10");
   });
 });
 

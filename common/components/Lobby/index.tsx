@@ -97,13 +97,13 @@ const Lobby = () => {
     enabled: Boolean(playerId),
     refetchInterval: 5000,
   });
-  // The active shift mode (an internal POC toggle) so the "How to play" dialog
-  // explains and animates the variant new games will actually use.
-  const { data: shiftMode } = useQuery<ShiftMode>({
-    queryKey: ["shiftMode"],
+  // The active game config (internal POC toggles) so the "How to play" dialog
+  // explains and animates the shift variant new games will actually use.
+  const { data: gameConfig } = useQuery({
+    queryKey: ["game-config"],
     queryFn: ({ signal }) => fetchGameConfig(signal),
   });
-  const activeShiftMode: ShiftMode = shiftMode ?? "classic";
+  const activeShiftMode: ShiftMode = gameConfig?.shiftMode ?? "classic";
 
   const createMutation = useMutation({
     mutationFn: (vars: { name: string; mode: RoomMode }) =>

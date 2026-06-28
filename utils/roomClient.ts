@@ -147,18 +147,39 @@ export function shiftRoom(
   return sendJson(`/api/rooms/${id}/shift`, "POST", { playerId, direction });
 }
 
-/** Read the internal POC game config (currently just the active shift mode). */
-export function fetchGameConfig(signal?: AbortSignal): Promise<ShiftMode> {
-  return getJson<ShiftMode>("/api/internal/game-config", "shiftMode", signal);
+/** The internal POC game config: the active shift mode plus the board size and
+ *  win run length that new games are created at. */
+export interface GameConfig {
+  shiftMode: ShiftMode;
+  boardSize: number;
+  winLength: number;
 }
 
-/** Set the active shift mode for new shifts, returning the persisted value. */
-export function setGameShiftMode(mode: ShiftMode): Promise<ShiftMode> {
-  return fetch("/api/internal/game-config", {
+const GAME_CONFIG_URL = "/api/internal/game-config";
+
+/** Read the internal POC game config. */
+export function fetchGameConfig(signal?: AbortSignal): Promise<GameConfig> {
+  return fetch(GAME_CONFIG_URL, { cache: "no-store", signal }).then(
+    async (res) => {
+      if (!res.ok) throw await errorFrom(res);
+      return (await res.json()) as GameConfig;
+    },
+  );
+}
+
+/** Apply a partial config update, returning the full persisted (clamped) config.
+ *  Omitted fields are left unchanged server-side. */
+export function setGameConfig(
+  update: Partial<GameConfig>,
+): Promise<GameConfig> {
+  return fetch(GAME_CONFIG_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ shiftMode: mode }),
-  }).then((res) => readField<ShiftMode>(res, "shiftMode"));
+    body: JSON.stringify(update),
+  }).then(async (res) => {
+    if (!res.ok) throw await errorFrom(res);
+    return (await res.json()) as GameConfig;
+  });
 }
 
 export function fetchCompletedGames(

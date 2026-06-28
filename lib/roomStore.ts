@@ -4,8 +4,8 @@ import type {
   CompletedGame as CompletedRow,
   Room as RoomRow,
 } from "@prisma/client";
-import { AI_SEAT, INITIAL_SIZE } from "@/constants/game";
-import { getShiftMode } from "@/lib/gameConfig";
+import { AI_SEAT } from "@/constants/game";
+import { getGameConfig, getShiftMode } from "@/lib/gameConfig";
 import prisma from "@/lib/prisma";
 import {
   boardAfterActions,
@@ -36,7 +36,8 @@ const SEAT_TTL_MS = 30_000;
 /** Rooms idle longer than this are reaped lazily on list/create. */
 const ROOM_IDLE_MS = 6 * 60 * 60 * 1000;
 
-const EMPTY_BOARD: Board = Array(INITIAL_SIZE * INITIAL_SIZE).fill(null);
+/** A fresh empty board for a game of the given side length. */
+const emptyBoard = (size: number): Board => Array(size * size).fill(null);
 const INITIAL_SCORES: Scores = { X: 0, O: 0, draws: 0 };
 /** The two human-claimable seats, in turn order. */
 const SEATS = ["X", "O"] as const;
@@ -87,6 +88,8 @@ function rowToRoom(row: RoomRow): Room {
     id: row.id,
     name: row.name,
     board: row.board as Board,
+    size: row.size,
+    winLength: row.winLength,
     actions: row.actions as Room["actions"],
     xIsNext: row.xIsNext,
     scores: { X: row.scoreX, O: row.scoreO, draws: row.scoreDraws },
@@ -104,6 +107,8 @@ function roomToData(room: Room) {
   return {
     name: room.name,
     board: asJson(room.board),
+    size: room.size,
+    winLength: room.winLength,
     actions: asJson(room.actions),
     xIsNext: room.xIsNext,
     scoreX: room.scores.X,
@@ -125,6 +130,8 @@ function rowToCompleted(row: CompletedRow): CompletedGame {
     roomId: row.roomId,
     name: row.name,
     mode: row.mode as RoomMode,
+    size: row.size,
+    winLength: row.winLength,
     actions: row.actions as CompletedGame["actions"],
     playerX: row.playerX,
     playerO: row.playerO,
@@ -138,6 +145,8 @@ function completedToData(game: CompletedGame) {
     roomId: game.roomId,
     name: game.name,
     mode: game.mode,
+    size: game.size,
+    winLength: game.winLength,
     actions: asJson(game.actions),
     playerX: game.playerX,
     playerO: game.playerO,
@@ -145,9 +154,9 @@ function completedToData(game: CompletedGame) {
   };
 }
 
-/** Derive the room's status from its board. */
-function computeStatus(board: Board): RoomStatus {
-  if (isGameOver(board)) return "finished";
+/** Derive the room's status from its board and win rule. */
+function computeStatus(board: Board, winLength: number): RoomStatus {
+  if (isGameOver(board, winLength)) return "finished";
   if (board.some((cell) => cell !== null)) return "in-progress";
   return "waiting";
 }
@@ -191,6 +200,8 @@ function archiveCompletedGame(room: Room, archive: Archive): void {
     roomId: room.id,
     name: room.name,
     mode: room.mode,
+    size: room.size,
+    winLength: room.winLength,
     actions: room.actions.slice(),
     // Capture the seat holders so the game is only ever listed to its players.
     playerX: room.seats.X,
@@ -201,7 +212,7 @@ function archiveCompletedGame(room: Room, archive: Archive): void {
 
 /** Record a finished round in the scores exactly once. */
 function applyOutcome(room: Room): void {
-  const result = calculateWinner(room.board);
+  const result = calculateWinner(room.board, room.winLength);
   if (result) {
     room.scores[result.winner] += 1;
   } else {
@@ -216,7 +227,7 @@ function applyOutcome(room: Room): void {
  * so the game is scored and archived exactly once however it ends.
  */
 function settle(room: Room, archive: Archive): boolean {
-  if (isGameOver(room.board)) {
+  if (isGameOver(room.board, room.winLength)) {
     applyOutcome(room);
     archiveCompletedGame(room, archive);
     return true;
@@ -241,13 +252,19 @@ function aiSeat(room: Room): Player | null {
  */
 function runAiTurn(room: Room, archive: Archive, shiftMode: ShiftMode): void {
   const seat = aiSeat(room);
-  if (seat === null || isGameOver(room.board)) return;
+  if (seat === null || isGameOver(room.board, room.winLength)) return;
   const turn: Player = room.xIsNext ? "X" : "O";
   if (turn !== seat) return; // not the AI's move yet
 
   // Only O ever has the once-per-game grid shift.
   const canShift = seat === "O" && !room.oShiftUsed;
-  const action = chooseAiAction(room.board, seat, canShift, shiftMode);
+  const action = chooseAiAction(
+    room.board,
+    seat,
+    canShift,
+    shiftMode,
+    room.winLength,
+  );
   if (!action) return;
 
   if (action.kind === "shift") {
@@ -292,7 +309,7 @@ function swapSeats(room: Room): void {
  * are left untouched; callers that also clear those do so separately.
  */
 function clearRound(room: Room): void {
-  room.board = EMPTY_BOARD.slice();
+  room.board = emptyBoard(room.size);
   room.actions = [];
   room.xIsNext = true;
   room.oShiftUsed = false;
@@ -356,7 +373,7 @@ export async function listRooms(): Promise<RoomSummary[]> {
       id: room.id,
       name: room.name,
       board: room.board,
-      status: computeStatus(room.board),
+      status: computeStatus(room.board, room.winLength),
       mode: room.mode,
       seatsTaken: {
         X: room.seats.X !== null,
@@ -375,11 +392,17 @@ export async function createRoom(
     return { ok: false, error: "invalid-name" };
   }
   await reapIdleRooms();
+  // New games adopt the active configured size and win run length; both are then
+  // fixed for the room's life (recorded per game so changing the config later
+  // never rewrites this one).
+  const { boardSize, winLength } = await getGameConfig();
   const ts = now();
   const room: Room = {
     id: nextId(),
     name: trimmed,
-    board: EMPTY_BOARD.slice(),
+    board: emptyBoard(boardSize),
+    size: boardSize,
+    winLength,
     actions: [],
     xIsNext: true,
     scores: { ...INITIAL_SCORES },
@@ -432,17 +455,17 @@ export async function getRoom(
 }
 
 export function toView(room: Room): RoomView {
-  const result = calculateWinner(room.board);
+  const result = calculateWinner(room.board, room.winLength);
   return {
     ...room,
-    status: computeStatus(room.board),
+    status: computeStatus(room.board, room.winLength),
     winningLine: result ? result.line : null,
   };
 }
 
 export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {
-  const board = boardAfterActions(game.actions, game.actions.length);
-  const result = calculateWinner(board);
+  const board = boardAfterActions(game.actions, game.actions.length, game.size);
+  const result = calculateWinner(board, game.winLength);
   return {
     id: game.id,
     name: game.name,
@@ -458,6 +481,8 @@ export function toCompletedView(game: CompletedGame): CompletedGameView {
     id: game.id,
     name: game.name,
     mode: game.mode,
+    size: game.size,
+    winLength: game.winLength,
     actions: game.actions,
     completedAt: game.completedAt,
   };
@@ -562,7 +587,7 @@ export async function makeMove(
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
-    if (isGameOver(room.board)) {
+    if (isGameOver(room.board, room.winLength)) {
       return { ok: false, error: "game-over" };
     }
     if (index < 0 || index >= room.board.length) {
@@ -603,7 +628,7 @@ export async function shiftBoardAction(
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
-    if (isGameOver(room.board)) {
+    if (isGameOver(room.board, room.winLength)) {
       return { ok: false, error: "game-over" };
     }
     // The shift belongs to O, and only on O's turn (it is O's action for it).
@@ -634,7 +659,7 @@ export async function resetGame(
     if (room.seats.X !== playerId && room.seats.O !== playerId) {
       return { ok: false, error: "not-participant" };
     }
-    const roundFinished = isGameOver(room.board);
+    const roundFinished = isGameOver(room.board, room.winLength);
     clearRound(room);
     // Alternate who moves first each round by swapping the two players' seats
     // (a no-op in AI rooms, where the human keeps the side they chose).

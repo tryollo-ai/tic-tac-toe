@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import classNames from "classnames";
 import { animated, to, useSpring, useTransition } from "@react-spring/web";
-import { INITIAL_SIZE } from "@/constants/game";
 import {
+  boardSize,
   DIRECTION_STEPS,
   shiftPlan,
   type Board as BoardState,
@@ -18,7 +18,6 @@ import styles from "./styles.module.scss";
 
 /** Board grid gap in px; keep in sync with `gap` in styles.module.scss. */
 const GAP = 10;
-const SIZE = INITIAL_SIZE;
 
 /**
  * A one-shot cue describing how the board reached its current `board` prop, so
@@ -119,7 +118,8 @@ function snapSprites(
   board: BoardState,
   nextId: () => number,
 ): Sprite[] {
-  const byCell = new Map(prev.map((s) => [s.row * SIZE + s.col, s]));
+  const size = boardSize(board);
+  const byCell = new Map(prev.map((s) => [s.row * size + s.col, s]));
   const out: Sprite[] = [];
   for (let i = 0; i < board.length; i++) {
     const player = board[i];
@@ -135,8 +135,8 @@ function snapSprites(
         : {
             id: nextId(),
             player,
-            row: Math.floor(i / SIZE),
-            col: i % SIZE,
+            row: Math.floor(i / size),
+            col: i % size,
             leans: true,
           },
     );
@@ -153,14 +153,15 @@ function shiftSprites(
   mode: ShiftMode,
   nextId: () => number,
 ): Sprite[] {
-  const byCell = new Map(prev.map((s) => [s.row * SIZE + s.col, s]));
+  const size = boardSize(from);
+  const byCell = new Map(prev.map((s) => [s.row * size + s.col, s]));
   const survivors: Sprite[] = [];
   for (const motion of shiftPlan(from, direction, mode)) {
     if (motion.departs) continue;
     // A survivor that lands on its own cell didn't move - it must not lean.
     const leans =
       motion.from.row !== motion.to.row || motion.from.col !== motion.to.col;
-    const existing = byCell.get(motion.from.row * SIZE + motion.from.col);
+    const existing = byCell.get(motion.from.row * size + motion.from.col);
     survivors.push(
       existing
         ? { ...existing, row: motion.to.row, col: motion.to.col, leans }
@@ -191,6 +192,9 @@ type Props = {
 const Board = (props: Props) => {
   const { board, transition } = props;
   const anim = props.animation ?? DEFAULT_BOARD_ANIMATION;
+  // Side length of this (square) board; everything that lays out cells reads it,
+  // so the same component renders a 3×3 or a 10×10 from the board array alone.
+  const size = boardSize(board);
 
   // Live cell size in px so the marks layer can position by pixel offset, which
   // is what react-spring animates. Measured from the overlay, which is inset to
@@ -200,12 +204,12 @@ const Board = (props: Props) => {
   useEffect(() => {
     const el = layerRef.current;
     if (!el) return;
-    const measure = () => setCell((el.clientWidth - (SIZE - 1) * GAP) / SIZE);
+    const measure = () => setCell((el.clientWidth - (size - 1) * GAP) / size);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [size]);
 
   const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
@@ -303,9 +307,9 @@ const Board = (props: Props) => {
       // distance to clear the edge - a fixed DEPART_CELLS would strand it
       // mid-board. The edge is row/col 0 going up/left, SIZE-1 going down/right.
       const offRow =
-        dr !== 0 ? (dr > 0 ? SIZE - 1 : 0) + dr * DEPART_CELLS : s.row;
+        dr !== 0 ? (dr > 0 ? size - 1 : 0) + dr * DEPART_CELLS : s.row;
       const offCol =
-        dc !== 0 ? (dc > 0 ? SIZE - 1 : 0) + dc * DEPART_CELLS : s.col;
+        dc !== 0 ? (dc > 0 ? size - 1 : 0) + dc * DEPART_CELLS : s.col;
       return async (next: (props: object) => Promise<void>) => {
         if (snap) {
           await next({ opacity: 0, immediate: true });
@@ -352,7 +356,7 @@ const Board = (props: Props) => {
       className={styles.root}
       role="grid"
       aria-label="Tic-tac-toe board"
-      style={{ gridTemplateColumns: `repeat(${SIZE}, 1fr)` }}
+      style={{ gridTemplateColumns: `repeat(${size}, 1fr)` }}
     >
       {board.map((value, index) => (
         <Square
@@ -400,7 +404,7 @@ const Board = (props: Props) => {
           ))}
       </div>
 
-      {props.winningLine && <WinningLine line={props.winningLine} />}
+      {props.winningLine && <WinningLine line={props.winningLine} size={size} />}
     </div>
   );
 };

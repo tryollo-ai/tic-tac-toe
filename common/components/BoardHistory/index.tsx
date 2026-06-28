@@ -9,6 +9,10 @@ import styles from "./styles.module.scss";
 
 type Props = {
   actions: GameAction[];
+  /** Board side length, so each snapshot rebuilds at the game's size. */
+  size: number;
+  /** Win run length, so a snapshot highlights the line by the game's rule. */
+  winLength: number;
 };
 
 /** How far one arrow press scrolls the list, in pixels. */
@@ -79,11 +83,14 @@ const BoardHistory = (props: Props) => {
 
       <div className={styles.list} ref={listRef} onScroll={updateArrows}>
         {props.actions.map((action, i) => {
-          const { player, move } = describeAction(action, i);
+          const { player, move } = describeAction(action, i, props.size);
           return (
             <div className={styles.entry} key={i}>
               <span className={styles.moveNo}>{i + 1}</span>
-              <MiniBoard board={boardAfterActions(props.actions, i + 1)} />
+              <MiniBoard
+                board={boardAfterActions(props.actions, i + 1, props.size)}
+                winLength={props.winLength}
+              />
               <span className={styles.label}>
                 <span
                   className={classNames(styles.mark, {
