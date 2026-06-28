@@ -179,48 +179,45 @@ $round-announce-ms: $round-announce-raw * 1ms;
   width: 100%;
 }
 
-// The board plus its shift perimeter. At rest the perimeter tracks are zero so
-// the board fills the whole frame; arming the shift expands the tracks
-// (`.boardFrameArmed`) to hold the direction arrows, shrinking the board.
+// The board and its four shift-direction arrows. Arming the picker shrinks the
+// board with a composited `transform: scale` - its layout box is unchanged, so
+// the cells never reflow and the marks layer never re-measures (no rattle) - and
+// the arrows fade into the space the scale frees up. The arrows are positioned
+// absolutely against the four edges, centred in that freed band.
 //
 // The activate/cancel sequence is two-phase and reversible:
 //   activate: board shrinks immediately, then the arrows fade in (`.shiftButtonVisible`).
 //   cancel:   arrows fade out immediately, then the board grows back.
 // The phases are ordered purely with transition timing - each state carries the
-// delay for the step that must wait. The rest state (`.boardFrame`) delays the
+// delay for the step that must wait. The rest state (`.boardSlot`) delays the
 // grow so it follows the arrows' fade-out; the armed arrows delay their fade-in
 // so it follows the shrink. The opposite directions run with no delay.
 .boardFrame {
-  --shift-size: 44px;
+  --shift-scale: 0.72;
+  --shift-thickness: 44px;
   --shift-grow: 0.25s;
   --shift-fade: 0.2s;
+  // Half the band the scale frees on each edge, where an arrow's long side is
+  // centred; --shift-span is the scaled board's matching edge length.
+  --shift-band: calc((1 - var(--shift-scale)) * 25%);
+  --shift-inset: calc((1 - var(--shift-scale)) * 50%);
+  --shift-span: calc(var(--shift-scale) * 100%);
 
-  display: grid;
-  grid-template-columns: 0 minmax(0, 1fr) 0;
-  grid-template-rows: 0 auto 0;
-  gap: 0;
+  position: relative;
   width: 100%;
-  transition:
-    grid-template-columns var(--shift-grow) ease var(--shift-fade),
-    grid-template-rows var(--shift-grow) ease var(--shift-fade),
-    gap var(--shift-grow) ease var(--shift-fade);
-}
-
-.boardFrameArmed {
-  grid-template-columns: var(--shift-size) minmax(0, 1fr) var(--shift-size);
-  grid-template-rows: var(--shift-size) auto var(--shift-size);
-  gap: 8px;
-  // Shrink runs immediately; only the rest state delays the reverse (grow).
-  transition:
-    grid-template-columns var(--shift-grow) ease,
-    grid-template-rows var(--shift-grow) ease,
-    gap var(--shift-grow) ease;
 }
 
 .boardSlot {
-  grid-column: 2;
-  grid-row: 2;
   min-width: 0;
+  transform-origin: center;
+  // Rest: grow back only after the arrows have faded out.
+  transition: transform var(--shift-grow) ease var(--shift-fade);
+}
+
+.boardFrameArmed .boardSlot {
+  transform: scale(var(--shift-scale));
+  // Shrink runs immediately; only the reverse (grow) is delayed.
+  transition: transform var(--shift-grow) ease;
 }
 
 // History panel, bleeding out to the left of the board. Pinned to the right edge
@@ -358,11 +355,13 @@ $round-announce-ms: $round-announce-raw * 1ms;
 // rest (the slot has zero size then too) and revealed by `.shiftButtonVisible`;
 // `pointer-events` keeps the invisible arrows from intercepting clicks.
 .shiftButton {
+  position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
+  // Each arrow is a bar spanning the matching edge of the scaled board; its slot
+  // sets the long side (--shift-span) and centres the short side (--shift-thickness)
+  // on the freed band. No positioning transform, so hover `scale` is free.
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1;
@@ -407,24 +406,40 @@ $round-announce-ms: $round-announce-raw * 1ms;
   }
 }
 
+// Top/bottom arrows span the scaled board's width; left/right span its height.
+// The long side is inset by --shift-inset so it lines up with the board edges;
+// the short side sits centred on the freed band (--shift-band) via a half-size
+// negative margin.
 .shiftSlotTop {
-  grid-column: 2;
-  grid-row: 1;
+  top: var(--shift-band);
+  left: var(--shift-inset);
+  width: var(--shift-span);
+  height: var(--shift-thickness);
+  margin-top: calc(var(--shift-thickness) / -2);
 }
 
 .shiftSlotBottom {
-  grid-column: 2;
-  grid-row: 3;
+  top: calc(100% - var(--shift-band));
+  left: var(--shift-inset);
+  width: var(--shift-span);
+  height: var(--shift-thickness);
+  margin-top: calc(var(--shift-thickness) / -2);
 }
 
 .shiftSlotLeft {
-  grid-column: 1;
-  grid-row: 2;
+  top: var(--shift-inset);
+  left: var(--shift-band);
+  width: var(--shift-thickness);
+  height: var(--shift-span);
+  margin-left: calc(var(--shift-thickness) / -2);
 }
 
 .shiftSlotRight {
-  grid-column: 3;
-  grid-row: 2;
+  top: var(--shift-inset);
+  left: calc(100% - var(--shift-band));
+  width: var(--shift-thickness);
+  height: var(--shift-span);
+  margin-left: calc(var(--shift-thickness) / -2);
 }
 
 .nextGame {
@@ -514,8 +529,8 @@ $round-announce-ms: $round-announce-raw * 1ms;
 // Respect reduced-motion: snap the board and arrows between rest and armed with
 // no shrink/fade animation (matches the Spinner's reduced-motion handling).
 @media (prefers-reduced-motion: reduce) {
-  .boardFrame,
-  .boardFrameArmed,
+  .boardSlot,
+  .boardFrameArmed .boardSlot,
   .shiftButton,
   .shiftButtonVisible {
     transition: none;

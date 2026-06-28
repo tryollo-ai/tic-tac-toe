@@ -8,17 +8,18 @@ import { fetchCompletedGame, RoomError } from "@/utils/roomClient";
 import {
   boardAfterActions,
   calculateWinner,
+  DEFAULT_SHIFT_MODE,
   type Direction,
 } from "@/utils/gameLogic";
 import { actionSentence } from "@/utils/historyLabels";
 import { type CompletedGameView } from "@/lib/roomTypes";
 import { usePlayerId } from "@/lib/usePlayerId";
-import Board from "@/common/components/Board";
+import { PLACE_MS } from "@/constants/animation";
+import Board, { type BoardTransition } from "@/common/components/Board";
 import RoomHeader from "@/common/components/RoomHeader";
 import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
 import Status, { spectatorStatus } from "@/common/components/Status";
 import styles from "./styles.module.scss";
-import squareStyles from "@/common/components/Square/styles.module.scss";
 
 type Props = {
   id: string;
@@ -27,8 +28,8 @@ type Props = {
 /** Milliseconds between moves while auto-playing. */
 const AUTOPLAY_MS = 800;
 
-/** Drop-in duration for a freshly marked cell; owned by Square's stylesheet. */
-const PLACE_ANIMATION_MS = Number(squareStyles.placeMs) || 320;
+/** Drop-in duration for a freshly marked cell. */
+const PLACE_ANIMATION_MS = PLACE_MS;
 
 /**
  * How long the shift cue (sliding marks + the directional arrow) stays on the
@@ -50,10 +51,8 @@ const Replay = (props: Props) => {
   // Number of moves shown so far: 0 is the empty board, moves.length is final.
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
-  // The cell to drop-in for the move just shown, or null at rest.
-  const [placedIndex, setPlacedIndex] = useState<number | null>(null);
-  // The direction of the shift cue currently playing, or null at rest.
-  const [shiftDirection, setShiftDirection] = useState<Direction | null>(null);
+  // How the move just shown should animate (drop-in or shift), or null at rest.
+  const [transition, setTransition] = useState<BoardTransition | null>(null);
 
   const playerId = usePlayerId();
 
@@ -96,33 +95,32 @@ const Replay = (props: Props) => {
     const prev = prevStepRef.current;
     prevStepRef.current = step;
     if (step !== prev + 1) {
-      setPlacedIndex(null);
-      setShiftDirection(null);
+      setTransition(null); // a jump or step-back shows the position with no motion
       return;
     }
     const action = game?.actions[step - 1];
     if (!action) return;
-    if (action.kind === "place") {
-      setShiftDirection(null);
-      setPlacedIndex(action.index);
-    } else {
-      setPlacedIndex(null);
-      setShiftDirection(action.dir);
-    }
+    setTransition(
+      action.kind === "place"
+        ? { kind: "place", index: action.index }
+        : {
+            kind: "shift",
+            direction: action.dir,
+            mode: action.mode ?? DEFAULT_SHIFT_MODE,
+            from: boardAfterActions(game.actions, step - 1),
+          },
+    );
   }, [step, game]);
 
-  // Clear each cue once it has played so the board returns to its static render.
+  // Clear the cue once it has played so the board returns to its static render.
+  // The shift cue lingers with its arrow; the drop-in clears on its own beat.
   useEffect(() => {
-    if (placedIndex === null) return;
-    const timer = setTimeout(() => setPlacedIndex(null), PLACE_ANIMATION_MS);
+    if (!transition) return;
+    const ms =
+      transition.kind === "shift" ? SHIFT_ANIMATION_MS : PLACE_ANIMATION_MS;
+    const timer = setTimeout(() => setTransition(null), ms);
     return () => clearTimeout(timer);
-  }, [placedIndex]);
-
-  useEffect(() => {
-    if (!shiftDirection) return;
-    const timer = setTimeout(() => setShiftDirection(null), SHIFT_ANIMATION_MS);
-    return () => clearTimeout(timer);
-  }, [shiftDirection]);
+  }, [transition]);
 
   if (notFound) {
     return (
@@ -143,6 +141,9 @@ const Replay = (props: Props) => {
 
   const board = boardAfterActions(game.actions, step);
   const result = calculateWinner(board);
+  // The shift cue still playing, surfaced for the directional arrow overlay.
+  const shiftDirection: Direction | null =
+    transition?.kind === "shift" ? transition.direction : null;
   const atStart = step === 0;
   const atEnd = step === total;
   // The action just shown, narrated below the board (e.g. "O shifted the grid
@@ -184,8 +185,7 @@ const Replay = (props: Props) => {
           winningLine={result ? result.line : null}
           onSquareClick={() => {}}
           disabled
-          shiftDirection={shiftDirection}
-          placedIndex={placedIndex}
+          transition={transition}
         />
 
         {shiftDirection && (

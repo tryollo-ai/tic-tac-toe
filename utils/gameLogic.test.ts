@@ -6,6 +6,7 @@ import {
   DIRECTIONS,
   isBoardFull,
   shiftBoard,
+  shiftPlan,
   type Board,
   type Cell,
   type GameAction,
@@ -215,6 +216,50 @@ describe("shiftBoard collapse mode", () => {
     // No mode argument == classic: the center mark moves exactly one cell.
     expect(shiftBoard(board, "right")[5]).toBe("X");
     expect(shiftBoard(board, "right")[2]).toBeNull();
+  });
+});
+
+describe("shiftPlan", () => {
+  const cell = (row: number, col: number) => ({ row, col });
+
+  it("maps the worked left-shift example to per-mark motion", () => {
+    // x x o        o _ _
+    // _ o _  --->  o _ _   (collapse left): two O settle, three X sweep off left.
+    // x _ _        _ _ _
+    const board: Board = ["X", "X", "O", null, "O", null, "X", null, null];
+    const plan = shiftPlan(board, "left", "collapse");
+
+    // The settling marks land in column 0 and stay on the grid.
+    const settles = plan.filter((m) => !m.departs);
+    expect(settles).toEqual([
+      { player: "O", from: cell(0, 2), to: cell(0, 0), departs: false },
+      { player: "O", from: cell(1, 1), to: cell(1, 0), departs: false },
+    ]);
+
+    // The swept marks are all X, sent off the left edge (negative column).
+    const departs = plan.filter((m) => m.departs);
+    expect(departs.map((m) => m.player)).toEqual(["X", "X", "X"]);
+    expect(departs.every((m) => m.to.col < 0)).toBe(true);
+  });
+
+  it("leaves a uniform line's marks in place", () => {
+    const row: Board = ["O", "O", "O", null, null, null, null, null, null];
+    const top = shiftPlan(row, "left", "collapse").slice(0, 3);
+    expect(top.every((m) => !m.departs)).toBe(true);
+    expect(
+      top.every((m) => m.from.row === m.to.row && m.from.col === m.to.col),
+    ).toBe(true);
+    expect(top.map((m) => m.player)).toEqual(["O", "O", "O"]);
+  });
+
+  it("steps every mark one cell for a classic shift, flagging edge departures", () => {
+    // X at the right edge departs; X in the center steps one cell right.
+    const board: Board = [null, null, "X", null, "X", null, null, null, null];
+    const plan = shiftPlan(board, "right", "classic");
+    expect(plan).toEqual([
+      { player: "X", from: cell(0, 2), to: cell(0, 3), departs: true },
+      { player: "X", from: cell(1, 1), to: cell(1, 2), departs: false },
+    ]);
   });
 });
 

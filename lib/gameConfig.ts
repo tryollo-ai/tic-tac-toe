@@ -1,28 +1,38 @@
-import { DEFAULT_SHIFT_MODE, type ShiftMode } from "@/utils/gameLogic";
+import prisma from "@/lib/prisma";
+import {
+  DEFAULT_SHIFT_MODE,
+  SHIFT_MODES,
+  type ShiftMode,
+} from "@/utils/gameLogic";
 
 /**
- * Server-side, in-memory POC config for experimenting with game-rule variants -
- * currently just which {@link ShiftMode} new shifts use. It is deliberately not
- * persisted: it lives for the lifetime of the server process and resets to the
- * default on restart, which is all an internal toggle for "us to test" needs.
- *
- * The value is stashed on `globalThis` (the same singleton pattern as
- * `lib/prisma.ts`) so every server module - the store, the AI turn, and the
- * `/api/internal/game-config` route - reads and writes one shared value even
- * across Next.js dev hot-reloads.
+ * Server-side POC config for game-rule variants - currently just which
+ * {@link ShiftMode} new shifts use. Persisted in the single-row `AppConfig`
+ * table (see prisma/schema.prisma) so the active mode survives server restarts
+ * and is shared across serverless instances. The previous implementation kept it
+ * in-memory on `globalThis`, which silently reset to the default on every
+ * restart - the source of the "mode keeps reverting to classic" bug.
  *
  * Scope note: only *new* shifts read this. Each recorded shift action captures
  * the mode it was played with, so flipping the toggle never rewrites the history
  * of games already in progress or archived.
  */
-const globalForGameConfig = globalThis as unknown as {
-  shiftMode: ShiftMode | undefined;
-};
 
-export function getShiftMode(): ShiftMode {
-  return globalForGameConfig.shiftMode ?? DEFAULT_SHIFT_MODE;
+/** Fixed primary key of the single config row. */
+const CONFIG_ID = "global";
+
+export async function getShiftMode(): Promise<ShiftMode> {
+  const row = await prisma.appConfig.findUnique({ where: { id: CONFIG_ID } });
+  const mode = row?.shiftMode;
+  return mode && SHIFT_MODES.includes(mode as ShiftMode)
+    ? (mode as ShiftMode)
+    : DEFAULT_SHIFT_MODE;
 }
 
-export function setShiftMode(mode: ShiftMode): void {
-  globalForGameConfig.shiftMode = mode;
+export async function setShiftMode(mode: ShiftMode): Promise<void> {
+  await prisma.appConfig.upsert({
+    where: { id: CONFIG_ID },
+    create: { id: CONFIG_ID, shiftMode: mode },
+    update: { shiftMode: mode },
+  });
 }

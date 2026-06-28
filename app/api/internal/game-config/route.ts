@@ -11,7 +11,7 @@ function isShiftMode(value: unknown): value is ShiftMode {
 
 /** Read the current internal game config. Intentionally open (POC tooling). */
 export async function GET() {
-  return NextResponse.json({ shiftMode: getShiftMode() });
+  return NextResponse.json({ shiftMode: await getShiftMode() });
 }
 
 /**
@@ -22,6 +22,6 @@ export async function POST(request: Request) {
   const body = await parseJsonBody(request);
   if (!body || !isShiftMode(body.shiftMode)) return badRequest("invalid-mode");
 
-  setShiftMode(body.shiftMode);
-  return NextResponse.json({ shiftMode: getShiftMode() });
+  await setShiftMode(body.shiftMode);
+  return NextResponse.json({ shiftMode: await getShiftMode() });
 }

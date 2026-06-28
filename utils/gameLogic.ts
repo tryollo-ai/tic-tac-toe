@@ -181,6 +181,103 @@ export function shiftBoard(
     : shiftBoardClassic(board, direction);
 }
 
+/** A row/column coordinate; may be off-grid (negative or ≥ size) for a mark a
+ *  shift sweeps away, so the UI can slide it past the edge. */
+export interface CellCoord {
+  row: number;
+  col: number;
+}
+
+/**
+ * How a single mark moves under a shift: from its current cell `from` to `to`.
+ * `to` is an in-grid cell when the mark survives, or an off-grid coordinate (in
+ * the shift direction) when `departs` is true - the mark the shift removes.
+ */
+export interface ShiftMotion {
+  player: Player;
+  from: CellCoord;
+  to: CellCoord;
+  departs: boolean;
+}
+
+/** Unit row/column step for a shift direction. */
+function directionStep(direction: Direction): [number, number] {
+  if (direction === "top") return [-1, 0];
+  if (direction === "bottom") return [1, 0];
+  if (direction === "left") return [0, -1];
+  return [0, 1];
+}
+
+/**
+ * The per-mark motion a shift produces, so the UI can animate each mark to its
+ * destination (and slide departing marks off the grid) rather than snapping the
+ * board. Covers every mark on the pre-shift `board`:
+ * - "classic": every mark steps one cell in `direction`; a mark stepped off the
+ *   edge `departs`.
+ * - "collapse": each line keeps the one mark that settles against the leading
+ *   edge (mirroring collapseLineTowardEnd) and sweeps the rest off that edge; a
+ *   uniform line leaves its marks in place.
+ * Departing marks are sent a full board-length past the edge so they clear it.
+ */
+export function shiftPlan(
+  board: Board,
+  direction: Direction,
+  mode: ShiftMode = DEFAULT_SHIFT_MODE,
+): ShiftMotion[] {
+  const size = INITIAL_SIZE;
+  const [dr, dc] = directionStep(direction);
+  const coord = (index: number): CellCoord => ({
+    row: Math.floor(index / size),
+    col: index % size,
+  });
+  const motions: ShiftMotion[] = [];
+
+  if (mode === "classic") {
+    for (let i = 0; i < board.length; i++) {
+      const player = board[i];
+      if (player === null) continue;
+      const from = coord(i);
+      const to = { row: from.row + dr, col: from.col + dc };
+      const departs =
+        to.row < 0 || to.row >= size || to.col < 0 || to.col >= size;
+      motions.push({ player, from, to, departs });
+    }
+    return motions;
+  }
+
+  const horizontal = direction === "left" || direction === "right";
+  const towardEnd = direction === "right" || direction === "bottom";
+  for (let li = 0; li < size; li++) {
+    const indices: number[] = [];
+    for (let j = 0; j < size; j++) {
+      indices.push(horizontal ? li * size + j : j * size + li);
+    }
+    const order = towardEnd ? indices : indices.slice().reverse();
+    const line = order.map((k) => board[k]);
+    const n = line.length;
+    const edge = line[n - 1];
+    // The settler is the first cell (scanning inward from the edge) that differs
+    // from the edge value - the one mark a non-uniform line keeps.
+    let settler = n - 2;
+    while (settler >= 0 && line[settler] === edge) settler -= 1;
+    const edgeCoord = coord(order[n - 1]);
+    for (let p = 0; p < n; p++) {
+      const player = line[p];
+      if (player === null) continue;
+      const from = coord(order[p]);
+      if (settler < 0) {
+        motions.push({ player, from, to: from, departs: false }); // uniform line
+      } else if (p === settler) {
+        motions.push({ player, from, to: edgeCoord, departs: false }); // settles
+      } else {
+        const to = { row: from.row + dr * size, col: from.col + dc * size };
+        motions.push({ player, from, to, departs: true }); // swept off the edge
+      }
+    }
+  }
+  return motions;
+}
+
 /**
  * Reconstruct a game's board after its first `count` actions. Players alternate
  * strictly (X takes the even-indexed actions, O the odd ones); each action

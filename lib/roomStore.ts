@@ -239,7 +239,7 @@ function aiSeat(room: Room): Player | null {
  * as the human's turn (unless the AI's placement ended the game). The AI plays
  * whichever seat it holds, so it both opens as X and replies as O.
  */
-function runAiTurn(room: Room, archive: Archive): void {
+function runAiTurn(room: Room, archive: Archive, shiftMode: ShiftMode): void {
   const seat = aiSeat(room);
   if (seat === null || isGameOver(room.board)) return;
   const turn: Player = room.xIsNext ? "X" : "O";
@@ -247,11 +247,11 @@ function runAiTurn(room: Room, archive: Archive): void {
 
   // Only O ever has the once-per-game grid shift.
   const canShift = seat === "O" && !room.oShiftUsed;
-  const action = chooseAiAction(room.board, seat, canShift, getShiftMode());
+  const action = chooseAiAction(room.board, seat, canShift, shiftMode);
   if (!action) return;
 
   if (action.kind === "shift") {
-    applyShift(room, action.dir, action.mode ?? getShiftMode());
+    applyShift(room, action.dir, action.mode ?? shiftMode);
     room.oShiftUsed = true;
     if (settle(room, archive)) return; // a collapse shift can end the game
     room.xIsNext = true; // the shift was O's whole turn; X plays next
@@ -480,6 +480,7 @@ export async function claimSeat(
   seat: "X" | "O",
   playerId: string,
 ): Promise<StoreResult> {
+  const shiftMode = await getShiftMode();
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
@@ -504,7 +505,7 @@ export async function claimSeat(
         room.seats[other] = AI_SEAT;
         room.seatSeen[other] = null;
       }
-      runAiTurn(room, archive);
+      runAiTurn(room, archive, shiftMode);
     }
     return touched(room);
   });
@@ -548,6 +549,7 @@ export async function makeMove(
   index: number,
   playerId: string,
 ): Promise<StoreResult> {
+  const shiftMode = await getShiftMode();
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
@@ -571,7 +573,7 @@ export async function makeMove(
     if (settle(room, archive)) return touched(room);
 
     room.xIsNext = !room.xIsNext;
-    runAiTurn(room, archive); // server-side AI follow-up so spectators see it too
+    runAiTurn(room, archive, shiftMode); // server-side AI follow-up so spectators see it too
     return touched(room);
   });
 }
@@ -588,6 +590,7 @@ export async function shiftBoardAction(
   direction: Direction,
   playerId: string,
 ): Promise<StoreResult> {
+  const shiftMode = await getShiftMode();
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
 
@@ -602,11 +605,11 @@ export async function shiftBoardAction(
       return { ok: false, error: "shift-used" };
     }
 
-    applyShift(room, direction, getShiftMode());
+    applyShift(room, direction, shiftMode);
     room.oShiftUsed = true;
     if (!settle(room, archive)) {
       room.xIsNext = true; // the shift was O's whole turn; X plays next
-      runAiTurn(room, archive); // AI X replies when a human O shifts against it
+      runAiTurn(room, archive, shiftMode); // AI X replies when a human O shifts against it
     }
     return touched(room);
   });
@@ -616,6 +619,7 @@ export async function resetGame(
   id: string,
   playerId: string,
 ): Promise<StoreResult> {
+  const shiftMode = await getShiftMode();
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
     if (room.seats.X !== playerId && room.seats.O !== playerId) {
@@ -629,7 +633,7 @@ export async function resetGame(
     // Alternate who moves first each round by swapping the two players' seats
     // (a no-op in AI rooms, where the human keeps the side they chose).
     if (roundFinished) swapSeats(room);
-    runAiTurn(room, archive); // if the AI holds X, it opens the fresh game
+    runAiTurn(room, archive, shiftMode); // if the AI holds X, it opens the fresh game
     return touched(room);
   });
 }
