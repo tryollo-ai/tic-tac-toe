@@ -7,11 +7,11 @@ import {
   listCompletedGames,
   listRooms,
   makeMove,
-  resetGame,
   shiftBoardAction,
+  toView,
 } from "@/lib/roomStore";
 import prisma from "@/lib/prisma";
-import { AI_SEAT } from "@/constants/game";
+import { AI_SEAT, AUTO_RESET_MS } from "@/constants/game";
 import type { Room } from "@/lib/roomTypes";
 
 // These tests run against the throwaway local Postgres started by
@@ -284,57 +284,134 @@ describe("scoring and completed-game archival on settle", () => {
     expect(await listCompletedGames("")).toHaveLength(0);
   });
 
-  it("resetGame clears the board for a participant", async () => {
-    const { id } = await seatedRoom();
-    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+});
 
-    expect(await resetGame(id, "stranger")).toEqual({
-      ok: false,
-      error: "not-participant",
+// The next-round reset is server-authoritative and lazy: any per-request
+// transaction (a stream heartbeat read or a claim) heals a finished room once
+// it has sat in its end state for AUTO_RESET_MS. No client timer is involved,
+// so a room recovers even when every client has left. Aging `lastActivity` past
+// the delay stands in for the wait, the same trick the TTL/reap tests use.
+describe("lazy next-round reset", () => {
+  /** Push the room's lastActivity past the auto-reset delay. */
+  async function ageBeyondResetDelay(id: string): Promise<void> {
+    await prisma.room.update({
+      where: { id },
+      data: { lastActivity: new Date(Date.now() - AUTO_RESET_MS - 1000) },
     });
+  }
 
-    expect((await resetGame(id, PX)).ok).toBe(true);
-    const room = await getRoom(id);
-    expect(room?.board.every((cell) => cell === null)).toBe(true);
-    expect(room?.actions).toHaveLength(0);
-    expect(room?.xIsNext).toBe(true);
-  });
-
-  it("resetGame swaps the two players' seats so they alternate going first", async () => {
-    const { id } = await seatedRoom(); // PX in X, PO in O
-
-    // PX (X) wins the top row so the round is scored before the reset.
+  /** Drive PX (X) to a top-row win so the round is finished and scored. */
+  async function playXWin(id: string): Promise<void> {
     expect((await makeMove(id, 0, PX)).ok).toBe(true);
     expect((await makeMove(id, 3, PO)).ok).toBe(true);
     expect((await makeMove(id, 1, PX)).ok).toBe(true);
     expect((await makeMove(id, 5, PO)).ok).toBe(true);
     expect((await makeMove(id, 2, PX)).ok).toBe(true); // X wins
+  }
 
-    expect((await resetGame(id, PX)).ok).toBe(true);
+  it("resets a finished two-player game via a heartbeat read after the delay", async () => {
+    const { id } = await seatedRoom(); // PX in X, PO in O
+    await playXWin(id);
+    await ageBeyondResetDelay(id);
 
-    const room = await getRoom(id);
-    // The seats are swapped: PO now moves first as X, PX plays O.
-    expect(room?.seats).toEqual({ X: PO, O: PX });
-    // The scores swap alongside the seats so each tally still follows its player:
-    // PX's win is now recorded under the O seat it currently holds.
-    expect(room?.scores).toEqual({ X: 0, O: 1, draws: 0 });
+    // A heartbeat read (the per-second stream tick) heals the finished room.
+    const room = await getRoom(id, PX);
+    expect(room?.board.every((cell) => cell === null)).toBe(true);
+    expect(room?.actions).toHaveLength(0);
     expect(room?.xIsNext).toBe(true);
-
-    // PO, now in the X seat, makes the opening move of the new round.
-    expect((await makeMove(id, 4, PO)).ok).toBe(true);
-    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+    // Seats swapped so the players alternate going first, scores following them.
+    expect(room?.seats).toEqual({ X: PO, O: PX });
+    expect(room?.scores).toEqual({ X: 0, O: 1, draws: 0 });
   });
 
-  it("resetGame keeps O as the AI in AI rooms (no seat swap)", async () => {
+  it("does not reset a game that just finished (delay not yet elapsed)", async () => {
+    const { id } = await seatedRoom();
+    await playXWin(id);
+
+    // No aging: the finished board is still within the on-screen delay.
+    const room = await getRoom(id, PX);
+    expect(toView(room as Room).status).toBe("finished");
+    expect(room?.board[0]).toBe("X");
+    expect(room?.board[1]).toBe("X");
+    expect(room?.board[2]).toBe("X");
+    expect(room?.seats).toEqual({ X: PX, O: PO }); // no swap yet
+  });
+
+  it("resets an AI room and lets the AI open the new round as X", async () => {
     const created = await createRoom("ai room", "ai");
     if (!created.ok) throw new Error("room creation failed");
     const id = created.room.id;
-    expect((await claimSeat(id, "X", PX)).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true); // human O, AI holds X
 
-    expect((await resetGame(id, PX)).ok).toBe(true);
+    // Set a finished board directly (X wins the top row) rather than beating the
+    // AI's minimax, then age it past the delay.
+    await prisma.room.update({
+      where: { id },
+      data: {
+        board: ["X", "X", "X", null, null, null, null, null, null],
+        actions: [
+          { kind: "place", index: 0 },
+          { kind: "place", index: 3 },
+          { kind: "place", index: 1 },
+          { kind: "place", index: 4 },
+          { kind: "place", index: 2 },
+        ],
+        xIsNext: false,
+        lastActivity: new Date(Date.now() - AUTO_RESET_MS - 1000),
+      },
+    });
 
+    const room = await getRoom(id, PO); // human O's heartbeat heals it
+    // No seat swap in AI mode: the human keeps O, the AI keeps X.
+    expect(room?.seats).toEqual({ X: AI_SEAT, O: PO });
+    // The AI, holding X, has opened the fresh game with exactly one mark.
+    expect(room?.actions).toHaveLength(1);
+    expect(room?.xIsNext).toBe(false); // AI X moved; human O is up
+    expect(room?.board.filter((cell) => cell === "X")).toHaveLength(1);
+  });
+
+  it("heals a stuck room when a new player rejoins after both leave (symptom 1)", async () => {
+    const { id } = await seatedRoom();
+    await playXWin(id);
+    expect((await leaveSeat(id, PX)).ok).toBe(true);
+    expect((await leaveSeat(id, PO)).ok).toBe(true);
+    await ageBeyondResetDelay(id);
+
+    // A newcomer claiming a seat resets the stale end state in the same call.
+    expect((await claimSeat(id, "X", "newcomer")).ok).toBe(true);
     const room = await getRoom(id);
-    expect(room?.seats).toEqual({ X: PX, O: AI_SEAT });
+    expect(room?.board.every((cell) => cell === null)).toBe(true);
+    // The guarded swap leaves the lone newcomer on the seat they claimed.
+    expect(room?.seats).toEqual({ X: "newcomer", O: null });
+  });
+
+  it("heals a stuck room via a spectator read (symptom 1)", async () => {
+    const { id } = await seatedRoom();
+    await playXWin(id);
+    expect((await leaveSeat(id, PX)).ok).toBe(true);
+    expect((await leaveSeat(id, PO)).ok).toBe(true);
+    await ageBeyondResetDelay(id);
+
+    // A non-seated onlooker's heartbeat still drives the reset.
+    const room = await getRoom(id, "spectator-no-seat");
+    expect(room?.board.every((cell) => cell === null)).toBe(true);
+    expect(room?.actions).toHaveLength(0);
+  });
+
+  it("resets exactly once across back-to-back heartbeats (idempotent)", async () => {
+    const { id } = await seatedRoom();
+    await playXWin(id);
+    await ageBeyondResetDelay(id);
+
+    const first = await getRoom(id, PX);
+    expect(first?.seats).toEqual({ X: PO, O: PX }); // swapped once
+    expect(first?.scores).toEqual({ X: 0, O: 1, draws: 0 });
+
+    // A second heartbeat must not swap again or rescore: the room is no longer
+    // game-over, so the guard is a no-op.
+    const second = await getRoom(id, PX);
+    expect(second?.seats).toEqual({ X: PO, O: PX });
+    expect(second?.scores).toEqual({ X: 0, O: 1, draws: 0 });
   });
 });
 

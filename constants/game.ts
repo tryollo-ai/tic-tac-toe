@@ -23,3 +23,13 @@ export const DEFAULT_WIN_LENGTH = 3;
 
 /** Sentinel playerId for the AI seat; no human can ever match it. */
 export const AI_SEAT = "__AI__";
+
+/**
+ * How long a finished game stays on screen before the room resets to a fresh
+ * round. Long enough to read the result, short enough to keep play moving.
+ *
+ * Drives both the server-side lazy reset (`maybeStartNextRound` in the store)
+ * and the client countdown bar's CSS `animationDuration` in `RoomGame`, so the
+ * timer the user watches and the moment the server actually resets can't drift.
+ */
+export const AUTO_RESET_MS = 4500;

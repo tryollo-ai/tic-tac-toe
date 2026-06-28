@@ -15,7 +15,6 @@ import {
   fetchRoom,
   leaveSeat,
   makeMove,
-  resetRoom,
   RoomError,
   roomErrorCode,
   shiftRoom,
@@ -23,6 +22,7 @@ import {
 import { usePlayerId } from "@/lib/usePlayerId";
 import { useRoomStream } from "@/lib/useRoomStream";
 import { useStepCue } from "@/lib/useStepCue";
+import { AUTO_RESET_MS } from "@/constants/game";
 import { SHIFT_SLIDE_MS } from "@/constants/animation";
 import {
   boardAfterActions,
@@ -47,15 +47,6 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
 function roomErrorMessage(err: unknown, fallback: string): string {
   return ROOM_ERROR_MESSAGES[roomErrorCode(err)] ?? fallback;
 }
-
-/**
- * How long a finished game stays on screen before the room auto-resets to a
- * fresh game. Long enough to read the result, short enough to keep play moving.
- *
- * Exported because it drives both the JS reset timer here and the countdown
- * bar's CSS `animationDuration` in `RoomGame`, so the two never drift.
- */
-export const AUTO_RESET_MS = 4500;
 
 /**
  * Polling cadence when the live SSE stream is connected. Updates arrive pushed
@@ -130,8 +121,9 @@ export type UseRoomResult = {
 /**
  * Drive a live multiplayer room: subscribe to its SSE stream (falling back to
  * polling), expose the authoritative room view, and own every mutation
- * (move/claim/leave/shift/reset) along with their optimistic updates, shift-
- * reveal timing, seat release, auto-reset, and new-round announcement.
+ * (move/claim/leave/shift) along with their optimistic updates, shift-reveal
+ * timing, seat release, the server-driven next-round nudge, and the new-round
+ * announcement.
  *
  * `playerId` is read internally via {@link usePlayerId} and never surfaced; the
  * caller passes only the room `id` and a few presentation tunables.
@@ -203,7 +195,7 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
     setActionError(null);
   }, [queryClient, roomKey]);
 
-  // Shared lifecycle for the non-optimistic writes (claim/leave/shift/reset):
+  // Shared lifecycle for the non-optimistic writes (claim/leave/shift):
   // pause+abort before, adopt the authoritative room on success, surface a
   // fallback message on error, resume polling when settled. Only the request
   // function and the error fallback differ, so each mutation supplies just those.
@@ -314,11 +306,6 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
     },
   });
 
-  const resetMutation = useMutation({
-    mutationFn: () => resetRoom(id, playerId as string),
-    ...writeOptions("Could not start a new game."),
-  });
-
   // Best-effort instant seat release: on tab close via `pagehide`, and on
   // in-app navigation (unmount) via the cleanup. The 30s TTL is the backstop.
   useEffect(() => {
@@ -379,31 +366,27 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
     [playerId, shiftMutation],
   );
 
-  // Auto-reset a finished game after a short delay instead of a manual button.
-  // Many clients poll the same room, so exactly one seated player schedules the
-  // reset (X, falling back to O if the X seat is empty) and a ref guards against
-  // re-scheduling while the same finished game is on screen.
-  const resetScheduledRef = useRef(false);
+  // The next round is reset server-side (the store's lazy `maybeStartNextRound`
+  // fires once the finished board has been on screen for AUTO_RESET_MS, driven
+  // by any connected client's per-second stream heartbeat). To keep the reset
+  // landing crisply at the moment the countdown bar empties - rather than up to
+  // a stream tick (~1s) later - a seated client fires a one-shot GET after the
+  // remaining delay. That GET runs `getRoom(id, playerId)`, which re-evaluates
+  // the server-side guard; the client only asks the server to decide, so
+  // authority stays on the server and the nudge is idempotent and harmless if
+  // the room has already reset. Gated on `mySeat` so spectators don't all nudge
+  // at once - they are covered by the 1s stream tick.
   useEffect(() => {
-    const finished = room?.status === "finished";
-    if (!finished) {
-      resetScheduledRef.current = false;
-      return;
-    }
-    if (!playerId || !mySeat || resetScheduledRef.current) return;
-    const iSchedule =
-      mySeat === "X" || (mySeat === "O" && room.seats.X === null);
-    if (!iSchedule) return;
-
-    resetScheduledRef.current = true;
+    if (room?.status !== "finished" || !playerId || !mySeat) return;
+    const elapsed = Date.now() - room.lastActivity;
+    const remaining = Math.max(0, AUTO_RESET_MS - elapsed);
     const timer = setTimeout(() => {
-      resetMutation.mutate();
-    }, AUTO_RESET_MS);
-    return () => {
-      clearTimeout(timer);
-      resetScheduledRef.current = false;
-    };
-  }, [room?.status, room?.seats.X, mySeat, playerId, resetMutation]);
+      fetchRoom(id, playerId)
+        .then(setRoom)
+        .catch(() => {});
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [room?.status, room?.lastActivity, id, mySeat, playerId, setRoom]);
 
   // Disarm the shift picker whenever O can no longer shift (turn passed, shift
   // spent, game ended, seat left), so it never lingers into the next turn.
@@ -441,7 +424,7 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
   });
 
   // Announce the start of each new round. A reset swaps the two players' seats
-  // (see resetGame), so the seat I now hold tells me whether I move first (X) or
+  // (see swapSeats), so the seat I now hold tells me whether I move first (X) or
   // second (O). The action log emptying after a played-out game is the signal a
   // round just began - it fires for both players alike. We capture the new seat
   // (read live via a ref so the effect can depend only on the count) and flash a

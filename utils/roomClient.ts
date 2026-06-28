@@ -135,10 +135,6 @@ export function makeMove(
   return sendJson(`/api/rooms/${id}/move`, "POST", { playerId, index });
 }
 
-export function resetRoom(id: string, playerId: string): Promise<RoomView> {
-  return sendJson(`/api/rooms/${id}/reset`, "POST", { playerId });
-}
-
 export function shiftRoom(
   id: string,
   playerId: string,

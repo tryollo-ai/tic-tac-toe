@@ -4,7 +4,7 @@ import type {
   CompletedGame as CompletedRow,
   Room as RoomRow,
 } from "@prisma/client";
-import { AI_SEAT } from "@/constants/game";
+import { AI_SEAT, AUTO_RESET_MS } from "@/constants/game";
 import { getGameConfig, getShiftMode } from "@/lib/gameConfig";
 import prisma from "@/lib/prisma";
 import {
@@ -298,6 +298,7 @@ function applyShift(room: Room, direction: Direction, mode: ShiftMode): void {
  */
 function swapSeats(room: Room): void {
   if (room.mode === "ai") return;
+  if (room.seats.X === null || room.seats.O === null) return; // nothing to alternate
   [room.seats.X, room.seats.O] = [room.seats.O, room.seats.X];
   [room.seatSeen.X, room.seatSeen.O] = [room.seatSeen.O, room.seatSeen.X];
   [room.scores.X, room.scores.O] = [room.scores.O, room.scores.X];
@@ -319,6 +320,37 @@ function clearRound(room: Room): void {
 function touched(room: Room): StoreResult {
   room.lastActivity = now();
   return { ok: true, room };
+}
+
+/**
+ * Begin the next round in place: clear the board, alternate sides, and let an
+ * AI that now holds X open the fresh game. The seat swap is a no-op in AI rooms
+ * or when a seat is empty; the AI turn is a no-op unless the AI holds X.
+ */
+function startNextRound(room: Room, archive: Archive, shiftMode: ShiftMode): void {
+  clearRound(room);
+  swapSeats(room); // alternate sides; no-op in AI rooms / when a seat is empty
+  runAiTurn(room, archive, shiftMode); // an AI that now holds X opens the fresh game
+}
+
+/**
+ * Server-authoritative auto-reset: once a finished game has been on screen for
+ * the shared {@link AUTO_RESET_MS} delay, start the next round. Returns whether
+ * it reset, so callers can decide whether to keep going. Idempotent - a reset
+ * room is no longer game-over, so a second call is a no-op. This piggybacks on
+ * the per-request transactions the app already runs (the SSE heartbeat read and
+ * claimSeat), so no client timer or background worker is needed.
+ */
+function maybeStartNextRound(
+  room: Room,
+  archive: Archive,
+  shiftMode: ShiftMode,
+): boolean {
+  if (!isGameOver(room.board, room.winLength)) return false;
+  if (now() - room.lastActivity < AUTO_RESET_MS) return false;
+  startNextRound(room, archive, shiftMode);
+  touched(room); // stamp the new round's start; heartbeats otherwise don't touch
+  return true;
 }
 
 /**
@@ -441,8 +473,14 @@ export async function getRoom(
     return room;
   }
 
-  const result = await withRoomTx(id, (room) => {
+  // Fetched outside the transaction because the sync mutator can't await it.
+  const shiftMode = await getShiftMode();
+  const result = await withRoomTx(id, (room, archive) => {
     sweepSeats(room);
+    // Heal a finished room whose reset delay has elapsed. The per-second stream
+    // heartbeat for any connected client drives this, so a finished room resets
+    // within ~1s of the delay without any client-side timer.
+    maybeStartNextRound(room, archive, shiftMode);
     SEATS.forEach((seat) => {
       if (room.seats[seat] === heartbeatPlayerId) {
         room.seatSeen[seat] = now();
@@ -520,6 +558,10 @@ export async function claimSeat(
   const shiftMode = await getShiftMode();
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
+    // A rejoiner gets an instant fresh board in the claim response rather than
+    // ~1s later via the stream. Safe before the claim logic now that swapSeats
+    // is guarded against a lone survivor being relocated onto the claimed seat.
+    maybeStartNextRound(room, archive, shiftMode);
 
     const holder = room.seats[seat];
     if (holder === playerId) {
@@ -645,26 +687,6 @@ export async function shiftBoardAction(
       room.xIsNext = true; // the shift was O's whole turn; X plays next
       runAiTurn(room, archive, shiftMode); // AI X replies when a human O shifts against it
     }
-    return touched(room);
-  });
-}
-
-export async function resetGame(
-  id: string,
-  playerId: string,
-): Promise<StoreResult> {
-  const shiftMode = await getShiftMode();
-  return withRoomTx(id, (room, archive) => {
-    sweepSeats(room);
-    if (room.seats.X !== playerId && room.seats.O !== playerId) {
-      return { ok: false, error: "not-participant" };
-    }
-    const roundFinished = isGameOver(room.board, room.winLength);
-    clearRound(room);
-    // Alternate who moves first each round by swapping the two players' seats
-    // (a no-op in AI rooms, where the human keeps the side they chose).
-    if (roundFinished) swapSeats(room);
-    runAiTurn(room, archive, shiftMode); // if the AI holds X, it opens the fresh game
     return touched(room);
   });
 }
