@@ -39,17 +39,17 @@ const SCENES: Record<ShiftMode, Scene> = {
       { id: "x-br", player: "X", row: 2, col: 2, to: "fall" },
     ],
   },
-  // Collapse: each row slides rigidly toward the leading (right) edge until a
-  // mark rests against it, keeping every mark. Row 0's pair slides one cell
-  // together; row 1's lone O travels the full width to the wall; row 2's X is
-  // already at the edge, so it stays put.
+  // Collapse: each row shifts toward the leading (right) edge until the edge
+  // value changes, shedding the leading run that matches it. Row 0's two X match
+  // the X on the edge, so they fall off and the trailing O settles at the wall;
+  // row 1's lone O slides across the empty row to the wall, losing nothing.
   collapse: {
-    caption: "O slides the grid to the right wall",
+    caption: "O collapses the grid to the right",
     marks: [
-      { id: "c-x-a", player: "X", row: 0, col: 0, to: 1 },
-      { id: "c-x-b", player: "X", row: 0, col: 1, to: 2 },
+      { id: "c-o-settle", player: "O", row: 0, col: 0, to: 2 },
+      { id: "c-x-fall-a", player: "X", row: 0, col: 1, to: "fall" },
+      { id: "c-x-fall-b", player: "X", row: 0, col: 2, to: "fall" },
       { id: "c-o-slide", player: "O", row: 1, col: 0, to: 2 },
-      { id: "c-x-edge", player: "X", row: 2, col: 2, to: 2 },
     ],
   },
 };
@@ -65,8 +65,8 @@ const HOLD_MS = 1100;
  * of the "How to play" dialog. A directional arrow fades in and drifts, then the
  * marks resolve the shift for the active {@link ShiftMode}: in "classic" each
  * mark slides one cell (edge marks fall away), while in "collapse" each line
- * slides rigidly toward the edge until a mark rests against it - marks keep their
- * spacing and none are pushed off, so the distance travelled varies per line.
+ * shifts toward the edge until the edge value changes, shedding the leading run
+ * of marks that match the edge while the next mark settles against it.
  * Honours `prefers-reduced-motion` by holding the starting board still.
  */
 const ShiftAnimation = ({ mode = DEFAULT_SHIFT_MODE }: { mode?: ShiftMode }) => {

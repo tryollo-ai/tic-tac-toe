@@ -80,12 +80,12 @@ export type BoardAnimationConfig = {
 
 export const DEFAULT_BOARD_ANIMATION: BoardAnimationConfig = {
   slideSpring: { tension: 260, friction: 26, clamp: true },
-  leanSpring: { tension: 700, friction: 26, clamp: true },
-  departSpring: { tension: 300, friction: 22, clamp: true },
-  leanReleaseDelayMs: 160,
-  leanTiltDeg: 8,
+  leanSpring: { tension: 130, friction: 26, clamp: true },
+  departSpring: { tension: 650, friction: 35, clamp: true },
+  leanReleaseDelayMs: 370,
+  leanTiltDeg: 12,
   leanSquash: 0.18,
-};
+}
 
 /** Peak lean (tilt degrees / vertical squash) for a sweep in `direction`, scaled
  *  live by the shared lean spring. Horizontal sweeps tilt - left clockwise, right
