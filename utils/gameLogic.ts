@@ -17,11 +17,12 @@ export const DIRECTIONS: readonly Direction[] = [
  * How O's shift moves the grid (a POC-configurable rule variant):
  * - "classic": rigid translation by exactly one cell (the original behaviour);
  *   marks pushed off the leading edge are removed and the shift can never win.
- * - "collapse": each line collapses toward the leading edge - reading inward from
- *   the edge, the leading run of cells matching the edge value is swept off and
- *   the first cell that differs settles against the edge, clearing the rest of
- *   the line (a uniform line is left untouched). Unlike "classic", this can
- *   complete a line, so the store settles the game after a collapse shift.
+ * - "collapse": each line slides rigidly toward the leading edge until a mark
+ *   rests against that edge (translating by the leading gap - the empty cells
+ *   between the edge and the nearest mark - so marks keep their spacing and none
+ *   are pushed off). A line already touching the edge is left untouched. Unlike
+ *   "classic", this can complete a line, so the store settles the game after a
+ *   collapse shift.
  *
  * The active mode is chosen server-side (see `lib/gameConfig.ts`) and recorded
  * on each shift action, so it only governs *new* shifts and never rewrites
@@ -121,29 +122,31 @@ function shiftBoardClassic(board: Board, direction: Direction): Board {
 }
 
 /**
- * Collapse one line of cells toward its END (highest index, the leading edge).
- * Reading inward from the edge, the leading run of cells equal to the edge value
- * is swept away and the first cell that differs settles against the edge; every
- * other cell is cleared. A line whose cells are all equal (a full line or an
- * empty one) is returned unchanged, so an already-formed line is never destroyed.
+ * Slide one line of cells toward its END (highest index, the leading edge) until
+ * the edge cell is filled. The line is rigidly translated toward the edge by its
+ * leading gap - the run of empty cells between the edge and the nearest mark - so
+ * that nearest mark comes to rest against the edge while every other mark keeps
+ * its spacing. The slide stops the moment a mark reaches the edge, so marks are
+ * never pushed off; a line already touching the edge (or an empty line) is
+ * returned unchanged.
  */
 function collapseLineTowardEnd(line: Cell[]): Cell[] {
   const n = line.length;
-  const edge = line[n - 1];
-  // Scan inward from the cell behind the edge for the first value that differs.
-  let i = n - 2;
-  while (i >= 0 && line[i] === edge) i -= 1;
-  if (i < 0) return line.slice(); // uniform line: nothing collapses
+  // The nearest mark to the edge; the empties past it are the leading gap.
+  let lastMark = n - 1;
+  while (lastMark >= 0 && line[lastMark] === null) lastMark -= 1;
+  const gap = lastMark < 0 ? 0 : n - 1 - lastMark;
+  if (gap === 0) return line.slice(); // already against the edge, or empty
   const result: Cell[] = Array(n).fill(null);
-  result[n - 1] = line[i]; // the first differing cell settles against the edge
+  for (let i = 0; i <= lastMark; i++) result[i + gap] = line[i];
   return result;
 }
 
 /**
- * "Collapse" shift: instead of translating by one cell, every mark slides all
- * the way to the leading edge in `direction`, stacking up and resolving
- * collisions per `collapseLineTowardEnd`. Returns a fresh board; the input is
- * not mutated.
+ * "Collapse" shift: each line slides rigidly toward the leading edge in
+ * `direction` until a mark rests against that edge (see `collapseLineTowardEnd`),
+ * rather than translating by a fixed one cell. Returns a fresh board; the input
+ * is not mutated.
  */
 function shiftBoardCollapse(board: Board, direction: Direction): Board {
   const size = INITIAL_SIZE;
@@ -214,9 +217,9 @@ function directionStep(direction: Direction): [number, number] {
  * board. Covers every mark on the pre-shift `board`:
  * - "classic": every mark steps one cell in `direction`; a mark stepped off the
  *   edge `departs`.
- * - "collapse": each line keeps the one mark that settles against the leading
- *   edge (mirroring collapseLineTowardEnd) and sweeps the rest off that edge; a
- *   uniform line leaves its marks in place.
+ * - "collapse": each line slides rigidly toward the leading edge by its leading
+ *   gap (mirroring collapseLineTowardEnd), so every mark steps the same distance
+ *   and none depart.
  * Departing marks are sent a full board-length past the edge so they clear it.
  */
 export function shiftPlan(
@@ -255,24 +258,17 @@ export function shiftPlan(
     const order = towardEnd ? indices : indices.slice().reverse();
     const line = order.map((k) => board[k]);
     const n = line.length;
-    const edge = line[n - 1];
-    // The settler is the first cell (scanning inward from the edge) that differs
-    // from the edge value - the one mark a non-uniform line keeps.
-    let settler = n - 2;
-    while (settler >= 0 && line[settler] === edge) settler -= 1;
-    const edgeCoord = coord(order[n - 1]);
+    // Leading gap: the empty cells between the edge (end) and the nearest mark.
+    // The whole line steps this far toward the edge; nothing is pushed off.
+    let lastMark = n - 1;
+    while (lastMark >= 0 && line[lastMark] === null) lastMark -= 1;
+    const gap = lastMark < 0 ? 0 : n - 1 - lastMark;
     for (let p = 0; p < n; p++) {
       const player = line[p];
       if (player === null) continue;
       const from = coord(order[p]);
-      if (settler < 0) {
-        motions.push({ player, from, to: from, departs: false }); // uniform line
-      } else if (p === settler) {
-        motions.push({ player, from, to: edgeCoord, departs: false }); // settles
-      } else {
-        const to = { row: from.row + dr * size, col: from.col + dc * size };
-        motions.push({ player, from, to, departs: true }); // swept off the edge
-      }
+      const to = { row: from.row + dr * gap, col: from.col + dc * gap };
+      motions.push({ player, from, to, departs: false });
     }
   }
   return motions;

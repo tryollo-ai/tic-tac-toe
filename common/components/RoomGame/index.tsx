@@ -34,7 +34,12 @@ import Status, {
   spectatorStatus,
 } from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
+import ShiftDebug from "@/common/components/ShiftDebug";
 import styles from "./styles.module.scss";
+
+/** Dev-only: surfaces the shift-animation tuning panel. Compiled out of
+ *  production by the bundler's dead-code elimination on this constant. */
+const SHIFT_DEBUG_ENABLED = process.env.NODE_ENV === "development";
 
 type Props = {
   id: string;
@@ -112,6 +117,8 @@ const RoomGame = (props: Props) => {
   // the optimistic/authoritative state.
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Dev-only shift-animation tuning panel visibility.
+  const [shiftDebugOpen, setShiftDebugOpen] = useState(false);
   // Whether O has armed the grid shift and is now picking a direction. The
   // direction buttons are mounted whenever O can shift but hidden (opacity: 0)
   // at rest so cancelling can reverse the fade-in before the board grows back.
@@ -514,6 +521,21 @@ const RoomGame = (props: Props) => {
 
   return (
     <div className={styles.root}>
+      {SHIFT_DEBUG_ENABLED && (
+        <>
+          <button
+            type="button"
+            className={styles.shiftDebugToggle}
+            onClick={() => setShiftDebugOpen((open) => !open)}
+          >
+            Shift debug
+          </button>
+          {shiftDebugOpen && (
+            <ShiftDebug onClose={() => setShiftDebugOpen(false)} />
+          )}
+        </>
+      )}
+
       {roundAnnouncement && (
         <div
           key={roundAnnouncement}

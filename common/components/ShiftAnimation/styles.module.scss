@@ -72,13 +72,6 @@
   opacity: 0;
 }
 
-// An O an X ploughs through during a collapse: it is overrun in place, fading
-// and shrinking as the advancing X slides onto its cell.
-.captured {
-  transform: scale(0.35) rotate(-12deg);
-  opacity: 0;
-}
-
 .arrow {
   position: absolute;
   inset: 0;

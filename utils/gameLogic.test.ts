@@ -149,58 +149,65 @@ describe("shiftBoard", () => {
 });
 
 describe("shiftBoard collapse mode", () => {
-  it("matches the worked example for a left shift", () => {
-    // x x o        o _ _
-    // _ o _  --->  o _ _   (collapse left)
-    // x _ _        _ _ _
-    const board: Board = ["X", "X", "O", null, "O", null, "X", null, null];
-    expect(shiftBoard(board, "left", "collapse")).toEqual([
-      "O", null, null,
-      "O", null, null,
+  it("slides each line to the leading edge by its leading gap, keeping all marks", () => {
+    // x x _        _ x x
+    // _ o _  --->  _ _ o   (collapse right): each row slides toward the edge
+    // _ _ _        _ _ _   until a mark touches it; nothing is lost.
+    const board: Board = ["X", "X", null, null, "O", null, null, null, null];
+    expect(shiftBoard(board, "right", "collapse")).toEqual([
+      null, "X", "X",
+      null, null, "O",
       null, null, null,
     ]);
   });
 
-  it("sweeps the leading run and settles the first differing mark", () => {
-    // O X X shifted right: the run of X at the edge is swept off and the O
-    // settles against the wall.
-    const row: Board = ["O", "X", "X", null, null, null, null, null, null];
-    expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
-      null,
-      null,
-      "O",
+  it("matches the worked example for a left shift", () => {
+    // x x o        x x o
+    // _ o _  --->  o _ _   (collapse left): rows already touching the left edge
+    // x _ _        x _ _   stay put; the lone O slides to the wall.
+    const board: Board = ["X", "X", "O", null, "O", null, "X", null, null];
+    expect(shiftBoard(board, "left", "collapse")).toEqual([
+      "X", "X", "O",
+      "O", null, null,
+      "X", null, null,
     ]);
   });
 
   it("pulls a lone mark across empty space to the leading edge", () => {
     // A lone mark in the trailing corner travels the full width/height because
-    // the edge is empty and it is the first cell that differs.
+    // the leading edge is empty all the way to it.
     const topLeft = emptyBoard();
     topLeft[0] = "O";
     expect(shiftBoard(topLeft, "right", "collapse")[2]).toBe("O");
     expect(shiftBoard(topLeft, "bottom", "collapse")[6]).toBe("O");
   });
 
-  it("sweeps a mark sitting on the leading edge when the line continues", () => {
-    // _ _ X shifted right: the edge X is swept off and the empty cell behind it
-    // settles, clearing the line.
-    const row: Board = [null, null, "X", null, null, null, null, null, null];
+  it("leaves a line already touching the leading edge untouched", () => {
+    // O X X shifted right: the edge cell is occupied, so the line does not move.
+    const row: Board = ["O", "X", "X", null, null, null, null, null, null];
     expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
-      null,
-      null,
-      null,
+      "O",
+      "X",
+      "X",
     ]);
   });
 
-  it("leaves a uniform line untouched", () => {
-    // O O O shifted right: every cell matches the edge, so nothing collapses and
-    // the existing line is preserved.
-    const row: Board = ["O", "O", "O", null, null, null, null, null, null];
+  it("preserves an interior gap rather than packing marks", () => {
+    // X _ X shifted right: the edge is already occupied so nothing moves and the
+    // gap stays - collapse slides the whole line rigidly, it does not pack.
+    const row: Board = ["X", null, "X", null, null, null, null, null, null];
     expect(shiftBoard(row, "right", "collapse").slice(0, 3)).toEqual([
-      "O",
-      "O",
-      "O",
+      "X",
+      null,
+      "X",
     ]);
+  });
+
+  it("can complete a line by sliding marks to the edge", () => {
+    // Three X down column 0, shifted right, all land in column 2.
+    const board: Board = ["X", null, null, "X", null, null, "X", null, null];
+    const out = shiftBoard(board, "right", "collapse");
+    expect([out[2], out[5], out[8]]).toEqual(["X", "X", "X"]);
   });
 
   it("does not mutate the input board", () => {
@@ -223,23 +230,25 @@ describe("shiftPlan", () => {
   const cell = (row: number, col: number) => ({ row, col });
 
   it("maps the worked left-shift example to per-mark motion", () => {
-    // x x o        o _ _
-    // _ o _  --->  o _ _   (collapse left): two O settle, three X sweep off left.
-    // x _ _        _ _ _
+    // x x o        x x o
+    // _ o _  --->  o _ _   (collapse left): nothing departs; only the lone O,
+    // x _ _        x _ _   whose row has a leading gap, moves.
     const board: Board = ["X", "X", "O", null, "O", null, "X", null, null];
     const plan = shiftPlan(board, "left", "collapse");
 
-    // The settling marks land in column 0 and stay on the grid.
-    const settles = plan.filter((m) => !m.departs);
-    expect(settles).toEqual([
-      { player: "O", from: cell(0, 2), to: cell(0, 0), departs: false },
-      { player: "O", from: cell(1, 1), to: cell(1, 0), departs: false },
-    ]);
-
-    // The swept marks are all X, sent off the left edge (negative column).
-    const departs = plan.filter((m) => m.departs);
-    expect(departs.map((m) => m.player)).toEqual(["X", "X", "X"]);
-    expect(departs.every((m) => m.to.col < 0)).toBe(true);
+    // Collapse never pushes a mark off the board.
+    expect(plan.every((m) => !m.departs)).toBe(true);
+    // The lone O slides to column 0; every other mark stays put.
+    expect(plan).toContainEqual({
+      player: "O",
+      from: cell(1, 1),
+      to: cell(1, 0),
+      departs: false,
+    });
+    const moved = plan.filter(
+      (m) => m.from.row !== m.to.row || m.from.col !== m.to.col,
+    );
+    expect(moved).toHaveLength(1);
   });
 
   it("leaves a uniform line's marks in place", () => {
@@ -289,10 +298,10 @@ describe("boardAfterActions", () => {
     // Classic: X 0->1, O 1->2 (one cell each).
     expect(classic[1]).toBe("X");
     expect(classic[2]).toBe("O");
-    // Collapse: the empty edge sweeps off the X and settles the O at the wall,
-    // so only O survives at 2.
+    // Collapse: the row slides right by its leading gap, so O lands at the wall
+    // and X survives one cell behind it - nothing is swept off.
     expect(collapse[2]).toBe("O");
-    expect(collapse.filter((c) => c === "X")).toHaveLength(0);
+    expect(collapse[1]).toBe("X");
   });
 
   it("returns an empty board for a count of 0", () => {
