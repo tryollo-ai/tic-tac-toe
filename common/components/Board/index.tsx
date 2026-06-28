@@ -276,7 +276,12 @@ const Board = (props: Props) => {
     const delay = releaseDelayFor(transition.direction, anim);
     leanApi.start({
       to: async (next) => {
-        void next({ lean: 1, config: anim.leanSpring });
+        // Fire-and-forget the lean-out so the delayed release can overlap it.
+        // react-spring rejects this promise with a BailSignal if a new pulse
+        // interrupts this one mid-flight (rapid shifts, or a slider change in the
+        // debug panel); swallow it so it isn't an unhandled rejection. The
+        // awaited release below is fine - its BailSignal unwinds the async script.
+        next({ lean: 1, config: anim.leanSpring }).catch(() => {});
         await next({ lean: 0, delay, config: anim.departSpring });
       },
     });
@@ -312,10 +317,12 @@ const Board = (props: Props) => {
           await next({ opacity: 0, immediate: true });
           return;
         }
-        void next({
+        // Fire-and-forget the slide (see the lean pulse): swallow the BailSignal
+        // react-spring throws if this leave is interrupted before it settles.
+        next({
           ...point(offRow, offCol),
           config: anim.slideSpring,
-        });
+        }).catch(() => {});
         await next({
           opacity: 0,
           scale: 0.2,
