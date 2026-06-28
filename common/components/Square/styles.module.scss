@@ -4,11 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(2.5rem, 14vw, 4rem);
-  font-weight: 700;
-  line-height: 1;
   background: var(--surface);
-  color: var(--text);
   border: none;
   border-radius: 14px;
   cursor: pointer;
@@ -30,106 +26,6 @@
   }
 }
 
-// The mark fills the cell so a one-cell slide is `100% + grid gap`, and only the
-// glyph moves while the cell itself stays put. Keep $shift-gap in sync with the
-// Board grid gap.
-$shift-gap: 10px;
-$shift-slide-raw: 280;
-$shift-slide-ms: $shift-slide-raw * 1ms;
-
-// One-shot drop-in for a freshly placed mark (used by the replay viewer).
-$place-raw: 320;
-$place-ms: $place-raw * 1ms;
-
-:export {
-  shiftSlideMs: $shift-slide-raw;
-  placeMs: $place-raw;
-}
-
-.mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.slideLeft {
-  animation: slideFromRight $shift-slide-ms ease;
-}
-
-.slideRight {
-  animation: slideFromLeft $shift-slide-ms ease;
-}
-
-.slideTop {
-  animation: slideFromBottom $shift-slide-ms ease;
-}
-
-.slideBottom {
-  animation: slideFromTop $shift-slide-ms ease;
-}
-
-.place {
-  animation: dropIn $place-ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes dropIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  60% {
-    transform: scale(1.12);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes slideFromRight {
-  from {
-    transform: translateX(calc(100% + #{$shift-gap}));
-  }
-}
-
-@keyframes slideFromLeft {
-  from {
-    transform: translateX(calc(-100% - #{$shift-gap}));
-  }
-}
-
-@keyframes slideFromBottom {
-  from {
-    transform: translateY(calc(100% + #{$shift-gap}));
-  }
-}
-
-@keyframes slideFromTop {
-  from {
-    transform: translateY(calc(-100% - #{$shift-gap}));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .slideLeft,
-  .slideRight,
-  .slideTop,
-  .slideBottom,
-  .place {
-    animation: none;
-  }
-}
-
-.x {
-  color: var(--x-color);
-}
-
-.o {
-  color: var(--o-color);
-}
-
 .winning {
   background: rgba(74, 222, 128, 0.18);
   box-shadow: inset 0 0 0 2px var(--win);
@@ -145,5 +41,11 @@ $place-ms: $place-raw * 1ms;
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winning {
+    animation: none;
   }
 }

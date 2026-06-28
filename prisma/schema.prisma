@@ -17,6 +17,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Server-wide config for the internal POC toggles (currently just which
+/// ShiftMode new shifts use). A single row keyed by a fixed id, so the active
+/// mode survives restarts and is shared across serverless instances - unlike the
+/// old in-memory value, which reset to the default on every restart.
+model AppConfig {
+  id        String @id
+  shiftMode String @default("classic") @map("shift_mode")
+
+  @@map("app_config")
+}
+
 /// A live, replayable room. Mirrors `Room` in lib/roomTypes.ts, flattening the
 /// nested scores/seats/seatSeen objects into columns.
 model Room {

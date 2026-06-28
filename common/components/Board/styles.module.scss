@@ -10,3 +10,32 @@
   border-radius: 20px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
+
+// Overlay that holds the animated mark glyphs. Inset to the board padding and
+// using the same gap so its coordinate origin lines up with cell (0, 0); the
+// marks position themselves by pixel transform on top of the static squares.
+.marks {
+  position: absolute;
+  inset: 14px;
+  pointer-events: none;
+}
+
+.mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  line-height: 1;
+  will-change: transform, opacity;
+}
+
+.x {
+  color: var(--x-color);
+}
+
+.o {
+  color: var(--o-color);
+}

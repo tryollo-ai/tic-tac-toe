@@ -28,7 +28,7 @@ const MODE_COPY: Record<ShiftMode, { title: string; blurb: string }> = {
   collapse: {
     title: "Collapse",
     blurb:
-      "Slide every mark as far as it goes; X ploughs through and removes O marks in its path, O is blocked by X.",
+      "Each line collapses toward its edge; the leading run of matching marks is swept off and the first differing mark settles against the edge.",
   },
 };
 

@@ -12,10 +12,10 @@ type SceneMark = {
   player: "X" | "O";
   row: number;
   col: number;
-  // Where the mark ends up after the shift fires: a destination column, or how
-  // it leaves the board - "fall" (classic: pushed off the leading edge) or
-  // "captured" (collapse: an X ploughed over this O in its path).
-  to: number | "fall" | "captured";
+  // Where the mark ends up after the shift fires: a destination column, or
+  // "fall" - the classic case where a mark is pushed off the leading edge.
+  // (Collapse never pushes a mark off, so it only ever uses column destinations.)
+  to: number | "fall";
 };
 
 type Scene = {
@@ -39,18 +39,17 @@ const SCENES: Record<ShiftMode, Scene> = {
       { id: "x-br", player: "X", row: 2, col: 2, to: "fall" },
     ],
   },
-  // Collapse: every mark slides as far right as it can and stacks against the
-  // edge. Row 0 shows an X ploughing through (and removing) the O ahead of it;
-  // row 1 shows an O blocked by an X; row 2 shows same-kind marks stacking.
+  // Collapse: each row shifts toward the leading (right) edge until the edge
+  // value changes, shedding the leading run that matches it. Row 0's two X match
+  // the X on the edge, so they fall off and the trailing O settles at the wall;
+  // row 1's lone O slides across the empty row to the wall, losing nothing.
   collapse: {
     caption: "O collapses the grid to the right",
     marks: [
-      { id: "c-x-plough", player: "X", row: 0, col: 0, to: 2 },
-      { id: "c-o-eaten", player: "O", row: 0, col: 2, to: "captured" },
-      { id: "c-o-blocked", player: "O", row: 1, col: 0, to: 1 },
-      { id: "c-x-block", player: "X", row: 1, col: 1, to: 2 },
-      { id: "c-o-stack-a", player: "O", row: 2, col: 0, to: 1 },
-      { id: "c-o-stack-b", player: "O", row: 2, col: 1, to: 2 },
+      { id: "c-o-settle", player: "O", row: 0, col: 0, to: 2 },
+      { id: "c-x-fall-a", player: "X", row: 0, col: 1, to: "fall" },
+      { id: "c-x-fall-b", player: "X", row: 0, col: 2, to: "fall" },
+      { id: "c-o-slide", player: "O", row: 1, col: 0, to: 2 },
     ],
   },
 };
@@ -65,8 +64,9 @@ const HOLD_MS = 1100;
  * Looping, decorative illustration of player O's grid shift, shown at the bottom
  * of the "How to play" dialog. A directional arrow fades in and drifts, then the
  * marks resolve the shift for the active {@link ShiftMode}: in "classic" each
- * mark slides one cell (edge marks fall away), while in "collapse" marks slide
- * all the way to the edge, X ploughs through O, and same-kind marks stack.
+ * mark slides one cell (edge marks fall away), while in "collapse" each line
+ * shifts toward the edge until the edge value changes, shedding the leading run
+ * of marks that match the edge while the next mark settles against it.
  * Honours `prefers-reduced-motion` by holding the starting board still.
  */
 const ShiftAnimation = ({ mode = DEFAULT_SHIFT_MODE }: { mode?: ShiftMode }) => {
@@ -119,7 +119,6 @@ const ShiftAnimation = ({ mode = DEFAULT_SHIFT_MODE }: { mode?: ShiftMode }) => 
                   [styles.o]: mark.player === "O",
                   [styles.shifted]: shifted && typeof mark.to === "number",
                   [styles.fallOff]: shifted && mark.to === "fall",
-                  [styles.captured]: shifted && mark.to === "captured",
                 })}
                 style={
                   {

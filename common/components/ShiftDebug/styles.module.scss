@@ -1,0 +1,215 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 100%);
+  max-height: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.close,
+.resetButton,
+.copyButton,
+.modeButton,
+.dirButton {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.close {
+  padding: 6px 12px;
+}
+
+.body {
+  display: flex;
+  gap: 20px;
+  padding: 18px;
+  overflow: auto;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+
+.boardWrap {
+  width: 260px;
+}
+
+// Direction buttons laid out as a cross under the board.
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  width: 150px;
+  margin: 0 auto;
+}
+
+.dirButton {
+  aspect-ratio: 1;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.top {
+  grid-area: 1 / 2;
+}
+.left {
+  grid-area: 2 / 1;
+}
+.right {
+  grid-area: 2 / 3;
+}
+.bottom {
+  grid-area: 3 / 2;
+}
+
+.dirActive,
+.modeActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.modes {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.modeButton {
+  padding: 6px 12px;
+  text-transform: capitalize;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  legend {
+    padding: 0 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+}
+
+.slider {
+  display: grid;
+  grid-template-columns: 130px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.sliderLabel {
+  color: var(--text-muted);
+}
+
+.range {
+  width: 100%;
+}
+
+.sliderValue {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.readoutActions {
+  display: flex;
+  gap: 8px;
+}
+
+.resetButton,
+.copyButton {
+  padding: 6px 12px;
+}
+
+.copyButton {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+
+  code {
+    font-size: 0.72rem;
+    color: var(--text);
+  }
+}
+
+.json {
+  margin: 0;
+  padding: 10px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 220px;
+}

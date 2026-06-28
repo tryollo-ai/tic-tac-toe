@@ -16,9 +16,15 @@ import {
 import { usePlayerId } from "@/lib/usePlayerId";
 import { useRoomStream } from "@/lib/useRoomStream";
 import { AI_SEAT } from "@/constants/game";
+import { SHIFT_SLIDE_MS } from "@/constants/animation";
+import {
+  boardAfterActions,
+  DEFAULT_SHIFT_MODE,
+  shiftBoard,
+} from "@/utils/gameLogic";
 import type { Direction, Player } from "@/utils/gameLogic";
 import type { RoomView } from "@/lib/roomTypes";
-import Board from "@/common/components/Board";
+import Board, { type BoardTransition } from "@/common/components/Board";
 import BoardHistory from "@/common/components/BoardHistory";
 import RoomHeader from "@/common/components/RoomHeader";
 import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
@@ -28,8 +34,12 @@ import Status, {
   spectatorStatus,
 } from "@/common/components/Status";
 import Scoreboard from "@/common/components/Scoreboard";
+import ShiftDebug from "@/common/components/ShiftDebug";
 import styles from "./styles.module.scss";
-import squareStyles from "@/common/components/Square/styles.module.scss";
+
+/** Dev-only: surfaces the shift-animation tuning panel. Compiled out of
+ *  production by the bundler's dead-code elimination on this constant. */
+const SHIFT_DEBUG_ENABLED = process.env.NODE_ENV === "development";
 
 type Props = {
   id: string;
@@ -80,7 +90,14 @@ const FALLBACK_POLL_MS = 10000;
  */
 const ACTIVE_POLL_MS = 1500;
 
-const SHIFT_ANIMATION_MS = Number(squareStyles.shiftSlideMs);
+const SHIFT_ANIMATION_MS = SHIFT_SLIDE_MS;
+
+/**
+ * Beat held after O's shift slide settles before the AI's reply is revealed, so
+ * the move reads as a distinct, deliberate turn rather than landing on the tail
+ * of the slide. Added on top of {@link SHIFT_ANIMATION_MS}.
+ */
+const AI_SHIFT_REPLY_DELAY_MS = 500;
 
 /**
  * How long the "new round" banner stays on screen after a reset before fading
@@ -100,14 +117,12 @@ const RoomGame = (props: Props) => {
   // the optimistic/authoritative state.
   const [paused, setPaused] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Dev-only shift-animation tuning panel visibility.
+  const [shiftDebugOpen, setShiftDebugOpen] = useState(false);
   // Whether O has armed the grid shift and is now picking a direction. The
   // direction buttons are mounted whenever O can shift but hidden (opacity: 0)
   // at rest so cancelling can reverse the fade-in before the board grows back.
   const [shiftActive, setShiftActive] = useState(false);
-  // Direction of the shift currently animating on the board, or null when the
-  // board is at rest. Set briefly whenever a shift lands (locally or pushed from
-  // another client) and cleared once the slide finishes.
-  const [shiftAnimation, setShiftAnimation] = useState<Direction | null>(null);
 
   const roomKey = useMemo(
     () => ["room", props.id, playerId] as const,
@@ -216,10 +231,63 @@ const RoomGame = (props: Props) => {
     ...writeOptions("Could not leave the seat."),
   });
 
+  // When O shifts against the AI, the server resolves O's shift and the AI's
+  // reply in a single response. We want the slide to play out to rest before the
+  // AI's mark appears, so in that case we first render the post-shift board (which
+  // drives the animation) and only reveal the AI's move once the slide has
+  // settled. Holding `paused` across the delay keeps a stream push or stray poll
+  // from surfacing the AI move early.
+  const shiftRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (shiftRevealTimerRef.current) clearTimeout(shiftRevealTimerRef.current);
+    },
+    [],
+  );
+
   const shiftMutation = useMutation({
     mutationFn: (direction: Direction) =>
       shiftRoom(props.id, playerId as string, direction),
-    ...writeOptions("Could not shift the grid."),
+    onMutate: async (_direction: Direction) => {
+      await beginWrite();
+      return { snapshot: queryClient.getQueryData<RoomView>(roomKey) };
+    },
+    onSuccess: (updated: RoomView, direction: Direction, context) => {
+      const snapshot = context?.snapshot;
+      const { actions } = updated;
+      const aiReply = actions[actions.length - 1];
+      const shift = actions[actions.length - 2];
+      // Defer only when the AI actually replied to the shift - its placement is
+      // the latest action, sitting right after O's shift. A shift that ended the
+      // game (or a two-player room) has no AI reply, so it renders at once and
+      // animates as before.
+      if (snapshot && shift?.kind === "shift" && aiReply?.kind === "place") {
+        setRoom({
+          ...snapshot,
+          board: shiftBoard(
+            snapshot.board,
+            direction,
+            shift.mode ?? DEFAULT_SHIFT_MODE,
+          ),
+          actions: actions.slice(0, -1), // up to and including the shift
+          xIsNext: true,
+          oShiftUsed: true,
+        });
+        shiftRevealTimerRef.current = setTimeout(() => {
+          shiftRevealTimerRef.current = null;
+          setRoom(updated); // reveal the AI's move now that the slide has settled
+          setPaused(false);
+        }, SHIFT_ANIMATION_MS + AI_SHIFT_REPLY_DELAY_MS);
+        return;
+      }
+      setRoom(updated);
+      setPaused(false);
+    },
+    onError: (err: unknown, _direction: Direction, context) => {
+      if (context?.snapshot) setRoom(context.snapshot);
+      setActionError(roomErrorMessage(err, "Could not shift the grid."));
+      setPaused(false);
+    },
   });
 
   const resetMutation = useMutation({
@@ -321,32 +389,46 @@ const RoomGame = (props: Props) => {
     if (!canShiftNow && shiftActive) setShiftActive(false);
   }, [canShiftNow, shiftActive]);
 
-  // Animate the board whenever a shift lands. The ordered action log is the one
+  // Derive the board's shift-animation cue during render - not in an effect - so
+  // the post-shift board and its cue reach <Board> in the same render. An effect
+  // lands a render late: <Board> would first see the new board with no cue, snap
+  // the swept marks away, and have nothing left to animate off by the time the
+  // cue arrived (the departing-marks bug). The ordered action log is the one
   // signal that fires for every client - the shifting player, the opponent, and
-  // spectators alike - so we watch it grow and trigger the slide when the newest
-  // action is a shift. The ref seeds on first load so an already-shifted game
-  // joined mid-play doesn't replay the motion; a shrinking log (reset/rewind)
-  // just reseeds.
-  const prevActionCountRef = useRef<number | null>(null);
-  const actionsRef = useRef(room?.actions);
-  actionsRef.current = room?.actions;
+  // spectators alike - so we watch it grow and build the cue when the newest
+  // action is a shift, reading the pre-shift board so <Board> can slide each mark
+  // to where it settles and sweep the departing marks off the grid.
+  //
+  // The cue lives in a ref and is rebuilt only when the log grows by a shift, so
+  // the same object identity is handed to <Board> on later renders; <Board>
+  // animates only on a fresh identity, so a stable ref is what stops it from
+  // re-firing - no clear-after-timeout needed. The ref seeds to null on first
+  // load so an already-shifted game joined mid-play doesn't replay the motion,
+  // and reseeds when the log shrinks (reset/rewind). Mutating refs during render
+  // is strict-mode-safe here: the count guard makes the second invocation a
+  // no-op.
   const actionCount = room?.actions.length ?? null;
-  useEffect(() => {
-    if (actionCount === null) return;
+  const prevActionCountRef = useRef<number | null>(null);
+  const boardTransitionRef = useRef<BoardTransition | null>(null);
+  if (room && actionCount !== null) {
     const prev = prevActionCountRef.current;
+    if (prev !== null && actionCount > prev) {
+      const latest = room.actions[actionCount - 1];
+      if (latest?.kind === "shift") {
+        boardTransitionRef.current = {
+          kind: "shift",
+          direction: latest.dir,
+          mode: latest.mode ?? DEFAULT_SHIFT_MODE,
+          from: boardAfterActions(room.actions, actionCount - 1),
+        };
+      }
+    } else if (prev === null || actionCount < prev) {
+      // First load or a shrinking log (reset/rewind): seed/reseed at rest.
+      boardTransitionRef.current = null;
+    }
     prevActionCountRef.current = actionCount;
-    if (prev === null || actionCount <= prev) return;
-    const latest = actionsRef.current?.[actionCount - 1];
-    if (latest?.kind === "shift") setShiftAnimation(latest.dir);
-  }, [actionCount]);
-
-  // Clear the slide once it has played so the board returns to its resting,
-  // motionless render.
-  useEffect(() => {
-    if (!shiftAnimation) return;
-    const timer = setTimeout(() => setShiftAnimation(null), SHIFT_ANIMATION_MS);
-    return () => clearTimeout(timer);
-  }, [shiftAnimation]);
+  }
+  const boardTransition = boardTransitionRef.current;
 
   // Announce the start of each new round. A reset swaps the two players' seats
   // (see resetGame), so the seat I now hold tells me whether I move first (X) or
@@ -427,12 +509,33 @@ const RoomGame = (props: Props) => {
     status = spectatorStatus(winner, currentTurn, gameOver);
   }
 
+  // While the shift picker is armed the cells are inert (and show no hover): the
+  // turn is spent on a direction, not a placement.
   const boardDisabled =
-    gameOver || mySeat === null || currentTurn !== mySeat || paused;
+    gameOver ||
+    mySeat === null ||
+    currentTurn !== mySeat ||
+    paused ||
+    shiftActive;
   const turnActive = (seat: Player) => !gameOver && currentTurn === seat;
 
   return (
     <div className={styles.root}>
+      {SHIFT_DEBUG_ENABLED && (
+        <>
+          <button
+            type="button"
+            className={styles.shiftDebugToggle}
+            onClick={() => setShiftDebugOpen((open) => !open)}
+          >
+            Shift debug
+          </button>
+          {shiftDebugOpen && (
+            <ShiftDebug onClose={() => setShiftDebugOpen(false)} />
+          )}
+        </>
+      )}
+
       {roundAnnouncement && (
         <div
           key={roundAnnouncement}
@@ -502,10 +605,10 @@ const RoomGame = (props: Props) => {
           <BoardHistory actions={room.actions} />
         </div>
 
-        {/* At rest the board fills the whole frame. Arming the picker expands the
-            perimeter tracks (`.boardFrameArmed`), shrinking the board; the arrows
-            then fade in once the shrink settles. The arrows stay mounted while O
-            can shift so cancelling can reverse the sequence (fade out, then grow).
+        {/* At rest the board fills the whole frame. Arming the picker scales the
+            board down (`.boardFrameArmed`) and the arrows fade into the freed
+            band once the shrink settles. The arrows stay mounted while O can
+            shift so cancelling can reverse the sequence (fade out, then grow).
             See styles.module.scss for the two-phase transition timing. */}
         <div
           className={classNames(styles.boardFrame, {
@@ -537,7 +640,7 @@ const RoomGame = (props: Props) => {
               winningLine={room.winningLine}
               onSquareClick={handleMove}
               disabled={boardDisabled}
-              shiftDirection={shiftAnimation}
+              transition={boardTransition}
             />
           </div>
         </div>
