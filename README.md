@@ -139,6 +139,7 @@ lib/gameConfig.ts         # Server-side POC config singleton (active ShiftMode);
 lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 lib/useRoomStream.ts      # Client hook: SSE subscription for live room updates
+lib/useStepCue.ts         # Client hook: derive a one-shot board-animation cue the render a step counter changes
 app/providers.tsx         # Client root: stable React Query QueryClientProvider
 constants/game.ts         # Cross-cutting domain constants (board size, AI seat sentinel)
 agent-kit/                # Self-contained "issue -> PR" agent loop + Claude review kit (scripts, workflows, config, setup skill)
