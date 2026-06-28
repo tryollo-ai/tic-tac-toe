@@ -195,7 +195,7 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
     setActionError(null);
   }, [queryClient, roomKey]);
 
-  // Shared lifecycle for the non-optimistic writes (claim/leave/shift/reset):
+  // Shared lifecycle for the non-optimistic writes (claim/leave/shift):
   // pause+abort before, adopt the authoritative room on success, surface a
   // fallback message on error, resume polling when settled. Only the request
   // function and the error fallback differ, so each mutation supplies just those.
