@@ -34,7 +34,11 @@ const DIRECTIONS: { dir: Direction; glyph: string }[] = [
 const MODES: ShiftMode[] = ["classic", "collapse"];
 
 type SpringKey = "slideSpring" | "leanSpring" | "departSpring";
-type NumKey = "leanReleaseDelayMs" | "leanTiltDeg" | "leanSquash";
+type NumKey =
+  | "leanReleaseDelayMs"
+  | "leanReleaseDelayMsVertical"
+  | "leanTiltDeg"
+  | "leanSquash";
 
 /** Serialize a config to source matching DEFAULT_BOARD_ANIMATION's style (object
  *  literal, unquoted keys), so it can be pasted straight over that constant. */
@@ -48,6 +52,7 @@ const toSource = (a: BoardAnimationConfig) =>
     `  leanSpring: ${formatSpring(a.leanSpring)},`,
     `  departSpring: ${formatSpring(a.departSpring)},`,
     `  leanReleaseDelayMs: ${a.leanReleaseDelayMs},`,
+    `  leanReleaseDelayMsVertical: ${a.leanReleaseDelayMsVertical},`,
     `  leanTiltDeg: ${a.leanTiltDeg},`,
     `  leanSquash: ${a.leanSquash},`,
     "}",
@@ -213,7 +218,8 @@ const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
 
             <fieldset className={styles.group}>
               <legend>Lean shape & timing</legend>
-              <Slider label="release delay (ms)" value={anim.leanReleaseDelayMs} min={0} max={600} step={10} onChange={setNum("leanReleaseDelayMs")} />
+              <Slider label="release delay H (ms)" value={anim.leanReleaseDelayMs} min={0} max={800} step={10} onChange={setNum("leanReleaseDelayMs")} />
+              <Slider label="release delay V (ms)" value={anim.leanReleaseDelayMsVertical} min={0} max={800} step={10} onChange={setNum("leanReleaseDelayMsVertical")} />
               <Slider label="tilt (deg)" value={anim.leanTiltDeg} min={0} max={30} step={1} onChange={setNum("leanTiltDeg")} />
               <Slider label="squash" value={anim.leanSquash} min={0} max={0.5} step={0.01} onChange={setNum("leanSquash")} />
             </fieldset>

@@ -65,15 +65,19 @@ export type SpringConfig = { tension: number; friction: number; clamp?: boolean 
  * grid shifts, every mark slides to its new cell (`slideSpring`) and leans into
  * its travel - a tilt going sideways, a squish going up/down - via a shared
  * board-level "lean" spring that pulses 0 -> 1 -> 0: it springs out with
- * `leanSpring`, holds for `leanReleaseDelayMs`, then springs back with
+ * `leanSpring`, holds for the release delay, then springs back with
  * `departSpring` (which also drives a swept mark's fade/shrink off-board).
- * `leanTiltDeg`/`leanSquash` are the peak lean a full pulse reaches.
+ * `leanTiltDeg`/`leanSquash` are the peak lean a full pulse reaches. The release
+ * delay is split by axis - horizontal (tilt) sweeps use `leanReleaseDelayMs`,
+ * vertical (squash) sweeps use `leanReleaseDelayMsVertical` - since the up/down
+ * squash settles on a slightly different beat than the sideways tilt.
  */
 export type BoardAnimationConfig = {
   slideSpring: SpringConfig;
   leanSpring: SpringConfig;
   departSpring: SpringConfig;
   leanReleaseDelayMs: number;
+  leanReleaseDelayMsVertical: number;
   leanTiltDeg: number;
   leanSquash: number;
 };
@@ -83,8 +87,22 @@ export const DEFAULT_BOARD_ANIMATION: BoardAnimationConfig = {
   leanSpring: { tension: 130, friction: 26, clamp: true },
   departSpring: { tension: 650, friction: 35, clamp: true },
   leanReleaseDelayMs: 370,
+  leanReleaseDelayMsVertical: 320,
   leanTiltDeg: 12,
-  leanSquash: 0.18,
+  leanSquash: 0.17,
+};
+
+/** Whether a sweep is vertical (up/down) - those lean by squashing; horizontal
+ *  (left/right) sweeps lean by tilting. */
+function isVertical(direction: Direction): boolean {
+  return direction === "top" || direction === "bottom";
+}
+
+/** The lean release delay for a sweep direction (vertical has its own knob). */
+function releaseDelayFor(direction: Direction, anim: BoardAnimationConfig): number {
+  return isVertical(direction)
+    ? anim.leanReleaseDelayMsVertical
+    : anim.leanReleaseDelayMs;
 }
 
 /** Peak lean (tilt degrees / vertical squash) for a sweep in `direction`, scaled
@@ -255,14 +273,11 @@ const Board = (props: Props) => {
     // Spring into the lean as the grid starts moving, hold, then - nearing the
     // settle - spring it back to neutral. The unawaited lean-out lets the
     // delayed release overlap the tail of the slide rather than waiting for it.
+    const delay = releaseDelayFor(transition.direction, anim);
     leanApi.start({
       to: async (next) => {
         void next({ lean: 1, config: anim.leanSpring });
-        await next({
-          lean: 0,
-          delay: anim.leanReleaseDelayMs,
-          config: anim.departSpring,
-        });
+        await next({ lean: 0, delay, config: anim.departSpring });
       },
     });
   }, [transition, reducedMotion, leanApi, anim]);
@@ -281,6 +296,7 @@ const Board = (props: Props) => {
       // sway itself rides the shared lean spring above; here the mark just
       // slides off and, nearing its off-board resting spot, fades and shrinks.
       const snap = immediateRef.current || reducedMotion;
+      const releaseDelay = releaseDelayFor(departDirRef.current, anim);
       const [dr, dc] = STEP[departDirRef.current];
       // Slide the mark to just past the LEADING edge of the board, not a fixed
       // hop from its own cell. Classic only ever sweeps edge marks, but collapse
@@ -303,7 +319,7 @@ const Board = (props: Props) => {
         await next({
           opacity: 0,
           scale: 0.2,
-          delay: anim.leanReleaseDelayMs,
+          delay: releaseDelay,
           config: anim.departSpring,
         });
       };
@@ -317,6 +333,18 @@ const Board = (props: Props) => {
   // scales between 0 (upright) and these values. Harmless at rest - lean is 0,
   // so the direction left over from the last shift contributes nothing.
   const leanPeak = leanFor(departDirRef.current, anim);
+
+  // Anchor the squash to the leading edge so a vertical sweep squishes from one
+  // side instead of evenly about the centre: shifting up pins the top and pushes
+  // the bottom up; shifting down pins the bottom. Only meaningful during a
+  // vertical shift (otherwise centred, where scale=1/rotate make it a no-op). A
+  // shift adds no marks, so this never skews a pop-in.
+  const squashOrigin =
+    transition?.kind === "shift" && transition.direction === "top"
+      ? "center top"
+      : transition?.kind === "shift" && transition.direction === "bottom"
+        ? "center bottom"
+        : "center";
 
   return (
     <div
@@ -349,6 +377,7 @@ const Board = (props: Props) => {
                 height: cell,
                 fontSize: cell * 0.56,
                 opacity: style.opacity,
+                transformOrigin: squashOrigin,
                 transform: to(
                   [style.x, style.y, style.scale, leanStyle.lean],
                   (x, y, s, l) => {
