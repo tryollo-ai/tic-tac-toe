@@ -67,6 +67,18 @@ describe("winningLineCoords", () => {
     });
   });
 
+  it("scales the extension to the run length so a 4-in-a-row stays on board", () => {
+    // Top row of a 4×4 (cell centers at 12.5% and 87.5%): the endpoints extend
+    // by a fixed fraction of one cell, landing inside 0-100% rather than
+    // shooting past the board edge the way a fixed quarter-of-the-line would.
+    expectCoords(winningLineCoords([0, 1, 2, 3], 4), {
+      x1: 3.75,
+      y1: 12.5,
+      x2: 96.25,
+      y2: 12.5,
+    });
+  });
+
   it("keeps the line centered on the middle cell (no net offset there)", () => {
     // The middle cell/row stays at 50% on the unchanged axis for every line.
     expect(winningLineCoords([0, 1, 2], 3).y1).toBeCloseTo(SIXTH, 6);

@@ -72,7 +72,13 @@ const GameConfigPage = () => {
   }
 
   const update = (patch: Partial<GameConfig>) => mutation.mutate(patch);
-  const emptyBoard: Board = Array(config.boardSize * config.boardSize).fill(null);
+  // A sample board showing a winning run: the first `winLength` cells of the top
+  // row are filled so MiniBoard highlights them, making the run length visible
+  // against the board size.
+  const previewBoard: Board = Array(
+    config.boardSize * config.boardSize,
+  ).fill(null);
+  for (let i = 0; i < config.winLength; i++) previewBoard[i] = "X";
 
   return (
     <main className={styles.main}>
@@ -83,57 +89,6 @@ const GameConfigPage = () => {
           created keep the size, win length, and shift rule they started with.
         </p>
       </header>
-
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Board size</h2>
-        <p className={styles.subtitle}>
-          New games are played on an N×N board, from {MIN_BOARD_SIZE} up to{" "}
-          {MAX_BOARD_SIZE} cells per side.
-        </p>
-        <div className={styles.segmented} role="group" aria-label="Board size">
-          {range(MIN_BOARD_SIZE, MAX_BOARD_SIZE).map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={styles.segment}
-              aria-pressed={config.boardSize === n}
-              disabled={mutation.isPending}
-              onClick={() => update({ boardSize: n })}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Win length</h2>
-        <p className={styles.subtitle}>
-          How many of your marks in a row - across, down, or diagonally - wins.
-          Capped at the board size.
-        </p>
-        <div className={styles.segmented} role="group" aria-label="Win length">
-          {range(MIN_WIN_LENGTH, config.boardSize).map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={styles.segment}
-              aria-pressed={config.winLength === n}
-              disabled={mutation.isPending}
-              onClick={() => update({ winLength: n })}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-        <figure className={styles.preview}>
-          <MiniBoard board={emptyBoard} />
-          <figcaption>
-            {config.boardSize}×{config.boardSize} board, {config.winLength} in a
-            row to win
-          </figcaption>
-        </figure>
-      </section>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>O&rsquo;s shift behaviour</h2>
@@ -155,13 +110,7 @@ const GameConfigPage = () => {
         <p className={styles.active}>
           Active mode: <strong>{MODE_COPY[config.shiftMode].title}</strong>
         </p>
-      </section>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Shift right, side by side</h2>
-        <p className={styles.subtitle}>
-          The same starting board shifted right under each mode.
-        </p>
         <div className={styles.examples}>
           <figure className={styles.example}>
             <MiniBoard board={EXAMPLE_BOARD} />
@@ -176,6 +125,62 @@ const GameConfigPage = () => {
             <figcaption>Collapse →</figcaption>
           </figure>
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Board size &amp; win length</h2>
+
+        <h3 className={styles.subheading}>Board size</h3>
+        <p className={styles.subtitle}>
+          New games are played on an N×N board, from {MIN_BOARD_SIZE} up to{" "}
+          {MAX_BOARD_SIZE} cells per side.
+        </p>
+        <div className={styles.segmented} role="group" aria-label="Board size">
+          {range(MIN_BOARD_SIZE, MAX_BOARD_SIZE).map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={styles.segment}
+              aria-pressed={config.boardSize === n}
+              disabled={mutation.isPending}
+              onClick={() => update({ boardSize: n })}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+
+        <h3 className={styles.subheading}>Win length</h3>
+        <p className={styles.subtitle}>
+          How many of your marks in a row - across, down, or diagonally - wins.
+          Capped at the board size.
+        </p>
+        <div className={styles.segmented} role="group" aria-label="Win length">
+          {range(MIN_WIN_LENGTH, config.boardSize).map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={styles.segment}
+              aria-pressed={config.winLength === n}
+              disabled={mutation.isPending}
+              onClick={() => update({ winLength: n })}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+
+        <figure className={styles.preview}>
+          <MiniBoard
+            board={previewBoard}
+            winLength={config.winLength}
+            cellSize={28}
+          />
+          <figcaption>
+            {config.boardSize}×{config.boardSize} board, {config.winLength} in a
+            row to win
+          </figcaption>
+        </figure>
       </section>
     </main>
   );

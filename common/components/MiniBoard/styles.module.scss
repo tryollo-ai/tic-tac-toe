@@ -6,12 +6,19 @@
   --win-overlay-inset: 4px;
   --win-line-width: 3;
   display: grid;
+  // Only the column count is set (overridden per board size inline); rows are
+  // implicit and each cell is a square (aspect-ratio below), so every cell is
+  // identically sized at any board size instead of sub-pixel-rounding unevenly
+  // the way fixed width+height 1fr rows/cols do on a small preview. By default
+  // the board is a fixed width and cells shrink to fit (lobby/history slots); a
+  // `cellSize` prop instead fixes the cell size and lets the board grow.
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
   gap: 3px;
   width: 84px;
-  height: 84px;
   padding: 4px;
+  // Mark glyph size; cells inherit it. Fixed by default, overridden inline to
+  // track `cellSize` when the board is sized by cell instead of total width.
+  font-size: 0.85rem;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -19,6 +26,8 @@
 }
 
 .cell {
+  aspect-ratio: 1 / 1;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -26,8 +35,7 @@
   min-height: 0;
   overflow: hidden;
   background: var(--surface);
-  border-radius: 4px;
-  font-size: 0.85rem;
+  border-radius: 2px;
   font-weight: 800;
   line-height: 1;
   color: var(--text-muted);
