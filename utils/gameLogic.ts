@@ -136,13 +136,17 @@ export interface ShiftMotion {
   departs: boolean;
 }
 
-/** Unit row/column step for a shift direction. */
-function directionStep(direction: Direction): [number, number] {
-  if (direction === "top") return [-1, 0];
-  if (direction === "bottom") return [1, 0];
-  if (direction === "left") return [0, -1];
-  return [0, 1];
-}
+/**
+ * Unit row/column step for each shift direction - the single source of truth for
+ * the per-direction movement vector, shared by the shift transform here and the
+ * board's shift animation in the UI.
+ */
+export const DIRECTION_STEPS: Record<Direction, readonly [number, number]> = {
+  top: [-1, 0],
+  bottom: [1, 0],
+  left: [0, -1],
+  right: [0, 1],
+};
 
 /**
  * The per-mark motion a shift produces - the single source of truth for the
@@ -163,7 +167,7 @@ export function shiftPlan(
   mode: ShiftMode = DEFAULT_SHIFT_MODE,
 ): ShiftMotion[] {
   const size = INITIAL_SIZE;
-  const [dr, dc] = directionStep(direction);
+  const [dr, dc] = DIRECTION_STEPS[direction];
   const coord = (index: number): CellCoord => ({
     row: Math.floor(index / size),
     col: index % size,

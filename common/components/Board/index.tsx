@@ -5,6 +5,7 @@ import classNames from "classnames";
 import { animated, to, useSpring, useTransition } from "@react-spring/web";
 import { INITIAL_SIZE } from "@/constants/game";
 import {
+  DIRECTION_STEPS,
   shiftPlan,
   type Board as BoardState,
   type Direction,
@@ -39,13 +40,6 @@ type Sprite = {
   row: number;
   col: number;
   leans: boolean;
-};
-
-const STEP: Record<Direction, [number, number]> = {
-  top: [-1, 0],
-  bottom: [1, 0],
-  left: [0, -1],
-  right: [0, 1],
 };
 
 /** How far (in cells) a swept mark slides past its cell as it leaves - just
@@ -302,7 +296,7 @@ const Board = (props: Props) => {
       // slides off and, nearing its off-board resting spot, fades and shrinks.
       const snap = immediateRef.current || reducedMotion;
       const releaseDelay = releaseDelayFor(departDirRef.current, anim);
-      const [dr, dc] = STEP[departDirRef.current];
+      const [dr, dc] = DIRECTION_STEPS[departDirRef.current];
       // Slide the mark to just past the LEADING edge of the board, not a fixed
       // hop from its own cell. Classic only ever sweeps edge marks, but collapse
       // can sweep a mark from deep in the line, which must travel the full
