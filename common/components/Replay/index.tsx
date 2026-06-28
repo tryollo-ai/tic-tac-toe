@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import classNames from "classnames";
 import { IoArrowForward } from "react-icons/io5";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +14,7 @@ import {
 import { actionSentence } from "@/utils/historyLabels";
 import { type CompletedGameView } from "@/lib/roomTypes";
 import { usePlayerId } from "@/lib/usePlayerId";
+import { useStepCue } from "@/lib/useStepCue";
 import Board, { type BoardTransition } from "@/common/components/Board";
 import RoomHeader from "@/common/components/RoomHeader";
 import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
@@ -87,31 +88,26 @@ const Replay = (props: Props) => {
   // <Board> snapped the placed mark in (no drop-in) and snapped the shift, then
   // the cue fired with nothing left to animate. Only a single +1 advance (autoplay
   // or "Next") animates; a jump, a step back, or the first render shows the
-  // position with no motion. The prev-step ref keeps this strict-mode-safe - the
-  // second render pass sees no step change and is a no-op.
-  const prevStepRef = useRef(step);
-  const transitionRef = useRef<BoardTransition | null>(null);
-  if (step !== prevStepRef.current) {
-    const prev = prevStepRef.current;
-    prevStepRef.current = step;
-    const actions = game?.actions;
-    if (step === prev + 1 && actions) {
-      const action = actions[step - 1];
-      transitionRef.current = !action
-        ? null
-        : action.kind === "place"
-          ? { kind: "place", index: action.index }
-          : {
-              kind: "shift",
-              direction: action.dir,
-              mode: action.mode ?? DEFAULT_SHIFT_MODE,
-              from: boardAfterActions(actions, step - 1),
-            };
-    } else {
-      transitionRef.current = null;
-    }
-  }
-  const transition = transitionRef.current;
+  // position with no motion. useStepCue keeps this strict-mode-safe and holds the
+  // cue's identity stable so each advance animates exactly once.
+  const transition = useStepCue<BoardTransition>(
+    step,
+    (current, prev) => {
+      const actions = game?.actions;
+      if (prev === null || current !== prev + 1 || !actions) return null;
+      const action = actions[current - 1];
+      if (!action) return null;
+      return action.kind === "place"
+        ? { kind: "place", index: action.index }
+        : {
+            kind: "shift",
+            direction: action.dir,
+            mode: action.mode ?? DEFAULT_SHIFT_MODE,
+            from: boardAfterActions(actions, current - 1),
+          };
+    },
+    step,
+  );
 
   // Flash the directional arrow while a shift cue plays, then fade it out; the
   // board motion itself is driven by `transition` above.

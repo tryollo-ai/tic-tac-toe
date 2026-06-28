@@ -286,6 +286,18 @@ function swapSeats(room: Room): void {
   [room.scores.X, room.scores.O] = [room.scores.O, room.scores.X];
 }
 
+/**
+ * Reset the per-round play state in place - clear the board and action log, hand
+ * the opening turn to X, and restore O's once-per-game shift. Scores and seats
+ * are left untouched; callers that also clear those do so separately.
+ */
+function clearRound(room: Room): void {
+  room.board = EMPTY_BOARD.slice();
+  room.actions = [];
+  room.xIsNext = true;
+  room.oShiftUsed = false;
+}
+
 /** Stamp the room's activity and return a success result. */
 function touched(room: Room): StoreResult {
   room.lastActivity = now();
@@ -534,10 +546,7 @@ export async function leaveSeat(
           room.seatSeen[seat] = null;
         }
       });
-      room.board = EMPTY_BOARD.slice();
-      room.actions = [];
-      room.xIsNext = true;
-      room.oShiftUsed = false;
+      clearRound(room);
       room.scores = { ...INITIAL_SCORES };
     }
     return touched(room);
@@ -626,10 +635,7 @@ export async function resetGame(
       return { ok: false, error: "not-participant" };
     }
     const roundFinished = isGameOver(room.board);
-    room.board = EMPTY_BOARD.slice();
-    room.actions = [];
-    room.xIsNext = true;
-    room.oShiftUsed = false;
+    clearRound(room);
     // Alternate who moves first each round by swapping the two players' seats
     // (a no-op in AI rooms, where the human keeps the side they chose).
     if (roundFinished) swapSeats(room);

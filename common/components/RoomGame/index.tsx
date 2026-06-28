@@ -15,6 +15,7 @@ import {
 } from "@/utils/roomClient";
 import { usePlayerId } from "@/lib/usePlayerId";
 import { useRoomStream } from "@/lib/useRoomStream";
+import { useStepCue } from "@/lib/useStepCue";
 import { AI_SEAT } from "@/constants/game";
 import { SHIFT_SLIDE_MS } from "@/constants/animation";
 import {
@@ -390,45 +391,28 @@ const RoomGame = (props: Props) => {
   }, [canShiftNow, shiftActive]);
 
   // Derive the board's shift-animation cue during render - not in an effect - so
-  // the post-shift board and its cue reach <Board> in the same render. An effect
-  // lands a render late: <Board> would first see the new board with no cue, snap
-  // the swept marks away, and have nothing left to animate off by the time the
-  // cue arrived (the departing-marks bug). The ordered action log is the one
-  // signal that fires for every client - the shifting player, the opponent, and
-  // spectators alike - so we watch it grow and build the cue when the newest
-  // action is a shift, reading the pre-shift board so <Board> can slide each mark
-  // to where it settles and sweep the departing marks off the grid.
-  //
-  // The cue lives in a ref and is rebuilt only when the log grows by a shift, so
-  // the same object identity is handed to <Board> on later renders; <Board>
-  // animates only on a fresh identity, so a stable ref is what stops it from
-  // re-firing - no clear-after-timeout needed. The ref seeds to null on first
-  // load so an already-shifted game joined mid-play doesn't replay the motion,
-  // and reseeds when the log shrinks (reset/rewind). Mutating refs during render
-  // is strict-mode-safe here: the count guard makes the second invocation a
-  // no-op.
+  // the post-shift board and its cue reach <Board> in the same render (an effect
+  // lands a render late: <Board> would see the new board with no cue, snap the
+  // swept marks away, and have nothing left to animate off - the departing-marks
+  // bug). The ordered action log is the one signal that fires for every client -
+  // the shifting player, the opponent, and spectators alike - so we watch it grow
+  // and build a cue when the newest action is a shift, reading the pre-shift board
+  // so <Board> can slide each mark to where it settles and sweep the departing
+  // marks off the grid. Any other change (a placement, or a shrink from a
+  // reset/rewind) reports no cue, so the board snaps. useStepCue holds the cue's
+  // identity stable across later renders so the slide fires exactly once.
   const actionCount = room?.actions.length ?? null;
-  const prevActionCountRef = useRef<number | null>(null);
-  const boardTransitionRef = useRef<BoardTransition | null>(null);
-  if (room && actionCount !== null) {
-    const prev = prevActionCountRef.current;
-    if (prev !== null && actionCount > prev) {
-      const latest = room.actions[actionCount - 1];
-      if (latest?.kind === "shift") {
-        boardTransitionRef.current = {
-          kind: "shift",
-          direction: latest.dir,
-          mode: latest.mode ?? DEFAULT_SHIFT_MODE,
-          from: boardAfterActions(room.actions, actionCount - 1),
-        };
-      }
-    } else if (prev === null || actionCount < prev) {
-      // First load or a shrinking log (reset/rewind): seed/reseed at rest.
-      boardTransitionRef.current = null;
-    }
-    prevActionCountRef.current = actionCount;
-  }
-  const boardTransition = boardTransitionRef.current;
+  const boardTransition = useStepCue<BoardTransition>(actionCount, (count, prev) => {
+    if (!room || prev === null || count <= prev) return null;
+    const latest = room.actions[count - 1];
+    if (latest?.kind !== "shift") return null;
+    return {
+      kind: "shift",
+      direction: latest.dir,
+      mode: latest.mode ?? DEFAULT_SHIFT_MODE,
+      from: boardAfterActions(room.actions, count - 1),
+    };
+  });
 
   // Announce the start of each new round. A reset swaps the two players' seats
   // (see resetGame), so the seat I now hold tells me whether I move first (X) or
