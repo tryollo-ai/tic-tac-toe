@@ -14,7 +14,6 @@ import {
 import { actionSentence } from "@/utils/historyLabels";
 import { type CompletedGameView } from "@/lib/roomTypes";
 import { usePlayerId } from "@/lib/usePlayerId";
-import { PLACE_MS } from "@/constants/animation";
 import Board, { type BoardTransition } from "@/common/components/Board";
 import RoomHeader from "@/common/components/RoomHeader";
 import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
@@ -27,9 +26,6 @@ type Props = {
 
 /** Milliseconds between moves while auto-playing. */
 const AUTOPLAY_MS = 800;
-
-/** Drop-in duration for a freshly marked cell. */
-const PLACE_ANIMATION_MS = PLACE_MS;
 
 /**
  * How long the shift cue (sliding marks + the directional arrow) stays on the
@@ -51,8 +47,8 @@ const Replay = (props: Props) => {
   // Number of moves shown so far: 0 is the empty board, moves.length is final.
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
-  // How the move just shown should animate (drop-in or shift), or null at rest.
-  const [transition, setTransition] = useState<BoardTransition | null>(null);
+  // The directional arrow shown while a shift cue plays, faded out on a timer.
+  const [arrowDir, setArrowDir] = useState<Direction | null>(null);
 
   const playerId = usePlayerId();
 
@@ -85,40 +81,47 @@ const Replay = (props: Props) => {
     return () => clearTimeout(timer);
   }, [playing, step, total]);
 
-  // Animate the move revealed by a single forward advance (autoplay or "Next"):
-  // a placement drops its mark in, a shift slides the grid and flashes a
-  // directional arrow. Any other change - a jump, a step back, or the first
-  // render - shows the position with no motion. The ref tracks the prior step so
-  // only a +1 advance, where exactly one new action is in view, triggers a cue.
+  // Derive the move's animation cue DURING render so the board and its cue reach
+  // <Board> in the same render. Setting it in an effect (as this once did)
+  // arrived a render late: the board advanced to the new step with no cue, so
+  // <Board> snapped the placed mark in (no drop-in) and snapped the shift, then
+  // the cue fired with nothing left to animate. Only a single +1 advance (autoplay
+  // or "Next") animates; a jump, a step back, or the first render shows the
+  // position with no motion. The prev-step ref keeps this strict-mode-safe - the
+  // second render pass sees no step change and is a no-op.
   const prevStepRef = useRef(step);
-  useEffect(() => {
+  const transitionRef = useRef<BoardTransition | null>(null);
+  if (step !== prevStepRef.current) {
     const prev = prevStepRef.current;
     prevStepRef.current = step;
-    if (step !== prev + 1) {
-      setTransition(null); // a jump or step-back shows the position with no motion
+    const actions = game?.actions;
+    if (step === prev + 1 && actions) {
+      const action = actions[step - 1];
+      transitionRef.current = !action
+        ? null
+        : action.kind === "place"
+          ? { kind: "place", index: action.index }
+          : {
+              kind: "shift",
+              direction: action.dir,
+              mode: action.mode ?? DEFAULT_SHIFT_MODE,
+              from: boardAfterActions(actions, step - 1),
+            };
+    } else {
+      transitionRef.current = null;
+    }
+  }
+  const transition = transitionRef.current;
+
+  // Flash the directional arrow while a shift cue plays, then fade it out; the
+  // board motion itself is driven by `transition` above.
+  useEffect(() => {
+    if (transition?.kind !== "shift") {
+      setArrowDir(null);
       return;
     }
-    const action = game?.actions[step - 1];
-    if (!action) return;
-    setTransition(
-      action.kind === "place"
-        ? { kind: "place", index: action.index }
-        : {
-            kind: "shift",
-            direction: action.dir,
-            mode: action.mode ?? DEFAULT_SHIFT_MODE,
-            from: boardAfterActions(game.actions, step - 1),
-          },
-    );
-  }, [step, game]);
-
-  // Clear the cue once it has played so the board returns to its static render.
-  // The shift cue lingers with its arrow; the drop-in clears on its own beat.
-  useEffect(() => {
-    if (!transition) return;
-    const ms =
-      transition.kind === "shift" ? SHIFT_ANIMATION_MS : PLACE_ANIMATION_MS;
-    const timer = setTimeout(() => setTransition(null), ms);
+    setArrowDir(transition.direction);
+    const timer = setTimeout(() => setArrowDir(null), SHIFT_ANIMATION_MS);
     return () => clearTimeout(timer);
   }, [transition]);
 
@@ -141,9 +144,6 @@ const Replay = (props: Props) => {
 
   const board = boardAfterActions(game.actions, step);
   const result = calculateWinner(board);
-  // The shift cue still playing, surfaced for the directional arrow overlay.
-  const shiftDirection: Direction | null =
-    transition?.kind === "shift" ? transition.direction : null;
   const atStart = step === 0;
   const atEnd = step === total;
   // The action just shown, narrated below the board (e.g. "O shifted the grid
@@ -188,11 +188,11 @@ const Replay = (props: Props) => {
           transition={transition}
         />
 
-        {shiftDirection && (
+        {arrowDir && (
           <div
             className={classNames(
               styles.shiftArrow,
-              ARROW_DIR_CLASS[shiftDirection],
+              ARROW_DIR_CLASS[arrowDir],
             )}
             aria-hidden="true"
           >
