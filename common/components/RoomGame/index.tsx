@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import classNames from "classnames";
+import { canXShift } from "@/utils/gameLogic";
 import type { Direction, Player } from "@/utils/gameLogic";
 import { AI_SEAT } from "@/constants/game";
 import { AUTO_RESET_MS } from "@/constants/game";
@@ -124,6 +125,39 @@ const RoomGame = (props: Props) => {
   }
 
   const turnActive = (seat: Player) => !gameOver && currentTurn === seat;
+
+  // X's shift is conditional, so it shows three states; only meaningful once the
+  // board is larger than 3x3 (on 3x3 X never earns a shift). O's is always its
+  // ability, so it only ever reads used/available.
+  const xShiftLabel = room.xShiftUsed
+    ? "used"
+    : canXShift({ size: room.size, turn: room.actions.length })
+      ? "available"
+      : "locked";
+
+  // The "use grid shift" trigger + hint. Rendered in the viewer's own info row
+  // (gated by canShiftNow, which is already seat- and turn-specific), so exactly
+  // one row shows it. Shared by both seats since X's and O's shift arm the same way.
+  const shiftControls = (
+    <div className={styles.shiftControls}>
+      <button
+        type="button"
+        className={classNames(styles.shiftTrigger, {
+          [styles.shiftTriggerActive]: shiftActive,
+        })}
+        onClick={() => setShiftActive((active) => !active)}
+        disabled={paused}
+        aria-pressed={shiftActive}
+      >
+        {shiftActive ? "Cancel shift" : "Use grid shift"}
+      </button>
+      <p className={styles.shiftControlsHint}>
+        {shiftActive
+          ? "Pick a direction around the board (uses your turn)."
+          : "Slide the whole grid one cell (uses your turn)."}
+      </p>
+    </div>
+  );
 
   return (
     <div className={styles.root}>
@@ -264,7 +298,19 @@ const RoomGame = (props: Props) => {
             <span className={classNames(styles.infoName, styles.infoNameX)}>
               {xLabel}
             </span>
-            <span className={styles.infoAbility}>Moves first</span>
+            {room.size > 3 ? (
+              <span
+                className={classNames(styles.shiftStatus, {
+                  [styles.shiftStatusUsed]: room.xShiftUsed,
+                })}
+              >
+                Grid shift: {xShiftLabel}
+              </span>
+            ) : (
+              <span className={styles.infoAbility}>Moves first</span>
+            )}
+
+            {canShiftNow && mySeat === "X" && shiftControls}
           </div>
 
           <div
@@ -283,26 +329,7 @@ const RoomGame = (props: Props) => {
               Grid shift: {room.oShiftUsed ? "used" : "available"}
             </span>
 
-            {canShiftNow && (
-              <div className={styles.shiftControls}>
-                <button
-                  type="button"
-                  className={classNames(styles.shiftTrigger, {
-                    [styles.shiftTriggerActive]: shiftActive,
-                  })}
-                  onClick={() => setShiftActive((active) => !active)}
-                  disabled={paused}
-                  aria-pressed={shiftActive}
-                >
-                  {shiftActive ? "Cancel shift" : "Use grid shift"}
-                </button>
-                <p className={styles.shiftControlsHint}>
-                  {shiftActive
-                    ? "Pick a direction around the board (uses your turn)."
-                    : "Slide the whole grid one cell (uses your turn)."}
-                </p>
-              </div>
-            )}
+            {canShiftNow && mySeat === "O" && shiftControls}
           </div>
         </aside>
       </div>

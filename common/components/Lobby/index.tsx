@@ -354,6 +354,11 @@ const Lobby = () => {
             </p>
           </>
         )}
+        <p className={styles.howToParagraph}>
+          On larger boards, player X also earns a one-time{" "}
+          <strong>grid shift</strong> partway through the game - always the
+          classic slide - to use on its turn just like O.
+        </p>
         <ShiftAnimation mode={activeShiftMode} />
       </UIDialog>
     </div>

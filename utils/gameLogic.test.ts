@@ -3,6 +3,7 @@ import {
   boardAfterActions,
   boardSize,
   calculateWinner,
+  canXShift,
   chooseAiAction,
   DIRECTIONS,
   isBoardFull,
@@ -496,4 +497,24 @@ describe("chooseAiAction on a larger board", () => {
     const action = chooseAiAction(big, "X", false, "classic", 5);
     expect(action?.kind).toBe("place");
   });
+});
+
+describe("canXShift", () => {
+  // X's shift unlocks only on boards larger than 3x3 and once the game is
+  // underway (turn number, room.actions.length, past 5). The boundary cases pin
+  // both halves of the predicate.
+  const cases: [size: number, turn: number, expected: boolean][] = [
+    [3, 6, false], // 3x3 never qualifies, however late the turn
+    [3, 0, false],
+    [4, 5, false], // big enough, but turn not yet past 5
+    [4, 6, true], // first turn that unlocks on a larger board
+    [5, 10, true],
+    [10, 6, true],
+    [4, 0, false],
+  ];
+  for (const [size, turn, expected] of cases) {
+    it(`size ${size}, turn ${turn} -> ${expected}`, () => {
+      expect(canXShift({ size, turn })).toBe(expected);
+    });
+  }
 });

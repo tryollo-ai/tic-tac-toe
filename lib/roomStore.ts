@@ -10,6 +10,7 @@ import prisma from "@/lib/prisma";
 import {
   boardAfterActions,
   calculateWinner,
+  canXShift,
   chooseAiAction,
   isGameOver,
   otherPlayer,
@@ -96,6 +97,7 @@ function rowToRoom(row: RoomRow): Room {
     seats: { X: row.seatX, O: row.seatO },
     mode: row.mode as RoomMode,
     oShiftUsed: row.oShiftUsed,
+    xShiftUsed: row.xShiftUsed,
     seatSeen: { X: dateToMs(row.seatSeenX), O: dateToMs(row.seatSeenO) },
     createdAt: row.createdAt.getTime(),
     lastActivity: row.lastActivity.getTime(),
@@ -120,6 +122,7 @@ function roomToData(room: Room) {
     seatSeenO: msToDate(room.seatSeen.O),
     mode: room.mode,
     oShiftUsed: room.oShiftUsed,
+    xShiftUsed: room.xShiftUsed,
     lastActivity: msToDate(room.lastActivity) as Date,
   };
 }
@@ -245,10 +248,11 @@ function aiSeat(room: Room): Player | null {
 
 /**
  * Take the AI's single action for its turn in place: either place its best move
- * or, when it holds O, spend its one-time whole-grid shift, whichever the
- * lookahead prefers. A no-op unless it is the AI's turn in an AI room. Leaves it
- * as the human's turn (unless the AI's placement ended the game). The AI plays
- * whichever seat it holds, so it both opens as X and replies as O.
+ * or spend its seat's once-per-game grid shift, whichever the lookahead prefers.
+ * A no-op unless it is the AI's turn in an AI room. Leaves it as the human's turn
+ * (unless the AI's placement ended the game). The AI plays whichever seat it
+ * holds, so it both opens as X and replies as O. O's shift is always available
+ * (under the configured mode); X's is classic-only and gated by `canXShift`.
  */
 function runAiTurn(room: Room, archive: Archive, shiftMode: ShiftMode): void {
   const seat = aiSeat(room);
@@ -256,22 +260,29 @@ function runAiTurn(room: Room, archive: Archive, shiftMode: ShiftMode): void {
   const turn: Player = room.xIsNext ? "X" : "O";
   if (turn !== seat) return; // not the AI's move yet
 
-  // Only O ever has the once-per-game grid shift.
-  const canShift = seat === "O" && !room.oShiftUsed;
+  // O may always spend its shift once; X's is conditional on the board/turn rule.
+  const isO = seat === "O";
+  const canShift = isO
+    ? !room.oShiftUsed
+    : !room.xShiftUsed &&
+      canXShift({ size: room.size, turn: room.actions.length });
+  // O shifts under the configured mode; X is always classic.
+  const mode: ShiftMode = isO ? shiftMode : "classic";
   const action = chooseAiAction(
     room.board,
     seat,
     canShift,
-    shiftMode,
+    mode,
     room.winLength,
   );
   if (!action) return;
 
   if (action.kind === "shift") {
-    applyShift(room, action.dir, action.mode ?? shiftMode);
-    room.oShiftUsed = true;
+    applyShift(room, action.dir, action.mode ?? mode);
+    if (isO) room.oShiftUsed = true;
+    else room.xShiftUsed = true;
     if (settle(room, archive)) return; // a collapse shift can end the game
-    room.xIsNext = true; // the shift was O's whole turn; X plays next
+    room.xIsNext = seat !== "X"; // the shift was the AI's whole turn; hand it over
   } else {
     room.board[action.index] = seat;
     room.actions.push(action);
@@ -314,6 +325,7 @@ function clearRound(room: Room): void {
   room.actions = [];
   room.xIsNext = true;
   room.oShiftUsed = false;
+  room.xShiftUsed = false;
 }
 
 /** Stamp the room's activity and return a success result. */
@@ -443,6 +455,7 @@ export async function createRoom(
     seats: { X: null, O: null },
     mode,
     oShiftUsed: false,
+    xShiftUsed: false,
     seatSeen: { X: null, O: null },
     createdAt: ts,
     lastActivity: ts,
@@ -655,11 +668,13 @@ export async function makeMove(
 }
 
 /**
- * Apply O's one-time whole-grid shift, using the server's active shift mode.
- * Shifting is an alternative to placing a mark and uses up O's turn, so only O
- * may call it, only on O's turn, and only once per game. A "classic" shift can
- * never complete a line and play simply passes to X; a "collapse" shift can, so
- * the round is settled first and the turn only passes when the game continues.
+ * Apply the on-turn player's one-time grid shift. Shifting is an alternative to
+ * placing a mark and uses up the player's turn, so only the seat on turn may call
+ * it, and only once per game. O's shift is always available under the server's
+ * active shift mode; X's is classic-only and unlocks only when `canXShift` holds
+ * (larger boards, once the game is underway). A "classic" shift can never complete
+ * a line and play simply passes to the other side; a "collapse" shift (O only)
+ * can, so the round is settled first and the turn only passes when the game continues.
  */
 export async function shiftBoardAction(
   id: string,
@@ -673,19 +688,30 @@ export async function shiftBoardAction(
     if (isGameOver(room.board, room.winLength)) {
       return { ok: false, error: "game-over" };
     }
-    // The shift belongs to O, and only on O's turn (it is O's action for it).
-    if (room.xIsNext || room.seats.O !== playerId) {
+    // The shift belongs to whichever seat is on turn (it is that player's action).
+    const turn: Player = room.xIsNext ? "X" : "O";
+    if (room.seats[turn] !== playerId) {
       return { ok: false, error: "not-your-turn" };
     }
-    if (room.oShiftUsed) {
+    const used = turn === "O" ? room.oShiftUsed : room.xShiftUsed;
+    if (used) {
       return { ok: false, error: "shift-used" };
     }
+    // X's shift is gated by the eligibility rule; O's is always available.
+    if (
+      turn === "X" &&
+      !canXShift({ size: room.size, turn: room.actions.length })
+    ) {
+      return { ok: false, error: "shift-unavailable" };
+    }
 
-    applyShift(room, direction, shiftMode);
-    room.oShiftUsed = true;
+    const mode: ShiftMode = turn === "O" ? shiftMode : "classic";
+    applyShift(room, direction, mode);
+    if (turn === "O") room.oShiftUsed = true;
+    else room.xShiftUsed = true;
     if (!settle(room, archive)) {
-      room.xIsNext = true; // the shift was O's whole turn; X plays next
-      runAiTurn(room, archive, shiftMode); // AI X replies when a human O shifts against it
+      room.xIsNext = turn === "O"; // the shift was a whole turn; hand it to the other player
+      runAiTurn(room, archive, shiftMode); // the AI opponent replies when a human shifts against it
     }
     return touched(room);
   });
@@ -701,6 +727,7 @@ export function errorStatus(error: string): number {
     case "cell-taken":
     case "game-over":
     case "shift-used":
+    case "shift-unavailable":
       return 409;
     case "not-your-turn":
     case "not-participant":

@@ -56,6 +56,8 @@ model Room {
   mode        String
   /// Whether O has spent its one-time whole-grid shift this round.
   oShiftUsed  Boolean  @default(false) @map("o_shift_used")
+  /// Whether X has spent its one-time (conditional, classic-only) grid shift this round.
+  xShiftUsed  Boolean  @default(false) @map("x_shift_used")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   lastActivity DateTime @map("last_activity") @db.Timestamptz
 

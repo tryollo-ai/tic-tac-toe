@@ -26,6 +26,7 @@ import { AUTO_RESET_MS } from "@/constants/game";
 import { SHIFT_SLIDE_MS } from "@/constants/animation";
 import {
   boardAfterActions,
+  canXShift,
   DEFAULT_SHIFT_MODE,
   shiftBoard,
 } from "@/utils/gameLogic";
@@ -41,6 +42,7 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   "seat-taken": "That seat was just taken.",
   "not-participant": "Only a seated player can do that.",
   "shift-used": "You have already used your shift.",
+  "shift-unavailable": "Your grid shift isn't available yet.",
 };
 
 /** Map a thrown error to a known room-error message, or the given fallback. */
@@ -286,8 +288,11 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
             shift.mode ?? DEFAULT_SHIFT_MODE,
           ),
           actions: actions.slice(0, -1), // up to and including the shift
-          xIsNext: true,
-          oShiftUsed: true,
+          // The shift consumed the viewer's whole turn, so play passes to the
+          // other side, and the matching seat's one-time shift is now spent.
+          xIsNext: mySeat === "O",
+          oShiftUsed: mySeat === "O" ? true : snapshot.oShiftUsed,
+          xShiftUsed: mySeat === "X" ? true : snapshot.xShiftUsed,
         });
         shiftRevealTimerRef.current = setTimeout(() => {
           shiftRevealTimerRef.current = null;
@@ -388,13 +393,21 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
     return () => clearTimeout(timer);
   }, [room?.status, room?.lastActivity, id, mySeat, playerId, setRoom]);
 
-  // Disarm the shift picker whenever O can no longer shift (turn passed, shift
-  // spent, game ended, seat left), so it never lingers into the next turn.
+  // Disarm the shift picker whenever the viewer can no longer shift (turn passed,
+  // shift spent or not yet earned, game ended, seat left), so it never lingers
+  // into the next turn. O may always spend its one-time shift on its turn; X's is
+  // classic-only and gated by canXShift (larger boards, once the game is underway).
+  const myTurn =
+    !!room &&
+    room.status !== "finished" &&
+    mySeat != null &&
+    currentTurn === mySeat;
   const canShiftNow =
-    mySeat === "O" &&
-    room?.status !== "finished" &&
-    room?.xIsNext === false &&
-    !room?.oShiftUsed;
+    myTurn &&
+    (mySeat === "O"
+      ? !room!.oShiftUsed
+      : !room!.xShiftUsed &&
+        canXShift({ size: room!.size, turn: room!.actions.length }));
   useEffect(() => {
     if (!canShiftNow && shiftActive) setShiftActive(false);
   }, [canShiftNow, shiftActive]);

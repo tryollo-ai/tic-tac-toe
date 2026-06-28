@@ -35,6 +35,24 @@ export const SHIFT_MODES: readonly ShiftMode[] = ["classic", "collapse"];
 /** Mode used for shift actions recorded before the POC variant existed. */
 export const DEFAULT_SHIFT_MODE: ShiftMode = "classic";
 
+/** Game context a shift-eligibility rule may read. Extend as new levers are needed. */
+export interface ShiftContext {
+  /** Board side length. */
+  size: number;
+  /** Plies played so far this game (room.actions.length); the turn about to be played is this index. */
+  turn: number;
+}
+
+/**
+ * Whether X may use its one-time classic grid shift now. Unlike O's shift (always
+ * available once per game), X's is gated so it only unlocks on larger boards once
+ * the game is underway. This predicate is the single knob for that rule - edit it
+ * to change when X earns the shift.
+ */
+export function canXShift(ctx: ShiftContext): boolean {
+  return ctx.size > 3 && ctx.turn > 5;
+}
+
 /**
  * One turn's action. Players alternate strictly - X takes the even-indexed
  * actions, O the odd ones - and on a turn a player either places a mark or, as

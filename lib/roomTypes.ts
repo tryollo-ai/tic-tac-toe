@@ -31,6 +31,8 @@ export interface Room {
   mode: RoomMode;
   /** Whether O has spent its one-time whole-grid shift this round. */
   oShiftUsed: boolean;
+  /** Whether X has spent its one-time (conditional, classic-only) grid shift this round. */
+  xShiftUsed: boolean;
   /** Last-heartbeat timestamp per seat, used for TTL auto-release. */
   seatSeen: { X: number | null; O: number | null };
   createdAt: number;

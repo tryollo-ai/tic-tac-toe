@@ -11,6 +11,7 @@ import {
   toView,
 } from "@/lib/roomStore";
 import prisma from "@/lib/prisma";
+import { setGameConfig } from "@/lib/gameConfig";
 import { AI_SEAT, AUTO_RESET_MS } from "@/constants/game";
 import type { Room } from "@/lib/roomTypes";
 
@@ -472,5 +473,83 @@ describe("idle room reaping", () => {
     expect(ids).not.toContain(stale.room.id);
     // The reap is a real delete, not just a filtered view.
     expect(await getRoom(stale.room.id)).toBeNull();
+  });
+});
+
+describe("X conditional shift", () => {
+  // X's once-per-game shift only exists on boards larger than 3x3 and only once
+  // the game is past turn 5 (the canXShift rule). These tests create games at
+  // boardSize 5 (win run 5, so scattered placements never settle early) to
+  // exercise that gate; the config row is reset afterwards so it never leaks.
+  beforeEach(async () => {
+    await setGameConfig({ boardSize: 5, winLength: 5 });
+  });
+  afterAll(async () => {
+    await prisma.appConfig.deleteMany(); // restore the default 3x3 config
+  });
+
+  /** A seated 5x5 two-player room (X=PX, O=PO); returns its id. */
+  async function seatedBigRoom(): Promise<string> {
+    const created = await createRoom("big room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const id = created.room.id;
+    expect((await claimSeat(id, "X", PX)).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true);
+    return id;
+  }
+
+  it("rejects X's shift early, before the turn threshold", async () => {
+    const id = await seatedBigRoom();
+    // Fresh game: X is on turn, but the turn number (actions.length) is 0, so
+    // the shift has not unlocked yet.
+    expect(await shiftBoardAction(id, "left", PX)).toEqual({
+      ok: false,
+      error: "shift-unavailable",
+    });
+  });
+
+  it("lets X shift once the game is past turn 5, consuming X's turn", async () => {
+    const id = await seatedBigRoom();
+    // Six scattered placements alternating X/O (no run of five), so it is X's
+    // turn again with actions.length === 6 (> 5) and the shift is unlocked.
+    const cells = [0, 2, 4, 10, 12, 14];
+    const players = [PX, PO, PX, PO, PX, PO];
+    for (let i = 0; i < cells.length; i++) {
+      expect((await makeMove(id, cells[i], players[i])).ok).toBe(true);
+    }
+    let room = await getRoom(id);
+    expect(room?.xIsNext).toBe(true);
+    expect(room?.actions).toHaveLength(6);
+
+    expect((await shiftBoardAction(id, "left", PX)).ok).toBe(true);
+
+    room = await getRoom(id);
+    expect(room?.xShiftUsed).toBe(true);
+    expect(room?.xIsNext).toBe(false); // the shift was X's whole turn -> O next
+    const last = room?.actions[room.actions.length - 1];
+    expect(last).toMatchObject({ kind: "shift", mode: "classic" });
+  });
+
+  it("never lets X shift on a 3x3 board, even past turn 5", async () => {
+    await setGameConfig({ boardSize: 3, winLength: 3 });
+    const created = await createRoom("small room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const id = created.room.id;
+    expect((await claimSeat(id, "X", PX)).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true);
+
+    // Six placements with no three-in-a-row, leaving it X's turn at turn 6.
+    const cells = [0, 1, 5, 2, 7, 3];
+    const players = [PX, PO, PX, PO, PX, PO];
+    for (let i = 0; i < cells.length; i++) {
+      expect((await makeMove(id, cells[i], players[i])).ok).toBe(true);
+    }
+    const room = await getRoom(id);
+    expect(room?.xIsNext).toBe(true);
+    // Turn threshold met, but a 3x3 board never grants X a shift.
+    expect(await shiftBoardAction(id, "left", PX)).toEqual({
+      ok: false,
+      error: "shift-unavailable",
+    });
   });
 });
