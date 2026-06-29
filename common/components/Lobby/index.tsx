@@ -322,10 +322,14 @@ const StartPanel = (props: {
   </>
 );
 
-const Lobby = () => {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const playerId = usePlayerId();
+/**
+ * The lobby's read-only server-data layer: the live-room list, this browser's
+ * completed games and lifetime win/loss/draw record, and the active game config
+ * (with defaults applied so the "How to play" dialog explains the variant new
+ * games will actually use). All four poll independently; gathering them in one
+ * hook keeps the component body to local interaction state plus render.
+ */
+const useLobbyData = (playerId: string | null) => {
   const {
     data: rooms,
     error,
@@ -356,11 +360,31 @@ const Lobby = () => {
     queryKey: ["game-config"],
     queryFn: ({ signal }) => fetchGameConfig(signal),
   });
-  const activeShiftMode: ShiftMode = gameConfig?.shiftMode ?? "classic";
-  // Reflect the size/win run new games are created at, so the dialog's rules and
-  // the abilities it explains match what the player is about to play.
-  const activeSize = gameConfig?.boardSize ?? 3;
-  const activeWinLength = gameConfig?.winLength ?? 3;
+
+  return {
+    rooms,
+    error,
+    roomsLoading,
+    completed,
+    stats,
+    activeShiftMode: (gameConfig?.shiftMode ?? "classic") as ShiftMode,
+    activeWinLength: gameConfig?.winLength ?? 3,
+  };
+};
+
+const Lobby = () => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const playerId = usePlayerId();
+  const {
+    rooms,
+    error,
+    roomsLoading,
+    completed,
+    stats,
+    activeShiftMode,
+    activeWinLength,
+  } = useLobbyData(playerId);
 
   // Only online multiplayer creates a server room; single-device games are
   // started straight from the client (see startClientGame), so the mutation is
