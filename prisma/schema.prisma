@@ -71,14 +71,14 @@ model Room {
 /// only to count how many people are viewing a room at any moment. A composite
 /// (room, player) key makes each viewer at most one row, so the count is a simple
 /// `COUNT(*)` over the room's un-expired rows.
-model RoomViewer {
+model RoomParticipant {
   roomId   String   @map("room_id")
   playerId String   @map("player_id")
   lastSeen DateTime @map("last_seen") @db.Timestamptz
 
   @@id([roomId, playerId])
   @@index([roomId, lastSeen])
-  @@map("room_viewers")
+  @@map("room_participants")
 }
 
 /// An archived, finished game. Mirrors `CompletedGame` in lib/roomTypes.ts. The

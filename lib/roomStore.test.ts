@@ -29,7 +29,7 @@ const PO = "player-o";
 
 beforeEach(async () => {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "rooms", "completed_games", "room_viewers"',
+    'TRUNCATE "rooms", "completed_games", "room_participants"',
   );
 });
 
@@ -621,14 +621,14 @@ describe("viewer presence counting", () => {
     await heartbeatViewer(id, "fresh");
 
     // Age one viewer's heartbeat well past the 12s TTL directly in the database.
-    await prisma.roomViewer.update({
+    await prisma.roomParticipant.update({
       where: { roomId_playerId: { roomId: id, playerId: "stale" } },
       data: { lastSeen: new Date(Date.now() - 60_000) },
     });
 
     // The count excludes the expired row without deleting it.
     expect(await countViewers(id)).toBe(1);
-    const rows = await prisma.roomViewer.findMany({ where: { roomId: id } });
+    const rows = await prisma.roomParticipant.findMany({ where: { roomId: id } });
     expect(rows.map((r) => r.playerId).sort()).toEqual(["fresh", "stale"]);
   });
 

@@ -550,7 +550,7 @@ export async function heartbeatViewer(
   playerId: string,
 ): Promise<void> {
   const seen = new Date(now());
-  await prisma.roomViewer.upsert({
+  await prisma.roomParticipant.upsert({
     where: { roomId_playerId: { roomId: id, playerId } },
     create: { roomId: id, playerId, lastSeen: seen },
     update: { lastSeen: seen },
@@ -563,7 +563,7 @@ export async function removeViewer(
   id: string,
   playerId: string,
 ): Promise<void> {
-  await prisma.roomViewer
+  await prisma.roomParticipant
     .delete({ where: { roomId_playerId: { roomId: id, playerId } } })
     // A viewer with no row (already swept or never recorded) is a no-op.
     .catch(() => undefined);
@@ -577,7 +577,7 @@ export async function removeViewer(
  */
 export async function countViewers(id: string): Promise<number> {
   const cutoff = new Date(now() - VIEWER_TTL_MS);
-  return prisma.roomViewer.count({
+  return prisma.roomParticipant.count({
     where: { roomId: id, lastSeen: { gte: cutoff } },
   });
 }
