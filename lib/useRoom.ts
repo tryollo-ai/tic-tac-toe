@@ -328,26 +328,31 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
   });
 
   // Best-effort instant seat release: on tab close via `pagehide`, and on
-  // in-app navigation (unmount) via the cleanup. The 30s TTL is the backstop.
-  // Keyed on `amSeated` (not `mySeat`): in a local room mySeat flips X<->O each
-  // turn, and depending on it here would run the cleanup - and so a spurious
-  // seat release - on every turn, abandoning the game mid-play.
+  // in-app navigation (unmount) via the cleanup. The latest seat/player is read
+  // through a ref so this effect mounts only once and its cleanup runs solely on
+  // a real unmount. Keeping `mySeat` out of the deps is essential: `mySeat`
+  // flips X<->O whenever the on-turn side changes - between rounds via a seat
+  // swap (see swapSeats), and every turn in a local pass-and-play room - and if
+  // that re-ran the effect its cleanup `release()` would fire a stray DELETE and
+  // boot the player from a seat they actually kept. The 30s TTL is the backstop.
+  const releaseSeatRef = useRef<() => void>(() => {});
+  releaseSeatRef.current = () => {
+    if (!playerId || !mySeat) return;
+    fetch(`/api/rooms/${id}/seat`, {
+      method: "DELETE",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId }),
+    }).catch(() => {});
+  };
   useEffect(() => {
-    if (!playerId || !amSeated) return;
-    const release = () => {
-      fetch(`/api/rooms/${id}/seat`, {
-        method: "DELETE",
-        keepalive: true,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
-      }).catch(() => {});
-    };
+    const release = () => releaseSeatRef.current();
     window.addEventListener("pagehide", release);
     return () => {
       window.removeEventListener("pagehide", release);
       release();
     };
-  }, [id, playerId, amSeated]);
+  }, []);
 
   const currentTurn: Player = room?.xIsNext ? "X" : "O";
   const gameOver = room?.status === "finished";

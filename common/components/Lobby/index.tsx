@@ -8,12 +8,14 @@ import {
   createRoom,
   fetchCompletedGames,
   fetchGameConfig,
+  fetchPlayerStats,
   fetchRooms,
   roomErrorCode,
 } from "@/utils/roomClient";
 import {
   modeLabel,
   type CompletedGameSummary,
+  type PlayerStats,
   type RoomMode,
   type RoomSummary,
 } from "@/lib/roomTypes";
@@ -94,6 +96,14 @@ const Lobby = () => {
   const { data: completed } = useQuery<CompletedGameSummary[]>({
     queryKey: ["completed", playerId],
     queryFn: ({ signal }) => fetchCompletedGames(playerId as string, signal),
+    enabled: Boolean(playerId),
+    refetchInterval: 5000,
+  });
+  // This browser's lifetime win/loss/draw record, tallied on the server from the
+  // same archive; polled alongside the completed list so it stays in step.
+  const { data: stats } = useQuery<PlayerStats>({
+    queryKey: ["stats", playerId],
+    queryFn: ({ signal }) => fetchPlayerStats(playerId as string, signal),
     enabled: Boolean(playerId),
     refetchInterval: 5000,
   });
@@ -180,6 +190,27 @@ const Lobby = () => {
           shift. Join a room to play or spectate a live game.
         </p>
       </header>
+
+      {stats && stats.won + stats.lost + stats.drawn > 0 && (
+        <dl className={styles.stats} aria-label="Your record">
+          <div className={styles.statItem}>
+            <dt className={styles.statLabel}>Won</dt>
+            <dd className={`${styles.statValue} ${styles.statWon}`}>
+              {stats.won}
+            </dd>
+          </div>
+          <div className={styles.statItem}>
+            <dt className={styles.statLabel}>Lost</dt>
+            <dd className={`${styles.statValue} ${styles.statLost}`}>
+              {stats.lost}
+            </dd>
+          </div>
+          <div className={styles.statItem}>
+            <dt className={styles.statLabel}>Drawn</dt>
+            <dd className={styles.statValue}>{stats.drawn}</dd>
+          </div>
+        </dl>
+      )}
 
       <form className={styles.createForm} onSubmit={handleCreate}>
         <input

@@ -18,6 +18,14 @@ game.
 - **Seat claiming:** visitors claim an open X or O seat, and everyone else
   spectates. Your identity is stored per browser, and only the seat-holder whose
   turn it is can move.
+- **Invite player:** a button in the room sidebar copies a shareable link to the
+  room to the clipboard so a seated player or spectator can pass it to someone
+  else to join or spectate. The link is built from the current page's origin
+  (`window.location.origin + /room/<id>`), so it stays correct across
+  environments (localhost, preview, prod). The button shows a transient "Link
+  copied!" confirmation for 1.5 s, then reverts. It is rendered unconditionally
+  alongside the seat-claim and leave buttons, so it is always available regardless
+  of role. The button is only present in live rooms, not the read-only replay view.
 - **Near-real-time play:** rooms receive live pushes over a Server-Sent Events
   stream (`GET /api/rooms/[id]/stream`), so moves and seat changes appear for
   everyone within ~1–2 seconds. Polling falls back to 10s while the stream is
@@ -58,14 +66,21 @@ game.
 - **Scoreboard** tracking wins for each side and draws across rounds.
 - **Mark alternation:** after each completed game the two players swap marks —
   whoever held X (and moved first) becomes O for the next round, so the
-  first-move advantage alternates. An animated "New round" banner appears over
-  the board announcing each player's new mark. Only two-player rooms alternate;
-  vs-AI rooms and Local rooms do not (in AI rooms O is permanently the computer;
-  in Local rooms one player holds both seats, so swapping is meaningless).
+  first-move advantage alternates. Players keep their seats through the swap;
+  only the mark changes. An animated "New round" banner appears over the board
+  announcing each player's new mark. Only two-player rooms alternate; vs-AI
+  rooms and Local rooms do not (in AI rooms O is permanently the computer; in
+  Local rooms one player holds both seats, so swapping is meaningless).
 - **Win-line highlight:** the three winning cells are highlighted and a green
   line is drawn connecting them, alongside a clear turn/winner status indicator.
   The same overlay appears in replay and over a completed three-in-a-row in the
   lobby and completed-game board previews.
+- **Win/loss/draw record:** the lobby shows a "Your record" bar above the
+  room-creation form, tallying wins, losses, and draws across all archived games
+  the current player took part in. The tally is derived on the server from the
+  same completed-games archive (no separate counter table) and polled every 5 s.
+  The bar is hidden until the player has finished at least one game, so
+  first-time visitors don't see an empty 0/0/0 panel.
 - **Completed games & replay:** every finished game is archived; the lobby lists
   only the games the current browser's player took part in ("Your completed
   games").
@@ -133,6 +148,7 @@ app/                      # App Router: lobby, /room/[id], /replay/[id], styles
 app/api/rooms/            # REST endpoints: list/create rooms, seats, moves,
                           #   reset, shift; [id]/stream — SSE live-room feed
 app/api/completed/        # REST endpoints: list completed games + fetch one for replay
+app/api/stats/            # REST endpoint: per-player win/loss/draw record (GET ?playerId=)
 app/api/internal/         # Internal POC endpoints: game-config (GET/POST shift mode)
 app/internal/             # Internal POC pages: /internal/game-config toggle UI
 common/components/<Name>/ # One folder per shared component: index.tsx entry + styles.module.scss
@@ -144,7 +160,7 @@ utils/winningLineGeometry.ts # Pure winning-line overlay geometry (cell-center p
 utils/historyLabels.ts    # Pure move-history labels: player parity, cell/shift names (`describeAction`), and full-sentence replay captions (`actionSentence`)
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/gameConfig.ts         # Server-side POC config singleton (active ShiftMode); globalThis-backed, not persisted
-lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
+lib/roomTypes.ts          # Shared room, seat, score, completed-game, and player-stats types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 lib/useRoomStream.ts      # Client hook: SSE subscription for live room updates
 lib/useStepCue.ts         # Client hook: derive a one-shot board-animation cue the render a step counter changes

@@ -15,6 +15,17 @@ export interface Scores {
   draws: number;
 }
 
+/**
+ * A player's lifetime record across every archived game they took part in,
+ * tallied per player (not per seat) so it follows the person across the X/O
+ * seat swap. Derived on the server from the completed-games archive.
+ */
+export interface PlayerStats {
+  won: number;
+  lost: number;
+  drawn: number;
+}
+
 export interface Room {
   id: string;
   name: string;

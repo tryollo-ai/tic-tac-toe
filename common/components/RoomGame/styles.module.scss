@@ -274,6 +274,20 @@ $round-announce-ms: $round-announce-raw * 1ms;
   border-radius: 14px;
 }
 
+// The locked-in win condition, surfaced above the player list as an
+// accent-tinted badge (grid size lives on the board itself, so only the run
+// length is shown here).
+.winCondition {
+  align-self: flex-start;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--surface);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .infoRow {
   display: flex;
   flex-direction: column;

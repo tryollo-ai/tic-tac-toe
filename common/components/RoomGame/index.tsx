@@ -9,6 +9,7 @@ import { AUTO_RESET_MS } from "@/constants/game";
 import { useRoom } from "@/lib/useRoom";
 import Board from "@/common/components/Board";
 import BoardHistory from "@/common/components/BoardHistory";
+import InviteButton from "@/common/components/InviteButton";
 import RoomHeader from "@/common/components/RoomHeader";
 import RoomNotFound, { RoomLoading } from "@/common/components/RoomMessage";
 import Status, {
@@ -205,12 +206,7 @@ const RoomGame = (props: Props) => {
         </div>
       )}
 
-      <RoomHeader
-        name={room.name}
-        mode={room.mode}
-        size={room.size}
-        winLength={room.winLength}
-      />
+      <RoomHeader name={room.name} mode={room.mode} />
 
       <Status message={status.message} tone={status.tone} />
 
@@ -318,6 +314,15 @@ const RoomGame = (props: Props) => {
         </div>
 
         <aside className={styles.infoPanel}>
+          {/* Always available: copies a shareable link to this room so the
+              player can hand it to someone to join (or spectate). Sits at the
+              top of the player column, above the seat info. */}
+          <InviteButton roomId={props.id} />
+
+          <span className={styles.winCondition}>
+            {room.winLength} in a row
+          </span>
+
           <div
             className={classNames(styles.infoRow, {
               [styles.infoRowActive]: turnActive("X"),

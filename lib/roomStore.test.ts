@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   claimSeat,
   createRoom,
+  getPlayerStats,
   getRoom,
   leaveSeat,
   listCompletedGames,
@@ -356,6 +357,58 @@ describe("scoring and completed-game archival on settle", () => {
     expect(await listCompletedGames("")).toHaveLength(0);
   });
 
+});
+
+describe("getPlayerStats", () => {
+  /** PX (X) wins the top row against PO in a fresh room. */
+  async function playXWin(id: string): Promise<void> {
+    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+    expect((await makeMove(id, 3, PO)).ok).toBe(true);
+    expect((await makeMove(id, 1, PX)).ok).toBe(true);
+    expect((await makeMove(id, 5, PO)).ok).toBe(true);
+    expect((await makeMove(id, 2, PX)).ok).toBe(true); // X wins
+  }
+
+  /** PO (O) wins the middle row against PX in a fresh room. */
+  async function playOWin(id: string): Promise<void> {
+    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+    expect((await makeMove(id, 3, PO)).ok).toBe(true);
+    expect((await makeMove(id, 1, PX)).ok).toBe(true);
+    expect((await makeMove(id, 4, PO)).ok).toBe(true);
+    expect((await makeMove(id, 8, PX)).ok).toBe(true);
+    expect((await makeMove(id, 5, PO)).ok).toBe(true); // O wins
+  }
+
+  /** A full board with no line: a draw between PX (X) and PO (O). */
+  async function playDraw(id: string): Promise<void> {
+    for (const [index, player] of [
+      [0, PX], [1, PO], [2, PX], [4, PO], [3, PX],
+      [5, PO], [7, PX], [6, PO], [8, PX],
+    ] as const) {
+      expect((await makeMove(id, index, player)).ok).toBe(true);
+    }
+  }
+
+  it("returns an all-zero record for a player with no finished games", async () => {
+    expect(await getPlayerStats(PX)).toEqual({ won: 0, lost: 0, drawn: 0 });
+    expect(await getPlayerStats("")).toEqual({ won: 0, lost: 0, drawn: 0 });
+  });
+
+  it("tallies wins, losses, and draws per player across games", async () => {
+    await playXWin((await seatedRoom()).id); // PX wins, PO loses
+    await playOWin((await seatedRoom()).id); // PO wins, PX loses
+    await playDraw((await seatedRoom()).id); // both draw
+
+    // Each tally follows the person, not the X/O seat they happened to hold.
+    expect(await getPlayerStats(PX)).toEqual({ won: 1, lost: 1, drawn: 1 });
+    expect(await getPlayerStats(PO)).toEqual({ won: 1, lost: 1, drawn: 1 });
+    // A player who took part in nothing has no record.
+    expect(await getPlayerStats("stranger")).toEqual({
+      won: 0,
+      lost: 0,
+      drawn: 0,
+    });
+  });
 });
 
 // The next-round reset is server-authoritative and lazy: any per-request

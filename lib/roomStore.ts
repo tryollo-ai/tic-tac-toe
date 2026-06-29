@@ -24,6 +24,7 @@ import {
   type CompletedGame,
   type CompletedGameSummary,
   type CompletedGameView,
+  type PlayerStats,
   type Room,
   type RoomMode,
   type RoomStatus,
@@ -541,6 +542,17 @@ export function toCompletedView(game: CompletedGame): CompletedGameView {
   };
 }
 
+async function fetchCompletedGamesForPlayer(
+  playerId: string,
+): Promise<CompletedGame[]> {
+  await reapIdleCompleted();
+  const rows = await prisma.completedGame.findMany({
+    where: { OR: [{ playerX: playerId }, { playerO: playerId }] },
+    orderBy: { completedAt: "desc" },
+  });
+  return rows.map(rowToCompleted);
+}
+
 /**
  * Archived finished games the given player took part in, newest first. Scoped to
  * a player so each browser only sees its own games; a request without a player id
@@ -550,12 +562,34 @@ export async function listCompletedGames(
   playerId: string,
 ): Promise<CompletedGameSummary[]> {
   if (!playerId) return [];
-  await reapIdleCompleted();
-  const rows = await prisma.completedGame.findMany({
-    where: { OR: [{ playerX: playerId }, { playerO: playerId }] },
-    orderBy: { completedAt: "desc" },
-  });
-  return rows.map((row) => toCompletedSummary(rowToCompleted(row)));
+  const games = await fetchCompletedGamesForPlayer(playerId);
+  return games.map(toCompletedSummary);
+}
+
+/**
+ * A player's win/loss/draw record across every game they took part in, derived
+ * from the same completed-games archive the lobby lists. Tallied per player
+ * rather than per seat, so a win counts whether they held X or O that round. The
+ * winner is recomputed from each game's action log (the single source of truth),
+ * exactly as the completed-game summary does. An empty player id - or a player
+ * who has finished nothing - gets an all-zero record.
+ */
+export async function getPlayerStats(playerId: string): Promise<PlayerStats> {
+  const stats: PlayerStats = { won: 0, lost: 0, drawn: 0 };
+  if (!playerId) return stats;
+  const games = await fetchCompletedGamesForPlayer(playerId);
+  for (const game of games) {
+    const board = boardAfterActions(game.actions, game.actions.length, game.size);
+    const result = calculateWinner(board, game.winLength);
+    if (!result) {
+      stats.drawn += 1;
+      continue;
+    }
+    const seat: Player = game.playerX === playerId ? "X" : "O";
+    if (result.winner === seat) stats.won += 1;
+    else stats.lost += 1;
+  }
+  return stats;
 }
 
 export async function getCompletedGame(

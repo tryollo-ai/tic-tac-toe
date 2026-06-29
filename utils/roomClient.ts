@@ -2,6 +2,7 @@ import type { Direction, ShiftMode } from "@/utils/gameLogic";
 import type {
   CompletedGameSummary,
   CompletedGameView,
+  PlayerStats,
   RoomMode,
   RoomSummary,
   RoomView,
@@ -197,4 +198,13 @@ export function fetchCompletedGame(
 ): Promise<CompletedGameView> {
   const query = `?playerId=${encodeURIComponent(playerId)}`;
   return getJson<CompletedGameView>(`/api/completed/${id}${query}`, "game", signal);
+}
+
+/** The calling player's lifetime win/loss/draw record across their games. */
+export function fetchPlayerStats(
+  playerId: string,
+  signal?: AbortSignal,
+): Promise<PlayerStats> {
+  const query = `?playerId=${encodeURIComponent(playerId)}`;
+  return getJson<PlayerStats>(`/api/stats${query}`, "stats", signal);
 }

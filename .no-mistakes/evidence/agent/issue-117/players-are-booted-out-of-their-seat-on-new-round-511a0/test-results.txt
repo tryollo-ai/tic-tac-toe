@@ -1,0 +1,35 @@
+ ✓ lib/useRoom.seatRelease.test.ts > seat-release effect: spurious DELETE on mySeat swap > OLD pattern fires a stray DELETE when mySeat changes X → O 4ms
+ ✓ lib/useRoom.seatRelease.test.ts > seat-release effect: spurious DELETE on mySeat swap > NEW pattern does NOT fire a DELETE when mySeat changes X → O 1ms
+ ✓ lib/useRoom.seatRelease.test.ts > seat-release effect: spurious DELETE on mySeat swap > NEW pattern fires exactly one DELETE on genuine unmount (with latest seat) 1ms
+ ✓ lib/useRoom.seatRelease.test.ts > seat-release effect: spurious DELETE on mySeat swap > NEW pattern skips the DELETE when the player has no seat at unmount 0ms
+ ✓ lib/roomStore.test.ts > makeMove turn and seat validation > lets X take even-indexed actions and O odd ones 100ms
+ ✓ lib/roomStore.test.ts > makeMove turn and seat validation > rejects a move made out of turn 36ms
+ ✓ lib/roomStore.test.ts > makeMove turn and seat validation > rejects placing on an occupied cell 29ms
+ ✓ lib/roomStore.test.ts > makeMove turn and seat validation > rejects an out-of-bounds index 28ms
+ ✓ lib/roomStore.test.ts > shiftBoardAction validation > rejects a shift on X's turn 34ms
+ ✓ lib/roomStore.test.ts > shiftBoardAction validation > rejects a shift by anyone other than O on O's turn 30ms
+ ✓ lib/roomStore.test.ts > shiftBoardAction validation > lets O shift on O's turn and then passes play back to X 32ms
+ ✓ lib/roomStore.test.ts > shiftBoardAction validation > rejects a second shift once O's one-time shift is spent 38ms
+ ✓ lib/roomStore.test.ts > shiftBoardAction validation > makes the shift available only on O's turn, once, and translates the board 41ms
+ ✓ lib/roomStore.test.ts > AI seating and follow-up > opens an AI room with both seats free until the human picks a side 16ms
+ ✓ lib/roomStore.test.ts > AI seating and follow-up > seats the AI opposite a human who plays X and replies as O 47ms
+ ✓ lib/roomStore.test.ts > AI seating and follow-up > seats the AI as X and opens the game when the human plays O 41ms
+ ✓ lib/roomStore.test.ts > AI seating and follow-up > frees the AI seat and resets when the human leaves, so a side is re-choosable 45ms
+ ✓ lib/roomStore.test.ts > scoring and completed-game archival on settle > scores a win once and archives the finished game 53ms
+ ✓ lib/roomStore.test.ts > scoring and completed-game archival on settle > lists a completed game only to the players who took part in it 46ms
+ ✓ lib/roomStore.test.ts > getPlayerStats > returns an all-zero record for a player with no finished games 11ms
+ ✓ lib/roomStore.test.ts > getPlayerStats > tallies wins, losses, and draws per player across games 133ms
+ ✓ lib/roomStore.test.ts > lazy next-round reset > resets a finished two-player game via a heartbeat read after the delay 49ms
+ ✓ lib/roomStore.test.ts > lazy next-round reset > does not reset a game that just finished (delay not yet elapsed) 46ms
+ ✓ lib/roomStore.test.ts > lazy next-round reset > resets an AI room and lets the AI open the new round as X 63ms
+ ✓ lib/roomStore.test.ts > lazy next-round reset > heals a stuck room when a new player rejoins after both leave (symptom 1) 59ms
+ ✓ lib/roomStore.test.ts > lazy next-round reset > heals a stuck room via a spectator read (symptom 1) 53ms
+ ✓ lib/roomStore.test.ts > lazy next-round reset > resets exactly once across back-to-back heartbeats (idempotent) 50ms
+ ✓ lib/roomStore.test.ts > seat TTL sweeping > auto-releases a seat whose heartbeat has expired 27ms
+ ✓ lib/roomStore.test.ts > seat TTL sweeping > refreshes and persists a still-valid seat's heartbeat 28ms
+ ✓ lib/roomStore.test.ts > idle room reaping > drops rooms idle past the window on list 19ms
+ ✓ lib/roomStore.test.ts > X conditional shift > rejects X's shift early, before the turn threshold 25ms
+ ✓ lib/roomStore.test.ts > X conditional shift > lets X shift once the game is past turn 5, consuming X's turn 52ms
+ ✓ lib/roomStore.test.ts > X conditional shift > never lets X shift on a 3x3 board, even past turn 5 50ms
+      Tests  33 passed (33)
+   Duration  4.91s (transform 182ms, setup 0ms, import 256ms, tests 1.30s, environment 0ms)
