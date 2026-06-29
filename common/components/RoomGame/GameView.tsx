@@ -40,6 +40,101 @@ const SHIFT_OPTIONS: {
   { dir: "right", glyph: "→", label: "Shift right", slotClass: "shiftSlotRight" },
 ];
 
+/**
+ * The "new round" banner shown when seats swap between games, announcing which
+ * mark the local player now holds. Self-announcing via `role="status"`; the
+ * `key` on the caller remounts it each round so the entrance animation replays.
+ */
+const RoundBanner = (props: { seat: Player }) => (
+  <div className={styles.roundBanner} role="status" aria-live="polite">
+    <span className={styles.roundBannerKicker}>New round</span>
+    <span
+      className={classNames(styles.roundBannerSeat, {
+        [styles.roundBannerSeatX]: props.seat === "X",
+        [styles.roundBannerSeatO]: props.seat === "O",
+      })}
+    >
+      {props.seat === "X"
+        ? "You're going first — X"
+        : "You're going second — O"}
+    </span>
+  </div>
+);
+
+/**
+ * The post-game "next game starting…" notice with a countdown bar that shrinks
+ * from full width to 0 over {@link AUTO_RESET_MS}, the same delay that schedules
+ * the auto-reset, so the wait reads as a visible timer. The negative
+ * `animationDelay` fast-forwards the bar to match time already elapsed since
+ * `lastActivity`, keeping spectators who join mid-countdown in sync.
+ */
+const NextGameCountdown = (props: { lastActivity: number }) => (
+  <div className={styles.nextGame}>
+    <p className={styles.nextGameLabel}>Next game starting…</p>
+    <div className={styles.countdownTrack} aria-hidden="true">
+      <div
+        className={styles.countdownBar}
+        style={{
+          animationDuration: `${AUTO_RESET_MS}ms`,
+          animationDelay: `${-Math.min(Date.now() - props.lastActivity, AUTO_RESET_MS)}ms`,
+        }}
+      />
+    </div>
+  </div>
+);
+
+/**
+ * The seat controls for online and vs-AI rooms (local pass-and-play auto-seats
+ * and renders no bar). A seated player gets a leave button; an unseated one gets
+ * a claim button per open side, or a "Spectating" badge when the room is full.
+ */
+const SeatBar = (props: {
+  mySeat: Player | null;
+  seats: { X: string | null; O: string | null };
+  paused: boolean;
+  onClaim: (seat: Player) => void;
+  onLeave: () => void;
+}) => (
+  <div className={styles.seatBar}>
+    {props.mySeat ? (
+      <button
+        type="button"
+        className={classNames(styles.seatButton, styles.leaveButton)}
+        onClick={props.onLeave}
+        disabled={props.paused}
+      >
+        Leave seat
+      </button>
+    ) : (
+      <>
+        {props.seats.X === null && (
+          <button
+            type="button"
+            className={styles.seatButton}
+            onClick={() => props.onClaim("X")}
+            disabled={props.paused}
+          >
+            Play as X
+          </button>
+        )}
+        {props.seats.O === null && (
+          <button
+            type="button"
+            className={styles.seatButton}
+            onClick={() => props.onClaim("O")}
+            disabled={props.paused}
+          >
+            Play as O
+          </button>
+        )}
+        {props.seats.X !== null && props.seats.O !== null && (
+          <span className={styles.spectateBadge}>Spectating</span>
+        )}
+      </>
+    )}
+  </div>
+);
+
 type Props = {
   /**
    * The driven game state. Both the online room ({@link useRoom}) and the
@@ -198,24 +293,7 @@ const GameView = (props: Props) => {
       )}
 
       {roundAnnouncement && (
-        <div
-          key={roundAnnouncement}
-          className={styles.roundBanner}
-          role="status"
-          aria-live="polite"
-        >
-          <span className={styles.roundBannerKicker}>New round</span>
-          <span
-            className={classNames(styles.roundBannerSeat, {
-              [styles.roundBannerSeatX]: roundAnnouncement === "X",
-              [styles.roundBannerSeatO]: roundAnnouncement === "O",
-            })}
-          >
-            {roundAnnouncement === "X"
-              ? "You're going first — X"
-              : "You're going second — O"}
-          </span>
-        </div>
+        <RoundBanner key={roundAnnouncement} seat={roundAnnouncement} />
       )}
 
       <RoomHeader name={room.name} mode={room.mode} />
@@ -226,44 +304,13 @@ const GameView = (props: Props) => {
           no seat bar. Online rooms and vs-AI games show seat controls: claim a
           side (vs-AI: "pick a mark"), leave it, or spectate a full room. */}
       {!isLocal && (
-        <div className={styles.seatBar}>
-          {mySeat ? (
-            <button
-              type="button"
-              className={classNames(styles.seatButton, styles.leaveButton)}
-              onClick={handleLeave}
-              disabled={paused}
-            >
-              Leave seat
-            </button>
-          ) : (
-            <>
-              {room.seats.X === null && (
-                <button
-                  type="button"
-                  className={styles.seatButton}
-                  onClick={() => handleClaim("X")}
-                  disabled={paused}
-                >
-                  Play as X
-                </button>
-              )}
-              {room.seats.O === null && (
-                <button
-                  type="button"
-                  className={styles.seatButton}
-                  onClick={() => handleClaim("O")}
-                  disabled={paused}
-                >
-                  Play as O
-                </button>
-              )}
-              {room.seats.X !== null && room.seats.O !== null && (
-                <span className={styles.spectateBadge}>Spectating</span>
-              )}
-            </>
-          )}
-        </div>
+        <SeatBar
+          mySeat={mySeat}
+          seats={room.seats}
+          paused={paused}
+          onClaim={handleClaim}
+          onLeave={handleLeave}
+        />
       )}
 
       <div className={styles.playArea}>
@@ -371,23 +418,7 @@ const GameView = (props: Props) => {
         </aside>
       </div>
 
-      {gameOver && (
-        <div className={styles.nextGame}>
-          <p className={styles.nextGameLabel}>Next game starting…</p>
-          {/* Countdown bar shrinking from full width to 0 over the same delay
-              that schedules the auto-reset, so the wait reads as a visible
-              timer. Duration comes from AUTO_RESET_MS so the two never drift. */}
-          <div className={styles.countdownTrack} aria-hidden="true">
-            <div
-              className={styles.countdownBar}
-              style={{
-                animationDuration: `${AUTO_RESET_MS}ms`,
-                animationDelay: `${-Math.min(Date.now() - room.lastActivity, AUTO_RESET_MS)}ms`,
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {gameOver && <NextGameCountdown lastActivity={room.lastActivity} />}
 
       {actionError && <p className={styles.actionError}>{actionError}</p>}
 
