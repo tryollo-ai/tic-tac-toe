@@ -26,7 +26,7 @@ Game rules (not plain tic-tac-toe):
   - **classic** (default): translates the grid one cell; marks pushed off the leading edge are removed; can never complete a line.
   - **collapse**: every mark slides as far as it can toward the leading edge; X ploughs through and removes O marks in its path while O is blocked by X; unlike classic, this **can complete a line** and end the game.
 - Each recorded shift action carries the `mode` it was played with (`GameAction.shift.mode`; absent on legacy actions, which default to `"classic"`). The store settles the game (checks for a winner) after every shift, not just after placements.
-- After each completed game in a two-player room, `resetGame` calls `swapSeats` to exchange the X and O seat holders (and their heartbeats and accumulated scores), so the first-move advantage alternates each round. AI rooms are excluded — O is permanently the computer and the AI turn logic is keyed to the O seat.
+- After each completed game in a two-player room, `resetGame` calls `swapSeats` to exchange the X and O seat holders (and their heartbeats and accumulated scores), so the first-move advantage alternates each round. AI rooms and local same-device rooms are excluded: in AI rooms O is permanently the computer and the AI turn logic is keyed to the O seat; in local rooms one player holds both seats, so swapping them would only scramble the per-seat score tally.
 - When changing the rules, keep the win check, the shift implementations, the `canXShift` eligibility predicate, the seat swap, and the store's turn state machine in sync.
 
 History & replay:

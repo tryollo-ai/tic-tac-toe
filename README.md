@@ -7,7 +7,8 @@ game.
 ## Features
 
 - **Game rooms & lobby:** the landing page lists open rooms with live status and
-  a board preview; create a room as two-player or vs an AI. The list is paginated
+  a board preview; create a room as two-player, vs an AI, or Local (pass-and-play
+  on one device). The list is paginated
   (6 rooms per page) with Previous/Next navigation once there is more than one
   page. A "How to play" button by the title opens a dialog explaining the rules,
   including player O's grid shift, before you enter a room. The dialog ends with
@@ -40,6 +41,12 @@ game.
   AI holds O it also decides when to spend the one-time grid shift, weighing it
   against its best placement each turn. Leaving your seat fully resets the round
   so the next visitor can pick either side again.
+- **Local pass-and-play:** in a Local room one player claims both seats with a
+  single "Play" button and takes turns for X and O on the same device — pass the
+  screen after each move. The lobby shows "1 player (X & O)" once the room is
+  claimed. Seats never swap between rounds (scores stay pinned to each mark), and
+  leaving the room abandons the game and resets the scores, just like leaving an
+  AI room.
 - **Move history:** one mini-board snapshot per move, oldest first and newest
   last, each labelled with who moved and what they did (a named cell or O's
   grid shift). On desktop it appears as a faded column to the left of the board,
@@ -53,7 +60,8 @@ game.
   whoever held X (and moved first) becomes O for the next round, so the
   first-move advantage alternates. An animated "New round" banner appears over
   the board announcing each player's new mark. Only two-player rooms alternate;
-  in vs-AI rooms O is permanently the computer.
+  vs-AI rooms and Local rooms do not (in AI rooms O is permanently the computer;
+  in Local rooms one player holds both seats, so swapping is meaningless).
 - **Win-line highlight:** the three winning cells are highlighted and a green
   line is drawn connecting them, alongside a clear turn/winner status indicator.
   The same overlay appears in replay and over a completed three-in-a-row in the
