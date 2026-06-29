@@ -4,10 +4,10 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import classNames from "classnames";
 import { canXShift } from "@/utils/gameLogic";
-import type { Direction, Player } from "@/utils/gameLogic";
+import type { Board as BoardState, Direction, Player } from "@/utils/gameLogic";
 import { AI_SEAT, AUTO_RESET_MS } from "@/constants/game";
 import type { UseRoomResult } from "@/lib/useRoom";
-import Board from "@/common/components/Board";
+import Board, { type BoardTransition } from "@/common/components/Board";
 import BoardHistory from "@/common/components/BoardHistory";
 import InviteButton from "@/common/components/InviteButton";
 import RoomHeader from "@/common/components/RoomHeader";
@@ -241,6 +241,82 @@ const InfoPanel = (props: {
   );
 };
 
+/**
+ * The board and its grid-shift arrows. At rest the board fills the whole frame;
+ * arming the picker (`shiftActive`) scales it down and fades the four edge arrows
+ * into the freed band. The arrows stay mounted while the local player may shift
+ * (`canShiftNow`) so cancelling can reverse the sequence. Pure presentation - the
+ * board state and every handler arrive via props.
+ */
+const BoardFrame = (props: {
+  shiftActive: boolean;
+  canShiftNow: boolean;
+  paused: boolean;
+  onShift: (dir: Direction) => void;
+  board: BoardState;
+  winningLine: readonly number[] | null;
+  onSquareClick: (index: number) => void;
+  boardDisabled: boolean;
+  transition?: BoardTransition | null;
+}) => (
+  // See styles.module.scss for the two-phase (shrink, then fade) transition timing.
+  <div
+    className={classNames(styles.boardFrame, {
+      [styles.boardFrameArmed]: props.shiftActive,
+    })}
+  >
+    {props.canShiftNow &&
+      SHIFT_OPTIONS.map(({ dir, glyph, label, slotClass }) => (
+        <button
+          key={dir}
+          type="button"
+          className={classNames(styles.shiftButton, styles[slotClass], {
+            [styles.shiftButtonVisible]: props.shiftActive,
+          })}
+          onClick={() => props.onShift(dir)}
+          disabled={props.paused}
+          aria-label={label}
+          title={label}
+          aria-hidden={!props.shiftActive}
+          tabIndex={props.shiftActive ? undefined : -1}
+        >
+          {glyph}
+        </button>
+      ))}
+
+    <div className={styles.boardSlot}>
+      <Board
+        board={props.board}
+        winningLine={props.winningLine}
+        onSquareClick={props.onSquareClick}
+        disabled={props.boardDisabled}
+        transition={props.transition}
+      />
+    </div>
+  </div>
+);
+
+/**
+ * The dev-only shift-animation tuning panel and its toggle. Owns its own
+ * open/closed state since visibility has no coupling to room data; compiled out
+ * of production by the bundler's dead-code elimination on {@link SHIFT_DEBUG_ENABLED}.
+ */
+const ShiftDebugPanel = () => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.shiftDebugToggle}
+        onClick={() => setOpen((o) => !o)}
+      >
+        Shift debug
+      </button>
+      {open && <ShiftDebug onClose={() => setOpen(false)} />}
+    </>
+  );
+};
+
 type Props = {
   /**
    * The driven game state. Both the online room ({@link useRoom}) and the
@@ -262,10 +338,6 @@ type Props = {
  * local/AI game identically, differing only in the invite control.
  */
 const GameView = (props: Props) => {
-  // Dev-only shift-animation tuning panel visibility. Kept in the component
-  // because its visibility has no coupling to room data.
-  const [shiftDebugOpen, setShiftDebugOpen] = useState(false);
-
   const {
     room,
     error,
@@ -359,20 +431,7 @@ const GameView = (props: Props) => {
 
   return (
     <div className={styles.root}>
-      {SHIFT_DEBUG_ENABLED && (
-        <>
-          <button
-            type="button"
-            className={styles.shiftDebugToggle}
-            onClick={() => setShiftDebugOpen((open) => !open)}
-          >
-            Shift debug
-          </button>
-          {shiftDebugOpen && (
-            <ShiftDebug onClose={() => setShiftDebugOpen(false)} />
-          )}
-        </>
-      )}
+      {SHIFT_DEBUG_ENABLED && <ShiftDebugPanel />}
 
       {roundAnnouncement && (
         <RoundBanner key={roundAnnouncement} seat={roundAnnouncement} />
@@ -404,45 +463,17 @@ const GameView = (props: Props) => {
           />
         </div>
 
-        {/* At rest the board fills the whole frame. Arming the picker scales the
-            board down (`.boardFrameArmed`) and the arrows fade into the freed
-            band once the shrink settles. The arrows stay mounted while O can
-            shift so cancelling can reverse the sequence (fade out, then grow).
-            See styles.module.scss for the two-phase transition timing. */}
-        <div
-          className={classNames(styles.boardFrame, {
-            [styles.boardFrameArmed]: shiftActive,
-          })}
-        >
-          {canShiftNow &&
-            SHIFT_OPTIONS.map(({ dir, glyph, label, slotClass }) => (
-              <button
-                key={dir}
-                type="button"
-                className={classNames(styles.shiftButton, styles[slotClass], {
-                  [styles.shiftButtonVisible]: shiftActive,
-                })}
-                onClick={() => handleShift(dir)}
-                disabled={paused}
-                aria-label={label}
-                title={label}
-                aria-hidden={!shiftActive}
-                tabIndex={shiftActive ? undefined : -1}
-              >
-                {glyph}
-              </button>
-            ))}
-
-          <div className={styles.boardSlot}>
-            <Board
-              board={room.board}
-              winningLine={room.winningLine}
-              onSquareClick={handleMove}
-              disabled={boardDisabled}
-              transition={boardTransition}
-            />
-          </div>
-        </div>
+        <BoardFrame
+          shiftActive={shiftActive}
+          canShiftNow={canShiftNow}
+          paused={paused}
+          onShift={handleShift}
+          board={room.board}
+          winningLine={room.winningLine}
+          onSquareClick={handleMove}
+          boardDisabled={boardDisabled}
+          transition={boardTransition}
+        />
 
         <InfoPanel
           showInvite={props.showInvite}
