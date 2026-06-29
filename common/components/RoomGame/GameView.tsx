@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import classNames from "classnames";
 import { canXShift } from "@/utils/gameLogic";
 import type { Direction, Player } from "@/utils/gameLogic";
@@ -135,6 +136,111 @@ const SeatBar = (props: {
   </div>
 );
 
+/**
+ * The right-hand info panel: invite control, win condition, and a status row per
+ * seat showing the player's label, grid-shift availability, and - in the seat the
+ * local player holds while a shift is armed - the use-grid-shift trigger. Pure
+ * presentation; every value and handler arrives via props.
+ */
+const InfoPanel = (props: {
+  showInvite?: boolean;
+  roomId?: string;
+  winLength: number;
+  xLabel: string;
+  oLabel: string;
+  xActive: boolean;
+  oActive: boolean;
+  size: number;
+  xShiftUsed: boolean;
+  oShiftUsed: boolean;
+  xShiftLabel: string;
+  canShiftNow: boolean;
+  mySeat: Player | null;
+  shiftActive: boolean;
+  setShiftActive: Dispatch<SetStateAction<boolean>>;
+  paused: boolean;
+}) => {
+  // The "use grid shift" trigger + hint. Rendered in the seat row the local
+  // player holds (gated by canShiftNow, which is already seat- and turn-specific),
+  // so exactly one row shows it. Shared by both seats since X's and O's shift arm
+  // the same way.
+  const shiftControls = (
+    <div className={styles.shiftControls}>
+      <button
+        type="button"
+        className={classNames(styles.shiftTrigger, {
+          [styles.shiftTriggerActive]: props.shiftActive,
+        })}
+        onClick={() => props.setShiftActive((active) => !active)}
+        disabled={props.paused}
+        aria-pressed={props.shiftActive}
+      >
+        {props.shiftActive ? "Cancel shift" : "Use grid shift"}
+      </button>
+      <p className={styles.shiftControlsHint}>
+        {props.shiftActive
+          ? "Pick a direction around the board (uses your turn)."
+          : "Slide the whole grid one cell (uses your turn)."}
+      </p>
+    </div>
+  );
+
+  return (
+    <aside className={styles.infoPanel}>
+      {props.showInvite && props.roomId && (
+        // Always available in an online room: copies a shareable link to this
+        // room. Local/AI games are single-device and not shareable, so they
+        // omit it.
+        <InviteButton roomId={props.roomId} />
+      )}
+
+      <span className={styles.winCondition}>{props.winLength} in a row</span>
+
+      <div
+        className={classNames(styles.infoRow, {
+          [styles.infoRowActive]: props.xActive,
+        })}
+      >
+        <span className={classNames(styles.infoName, styles.infoNameX)}>
+          {props.xLabel}
+        </span>
+        {props.size > 3 ? (
+          <span
+            className={classNames(styles.shiftStatus, {
+              [styles.shiftStatusUsed]: props.xShiftUsed,
+            })}
+          >
+            Grid shift: {props.xShiftLabel}
+          </span>
+        ) : (
+          <span className={styles.infoAbility}>Moves first</span>
+        )}
+
+        {props.canShiftNow && props.mySeat === "X" && shiftControls}
+      </div>
+
+      <div
+        className={classNames(styles.infoRow, {
+          [styles.infoRowActive]: props.oActive,
+        })}
+      >
+        <span className={classNames(styles.infoName, styles.infoNameO)}>
+          {props.oLabel}
+        </span>
+        <span
+          className={classNames(styles.shiftStatus, {
+            [styles.shiftStatusUsed]: props.oShiftUsed,
+          })}
+        >
+          Grid shift: {props.oShiftUsed ? "used" : "available"}
+        </span>
+
+        {props.canShiftNow && props.mySeat === "O" && shiftControls}
+      </div>
+    </aside>
+  );
+};
+
 type Props = {
   /**
    * The driven game state. Both the online room ({@link useRoom}) and the
@@ -251,30 +357,6 @@ const GameView = (props: Props) => {
       ? "available"
       : "locked";
 
-  // The "use grid shift" trigger + hint. Rendered in the viewer's own info row
-  // (gated by canShiftNow, which is already seat- and turn-specific), so exactly
-  // one row shows it. Shared by both seats since X's and O's shift arm the same way.
-  const shiftControls = (
-    <div className={styles.shiftControls}>
-      <button
-        type="button"
-        className={classNames(styles.shiftTrigger, {
-          [styles.shiftTriggerActive]: shiftActive,
-        })}
-        onClick={() => setShiftActive((active) => !active)}
-        disabled={paused}
-        aria-pressed={shiftActive}
-      >
-        {shiftActive ? "Cancel shift" : "Use grid shift"}
-      </button>
-      <p className={styles.shiftControlsHint}>
-        {shiftActive
-          ? "Pick a direction around the board (uses your turn)."
-          : "Slide the whole grid one cell (uses your turn)."}
-      </p>
-    </div>
-  );
-
   return (
     <div className={styles.root}>
       {SHIFT_DEBUG_ENABLED && (
@@ -362,60 +444,24 @@ const GameView = (props: Props) => {
           </div>
         </div>
 
-        <aside className={styles.infoPanel}>
-          {props.showInvite && props.roomId && (
-            // Always available in an online room: copies a shareable link to
-            // this room. Local/AI games are single-device and not shareable, so
-            // they omit it.
-            <InviteButton roomId={props.roomId} />
-          )}
-
-          <span className={styles.winCondition}>
-            {room.winLength} in a row
-          </span>
-
-          <div
-            className={classNames(styles.infoRow, {
-              [styles.infoRowActive]: turnActive("X"),
-            })}
-          >
-            <span className={classNames(styles.infoName, styles.infoNameX)}>
-              {xLabel}
-            </span>
-            {room.size > 3 ? (
-              <span
-                className={classNames(styles.shiftStatus, {
-                  [styles.shiftStatusUsed]: room.xShiftUsed,
-                })}
-              >
-                Grid shift: {xShiftLabel}
-              </span>
-            ) : (
-              <span className={styles.infoAbility}>Moves first</span>
-            )}
-
-            {canShiftNow && mySeat === "X" && shiftControls}
-          </div>
-
-          <div
-            className={classNames(styles.infoRow, {
-              [styles.infoRowActive]: turnActive("O"),
-            })}
-          >
-            <span className={classNames(styles.infoName, styles.infoNameO)}>
-              {oLabel}
-            </span>
-            <span
-              className={classNames(styles.shiftStatus, {
-                [styles.shiftStatusUsed]: room.oShiftUsed,
-              })}
-            >
-              Grid shift: {room.oShiftUsed ? "used" : "available"}
-            </span>
-
-            {canShiftNow && mySeat === "O" && shiftControls}
-          </div>
-        </aside>
+        <InfoPanel
+          showInvite={props.showInvite}
+          roomId={props.roomId}
+          winLength={room.winLength}
+          xLabel={xLabel}
+          oLabel={oLabel}
+          xActive={turnActive("X")}
+          oActive={turnActive("O")}
+          size={room.size}
+          xShiftUsed={room.xShiftUsed}
+          oShiftUsed={room.oShiftUsed}
+          xShiftLabel={xShiftLabel}
+          canShiftNow={canShiftNow}
+          mySeat={mySeat}
+          shiftActive={shiftActive}
+          setShiftActive={setShiftActive}
+          paused={paused}
+        />
       </div>
 
       {gameOver && <NextGameCountdown lastActivity={room.lastActivity} />}
