@@ -11,7 +11,7 @@ Architecture:
 - **Game logic** (pure, no React): `utils/gameLogic.ts`. The board is a fixed 3x3, stored as a flat 9-cell array.
 - **Store**: `lib/roomStore.ts` - Prisma/Postgres-backed (Neon in prod), fully async, every mutation transactional and row-locked. Schema in `prisma/schema.prisma`; cached Prisma client in `lib/prisma.ts`; domain types in `lib/roomTypes.ts`. DB setup: [docs/database.md](./docs/database.md).
 - **Game config**: `lib/gameConfig.ts` - in-memory, `globalThis`-backed server singleton (same pattern as `lib/prisma.ts`) that holds the active `ShiftMode`. Deliberately not persisted: resets to `"classic"` on restart; no schema migration needed for an internal POC flag.
-- **API**: `app/api/rooms/**` and read-only `app/api/completed/**` (both endpoints require `?playerId=` and scope results to that player); shared helpers in `utils/apiHelpers.ts`. Internal POC tooling lives under `app/api/internal/game-config` (unauthenticated GET/POST to read/set the active shift mode).
+- **API**: `app/api/rooms/**`, read-only `app/api/completed/**`, and read-only `app/api/stats` (all three require `?playerId=` and scope results to that player); shared helpers in `utils/apiHelpers.ts`. `app/api/stats` returns the player's lifetime win/loss/draw record derived from the same completed-games archive. Internal POC tooling lives under `app/api/internal/game-config` (unauthenticated GET/POST to read/set the active shift mode).
 - **Replay**: `app/replay/[id]/`.
 
 Store invariants:

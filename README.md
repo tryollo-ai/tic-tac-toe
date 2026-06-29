@@ -58,6 +58,12 @@ game.
   line is drawn connecting them, alongside a clear turn/winner status indicator.
   The same overlay appears in replay and over a completed three-in-a-row in the
   lobby and completed-game board previews.
+- **Win/loss/draw record:** the lobby shows a "Your record" bar above the
+  room-creation form, tallying wins, losses, and draws across all archived games
+  the current player took part in. The tally is derived on the server from the
+  same completed-games archive (no separate counter table) and polled every 5 s.
+  The bar is hidden until the player has finished at least one game, so
+  first-time visitors don't see an empty 0/0/0 panel.
 - **Completed games & replay:** every finished game is archived; the lobby lists
   only the games the current browser's player took part in ("Your completed
   games").
@@ -125,6 +131,7 @@ app/                      # App Router: lobby, /room/[id], /replay/[id], styles
 app/api/rooms/            # REST endpoints: list/create rooms, seats, moves,
                           #   reset, shift; [id]/stream — SSE live-room feed
 app/api/completed/        # REST endpoints: list completed games + fetch one for replay
+app/api/stats/            # REST endpoint: per-player win/loss/draw record (GET ?playerId=)
 app/api/internal/         # Internal POC endpoints: game-config (GET/POST shift mode)
 app/internal/             # Internal POC pages: /internal/game-config toggle UI
 common/components/<Name>/ # One folder per shared component: index.tsx entry + styles.module.scss
@@ -136,7 +143,7 @@ utils/winningLineGeometry.ts # Pure winning-line overlay geometry (cell-center p
 utils/historyLabels.ts    # Pure move-history labels: player parity, cell/shift names (`describeAction`), and full-sentence replay captions (`actionSentence`)
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/gameConfig.ts         # Server-side POC config singleton (active ShiftMode); globalThis-backed, not persisted
-lib/roomTypes.ts          # Shared room, seat, score, and completed-game types
+lib/roomTypes.ts          # Shared room, seat, score, completed-game, and player-stats types
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 lib/useRoomStream.ts      # Client hook: SSE subscription for live room updates
 lib/useStepCue.ts         # Client hook: derive a one-shot board-animation cue the render a step counter changes
