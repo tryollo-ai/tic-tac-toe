@@ -6,6 +6,9 @@ import type { Board } from "@/utils/gameLogic";
 vi.mock("@/lib/roomStore", () => ({
   getRoom: vi.fn(),
   toView: vi.fn((r: unknown) => r),
+  heartbeatViewer: vi.fn(async () => {}),
+  countViewers: vi.fn(async () => 1),
+  removeViewer: vi.fn(async () => {}),
 }));
 
 import { getRoom, toView } from "@/lib/roomStore";
@@ -29,6 +32,7 @@ function makeView(overrides: Partial<RoomView> = {}): RoomView {
     seats: { X: "px", O: null },
     mode: "two-player",
     oShiftUsed: false,
+    xShiftUsed: false,
     seatSeen: { X: 1000, O: null },
     createdAt: 1000,
     lastActivity: 1000,

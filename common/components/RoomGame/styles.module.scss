@@ -288,6 +288,28 @@ $round-announce-ms: $round-announce-raw * 1ms;
   white-space: nowrap;
 }
 
+// Live count of people watching the online room (seated players included),
+// driven by viewer-presence heartbeats over the stream. A muted badge so it
+// reads as ambient context next to the accent-tinted win condition.
+.viewerCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.viewerCountEye {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 .infoRow {
   display: flex;
   flex-direction: column;

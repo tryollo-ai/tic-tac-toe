@@ -327,6 +327,21 @@ const GameView = (props: Props) => {
             {room.winLength} in a row
           </span>
 
+          {/* Live watcher count for online rooms only - the client-only
+              local/AI games are single-device, so a viewer count is meaningless
+              there and `viewerCount` is left undefined. */}
+          {room.viewerCount !== undefined && (
+            <span
+              className={styles.viewerCount}
+              title="People watching this room"
+            >
+              <span className={styles.viewerCountEye} aria-hidden="true">
+                👁
+              </span>
+              {room.viewerCount} watching
+            </span>
+          )}
+
           <div
             className={classNames(styles.infoRow, {
               [styles.infoRowActive]: turnActive("X"),

@@ -56,6 +56,13 @@ export interface RoomView extends Room {
   /** Derived at serialization time via calculateWinner, never stored. Its length
    *  is the room's win run length. */
   winningLine: number[] | null;
+  /**
+   * How many people are currently watching this room (seated players included),
+   * counted from live viewer-presence heartbeats at serialization time. Omitted
+   * on views that don't track presence (the client-only local/AI games), where
+   * a viewer count is meaningless.
+   */
+  viewerCount?: number;
 }
 
 export interface RoomSummary {

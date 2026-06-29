@@ -1,4 +1,10 @@
-import { getRoom, toView } from "@/lib/roomStore";
+import {
+  countViewers,
+  getRoom,
+  heartbeatViewer,
+  removeViewer,
+  toView,
+} from "@/lib/roomStore";
 import type { RoomView } from "@/lib/roomTypes";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +60,10 @@ export async function GET(
         closed = true;
         if (pollTimer) clearTimeout(pollTimer);
         if (heartbeatTimer) clearInterval(heartbeatTimer);
+        // Drop this viewer's presence so the watcher count falls right away
+        // instead of waiting out the TTL. Fire-and-forget: close() must stay
+        // synchronous, and a failed delete is swept by the TTL anyway.
+        if (playerId) void removeViewer(id, playerId);
         try {
           controller.close();
         } catch {
@@ -83,7 +93,14 @@ export async function GET(
             close();
             return;
           }
-          view = toView(room);
+          // Record this connection as a live viewer, then read the current
+          // watcher count for the pushed view. Including it in the payload means
+          // the count is part of the change key below, so a join or leave pushes
+          // an update on its own - the count stays live without any extra event.
+          if (playerId) await heartbeatViewer(id, playerId);
+          const viewerCount = await countViewers(id);
+          if (closed) return;
+          view = toView(room, viewerCount);
           consecutiveFailures = 0;
         } catch {
           if (++consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
