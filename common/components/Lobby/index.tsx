@@ -243,6 +243,58 @@ const CompletedGamesSection = (props: {
 );
 
 /**
+ * The main column's results region: the load spinner, the fetch-error and
+ * empty-list notices, and - once rooms exist - the paginated open-rooms list
+ * and this browser's completed-games list. Each block is gated by the data it
+ * needs, so exactly one of spinner/error/empty/list shows at a time. Pure
+ * presentation; the already-sliced page, pagination state, and navigation
+ * handlers all arrive via props.
+ */
+const RoomResults = (props: {
+  roomsLoading: boolean;
+  hasError: boolean;
+  rooms: RoomSummary[] | undefined;
+  pageRooms: RoomSummary[] | undefined;
+  totalPages: number;
+  activePage: number;
+  setPage: Dispatch<SetStateAction<number>>;
+  completed: CompletedGameSummary[] | undefined;
+  onJoin: (id: string) => void;
+  onReplay: (id: string) => void;
+}) => (
+  <>
+    {props.roomsLoading && <Spinner label="Loading rooms…" />}
+
+    {props.hasError && !props.rooms && (
+      <p className={styles.loadError}>Could not load rooms. Retrying…</p>
+    )}
+
+    {props.rooms && props.rooms.length === 0 && (
+      <div className={styles.empty}>
+        <p className={styles.emptyTitle}>No rooms yet</p>
+        <p className={styles.emptyHint}>
+          Create the first room above to start playing.
+        </p>
+      </div>
+    )}
+
+    {props.rooms && props.rooms.length > 0 && props.pageRooms && (
+      <OpenRoomsSection
+        rooms={props.pageRooms}
+        totalPages={props.totalPages}
+        activePage={props.activePage}
+        setPage={props.setPage}
+        onJoin={props.onJoin}
+      />
+    )}
+
+    {props.completed && props.completed.length > 0 && (
+      <CompletedGamesSection games={props.completed} onReplay={props.onReplay} />
+    )}
+  </>
+);
+
+/**
  * The lobby's title row (heading + "How to play" trigger) and intro blurb.
  * Pure presentation; opening the dialog is delegated to `onHowTo`.
  */
@@ -463,37 +515,18 @@ const Lobby = () => {
             formError={formError}
           />
 
-          {roomsLoading && <Spinner label="Loading rooms…" />}
-
-          {Boolean(error) && !rooms && (
-            <p className={styles.loadError}>Could not load rooms. Retrying…</p>
-          )}
-
-          {rooms && rooms.length === 0 && (
-            <div className={styles.empty}>
-              <p className={styles.emptyTitle}>No rooms yet</p>
-              <p className={styles.emptyHint}>
-                Create the first room above to start playing.
-              </p>
-            </div>
-          )}
-
-          {rooms && rooms.length > 0 && pageRooms && (
-            <OpenRoomsSection
-              rooms={pageRooms}
-              totalPages={totalPages}
-              activePage={activePage}
-              setPage={setPage}
-              onJoin={(id) => router.push(`/room/${id}`)}
-            />
-          )}
-
-          {completed && completed.length > 0 && (
-            <CompletedGamesSection
-              games={completed}
-              onReplay={(id) => router.push(`/replay/${id}`)}
-            />
-          )}
+          <RoomResults
+            roomsLoading={roomsLoading}
+            hasError={Boolean(error)}
+            rooms={rooms}
+            pageRooms={pageRooms}
+            totalPages={totalPages}
+            activePage={activePage}
+            setPage={setPage}
+            completed={completed}
+            onJoin={(id) => router.push(`/room/${id}`)}
+            onReplay={(id) => router.push(`/replay/${id}`)}
+          />
         </div>
 
         {stats && stats.won + stats.lost + stats.drawn > 0 && (
