@@ -169,7 +169,13 @@ const MoveNarration = (props: {
   </>
 );
 
-const Replay = (props: Props) => {
+/**
+ * The replay playback engine: fetches the immutable completed game once, owns
+ * all transport state (step/playing) plus the per-step animation cues, and
+ * exposes the goTo/togglePlay handlers. Pulling this out leaves <Replay> with
+ * just the load guards, board derivation, and JSX.
+ */
+const useReplayPlayer = (id: string) => {
   // Number of moves shown so far: 0 is the empty board, moves.length is final.
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -180,8 +186,8 @@ const Replay = (props: Props) => {
 
   // Completed games are immutable, so fetch once and never poll or refetch.
   const { data: game, error } = useQuery<CompletedGameView>({
-    queryKey: ["completedGame", props.id, playerId],
-    queryFn: ({ signal }) => fetchCompletedGame(props.id, playerId as string, signal),
+    queryKey: ["completedGame", id, playerId],
+    queryFn: ({ signal }) => fetchCompletedGame(id, playerId as string, signal),
     staleTime: Infinity,
     enabled: !!playerId,
   });
@@ -246,6 +252,49 @@ const Replay = (props: Props) => {
     return () => clearTimeout(timer);
   }, [transition]);
 
+  const goTo = (next: number) => {
+    setPlaying(false);
+    setStep(Math.max(0, Math.min(next, total)));
+  };
+
+  const togglePlay = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    // Restart from the beginning if we're already at the end.
+    if (step >= total) setStep(0);
+    setPlaying(true);
+  };
+
+  return {
+    game,
+    notFound,
+    loadError,
+    total,
+    step,
+    playing,
+    arrowDir,
+    transition,
+    goTo,
+    togglePlay,
+  };
+};
+
+const Replay = (props: Props) => {
+  const {
+    game,
+    notFound,
+    loadError,
+    total,
+    step,
+    playing,
+    arrowDir,
+    transition,
+    goTo,
+    togglePlay,
+  } = useReplayPlayer(props.id);
+
   if (notFound) {
     return (
       <RoomNotFound
@@ -276,21 +325,6 @@ const Replay = (props: Props) => {
     step % 2 === 0 ? "X" : "O",
     atEnd,
   );
-
-  const goTo = (next: number) => {
-    setPlaying(false);
-    setStep(Math.max(0, Math.min(next, total)));
-  };
-
-  const togglePlay = () => {
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
-    // Restart from the beginning if we're already at the end.
-    if (step >= total) setStep(0);
-    setPlaying(true);
-  };
 
   return (
     <div className={styles.root}>
