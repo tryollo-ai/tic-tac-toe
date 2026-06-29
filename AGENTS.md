@@ -4,7 +4,7 @@ Guidance for AI agents and contributors working in this repository.
 
 ## Project
 
-Multiplayer tic-tac-toe: Next.js (App Router) + TypeScript.
+Multiplayer Trick-Tac-Toe (a tic-tac-toe variant): Next.js (App Router) + TypeScript.
 Players join rooms from a lobby and play across browsers or against an AI, can spectate live, and replay completed games.
 
 Architecture:
@@ -20,8 +20,8 @@ Store invariants:
 - Domain types use epoch-ms numbers; conversion to/from Postgres `timestamptz` happens only at the store boundary.
 
 Game rules (not plain tic-tac-toe):
-- Player O has one once-per-game **shift** that slides the whole grid (consuming O's turn instead of placing). This is deliberate balance for X's first-move edge advantage.
-- Player X also has a once-per-game **shift**, but a conditional, **classic-only** one (never collapse, regardless of the configured mode). Its availability is gated by the editable `canXShift(ctx)` predicate in `utils/gameLogic.ts` - currently board size > 3 and turn number (`room.actions.length`) > 5, so it only unlocks on larger boards once the game is underway. The `/internal/game-config` `shiftMode` toggle still governs **only O's** shift.
+- Player O has one once-per-game **trick** that slides the whole grid (consuming O's turn instead of placing). This is deliberate balance for X's first-move edge advantage.
+- Player X also has a once-per-game **trick**, but a conditional, **classic-only** one (never collapse, regardless of the configured mode). Its availability is gated by the editable `canXShift(ctx)` predicate in `utils/gameLogic.ts` - currently board size > 3 and turn number (`room.actions.length`) > 5, so it only unlocks on larger boards once the game is underway. The `/internal/game-config` `shiftMode` toggle still governs **only O's** trick.
 - The active **shift mode** is a POC-configurable toggle (see `lib/gameConfig.ts` and `/internal/game-config`). Two modes exist:
   - **classic** (default): translates the grid one cell; marks pushed off the leading edge are removed; can never complete a line.
   - **collapse**: every mark slides as far as it can toward the leading edge; X ploughs through and removes O marks in its path while O is blocked by X; unlike classic, this **can complete a line** and end the game.
@@ -30,7 +30,7 @@ Game rules (not plain tic-tac-toe):
 - When changing the rules, keep the win check, the shift implementations, the `canXShift` eligibility predicate, the seat swap, and the store's turn state machine in sync.
 
 History & replay:
-- Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. A shift action carries the `mode` it was played with (`mode?: ShiftMode`); absent on legacy actions, which default to `"classic"`. Per-action labels come from `utils/historyLabels.ts`; reuse it. Use `describeAction` for the compact history-panel label (player + short move) and `actionSentence` for the full-sentence replay caption ("X marked center" / "O shifted the grid left").
+- Each room records one ordered actions log (a place or a shift per turn, X on even indices and O on odd); the board is rebuilt by replaying a prefix of that log - the single source of truth for both history and replay. A shift action carries the `mode` it was played with (`mode?: ShiftMode`); absent on legacy actions, which default to `"classic"`. Per-action labels come from `utils/historyLabels.ts`; reuse it. Use `describeAction` for the compact history-panel label (player + short move) and `actionSentence` for the full-sentence replay caption ("X marked center" / "O tricked the grid left").
 
 Reuse the shared components rather than duplicating them: `UIDialog` for any modal, `MiniBoard` for board previews, `WinningLine` for the win-line overlay, and `Spinner` for first-fetch loading states (all under `common/components/`). The "How to play" dialog lives on the lobby, not in `RoomGame`.
 
