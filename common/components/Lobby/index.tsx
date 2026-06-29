@@ -242,6 +242,86 @@ const CompletedGamesSection = (props: {
   </section>
 );
 
+/**
+ * The lobby's title row (heading + "How to play" trigger) and intro blurb.
+ * Pure presentation; opening the dialog is delegated to `onHowTo`.
+ */
+const LobbyHeader = (props: { onHowTo: () => void }) => (
+  <header className={styles.header}>
+    <div className={styles.titleRow}>
+      <h1 className={styles.title}>Tic-Tac-Toe</h1>
+      <button
+        type="button"
+        className={styles.howToButton}
+        onClick={props.onHowTo}
+      >
+        <IoHelpCircleOutline className={styles.howToIcon} />
+        How to play
+      </button>
+    </div>
+    <p className={styles.subtitle}>
+      A twist on tic-tac-toe: player O goes second but gets a one-time grid
+      shift. Join a room to play or spectate a live game.
+    </p>
+  </header>
+);
+
+/**
+ * The "start a game" controls at the top of the main column: the two
+ * single-device quick-play buttons (vs-AI, local) and the create-a-multiplayer-
+ * room form with its inline validation/error message. All state lives in the
+ * parent; this just wires the inputs and buttons to the handlers it is given.
+ */
+const StartPanel = (props: {
+  onStartClient: (mode: "ai" | "local") => void;
+  name: string;
+  setName: (name: string) => void;
+  onCreate: (event: React.FormEvent) => void;
+  creating: boolean;
+  formError: string | null;
+}) => (
+  <>
+    {/* Single-device games: start instantly, no room or name needed. */}
+    <div className={styles.quickPlay}>
+      <button
+        type="button"
+        className={styles.quickPlayButton}
+        onClick={() => props.onStartClient("ai")}
+      >
+        Play vs AI
+      </button>
+      <button
+        type="button"
+        className={styles.quickPlayButton}
+        onClick={() => props.onStartClient("local")}
+      >
+        Play local
+      </button>
+    </div>
+
+    {/* Online multiplayer: name the room and create it on the server. */}
+    <form className={styles.createForm} onSubmit={props.onCreate}>
+      <input
+        className={styles.nameInput}
+        type="text"
+        placeholder="Create multiplayer room"
+        value={props.name}
+        maxLength={40}
+        onChange={(e) => props.setName(e.target.value)}
+        aria-label="Create multiplayer room"
+      />
+      <button
+        type="submit"
+        className={styles.createButton}
+        disabled={props.creating}
+      >
+        {props.creating ? "Creating…" : "Create room"}
+      </button>
+    </form>
+    {props.formError && <p className={styles.formError}>{props.formError}</p>}
+  </>
+);
+
 const Lobby = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -346,64 +426,18 @@ const Lobby = () => {
 
   return (
     <div className={styles.root}>
-      <header className={styles.header}>
-        <div className={styles.titleRow}>
-          <h1 className={styles.title}>Tic-Tac-Toe</h1>
-          <button
-            type="button"
-            className={styles.howToButton}
-            onClick={() => setHowToOpen(true)}
-          >
-            <IoHelpCircleOutline className={styles.howToIcon} />
-            How to play
-          </button>
-        </div>
-        <p className={styles.subtitle}>
-          A twist on tic-tac-toe: player O goes second but gets a one-time grid
-          shift. Join a room to play or spectate a live game.
-        </p>
-      </header>
+      <LobbyHeader onHowTo={() => setHowToOpen(true)} />
 
       <div className={styles.body}>
         <div className={styles.mainColumn}>
-          {/* Single-device games: start instantly, no room or name needed. */}
-          <div className={styles.quickPlay}>
-            <button
-              type="button"
-              className={styles.quickPlayButton}
-              onClick={() => startClientGame("ai")}
-            >
-              Play vs AI
-            </button>
-            <button
-              type="button"
-              className={styles.quickPlayButton}
-              onClick={() => startClientGame("local")}
-            >
-              Play local
-            </button>
-          </div>
-
-          {/* Online multiplayer: name the room and create it on the server. */}
-          <form className={styles.createForm} onSubmit={handleCreateRoom}>
-            <input
-              className={styles.nameInput}
-              type="text"
-              placeholder="Create multiplayer room"
-              value={name}
-              maxLength={40}
-              onChange={(e) => setName(e.target.value)}
-              aria-label="Create multiplayer room"
-            />
-            <button
-              type="submit"
-              className={styles.createButton}
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? "Creating…" : "Create room"}
-            </button>
-          </form>
-          {formError && <p className={styles.formError}>{formError}</p>}
+          <StartPanel
+            onStartClient={startClientGame}
+            name={name}
+            setName={setName}
+            onCreate={handleCreateRoom}
+            creating={createMutation.isPending}
+            formError={formError}
+          />
 
           {roomsLoading && <Spinner label="Loading rooms…" />}
 
