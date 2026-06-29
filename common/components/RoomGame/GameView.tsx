@@ -317,6 +317,80 @@ const ShiftDebugPanel = () => {
   );
 };
 
+/**
+ * Derives the render-ready view-model for a loaded game from the room state and
+ * the local player's seat/turn context. Pure - it groups the seat labels, status
+ * line, per-seat turn highlight, and X's three-state shift label so the main
+ * component's body stays early-returns + JSX with no inline derivation.
+ */
+const deriveGameView = (args: {
+  room: NonNullable<UseRoomResult["room"]>;
+  mySeat: Player | null;
+  currentTurn: Player;
+  gameOver: boolean;
+}) => {
+  const { room, mySeat, currentTurn, gameOver } = args;
+
+  const winner: Player | null =
+    gameOver && room.winningLine
+      ? (room.board[room.winningLine[0]] as Player)
+      : null;
+  const bothSeated = room.seats.X !== null && room.seats.O !== null;
+  // Same-device play: the one seated player controls both sides, so both seats
+  // read "You" when seated; a spectator of a local room sees plain seat names.
+  const isLocal = room.mode === "local";
+  const isAi = room.mode === "ai";
+  const seatLabel = (seat: Player): string => {
+    if (room.seats[seat] === AI_SEAT) return `AI (${seat})`;
+    if (isLocal) return mySeat ? `You (${seat})` : `Player ${seat}`;
+    if (mySeat === seat) return `You (${seat})`;
+    return `Player ${seat}`;
+  };
+
+  // Terminal and pure spectator states share their wording with the replay
+  // viewer (spectatorStatus); only the seat-aware mid-game lines are bespoke.
+  // "Your turn" is checked before the empty-seat case so a solo player who is on
+  // turn (e.g. O after swapping seats) is prompted to act rather than told to
+  // wait - mirroring canShiftNow, which also drops the bothSeated requirement.
+  // A local room has no "opponent" - one player moves for both sides - so it
+  // always reads the neutral, whose-turn-it-is status the spectator view uses.
+  let status: StatusInfo;
+  if (isLocal) {
+    status = spectatorStatus(winner, currentTurn, gameOver);
+  } else if (!gameOver && mySeat && currentTurn === mySeat) {
+    status = { message: "Your turn", tone: playerTone(currentTurn) };
+  } else if (!gameOver && !bothSeated) {
+    // Before a seat is taken: a vs-AI game is waiting on the human to choose a
+    // side; an online room is waiting on a second player to join.
+    status = isAi
+      ? { message: "Pick a mark", tone: "neutral" }
+      : { message: "Waiting for opponent", tone: "neutral" };
+  } else if (!gameOver && mySeat) {
+    status = { message: "Opponent's turn", tone: playerTone(currentTurn) };
+  } else {
+    status = spectatorStatus(winner, currentTurn, gameOver);
+  }
+
+  // X's shift is conditional, so it shows three states; only meaningful once the
+  // board is larger than 3x3 (on 3x3 X never earns a shift). O's is always its
+  // ability, so it only ever reads used/available.
+  const xShiftLabel = room.xShiftUsed
+    ? "used"
+    : canXShift({ size: room.size, turn: room.actions.length })
+      ? "available"
+      : "locked";
+
+  return {
+    xLabel: seatLabel("X"),
+    oLabel: seatLabel("O"),
+    isLocal,
+    status,
+    xActive: !gameOver && currentTurn === "X",
+    oActive: !gameOver && currentTurn === "O",
+    xShiftLabel,
+  };
+};
+
 type Props = {
   /**
    * The driven game state. Both the online room ({@link useRoom}) and the
@@ -376,58 +450,8 @@ const GameView = (props: Props) => {
     );
   }
 
-  const winner: Player | null =
-    gameOver && room.winningLine
-      ? (room.board[room.winningLine[0]] as Player)
-      : null;
-  const bothSeated = room.seats.X !== null && room.seats.O !== null;
-  // Same-device play: the one seated player controls both sides, so both seats
-  // read "You" when seated; a spectator of a local room sees plain seat names.
-  const isLocal = room.mode === "local";
-  const isAi = room.mode === "ai";
-  const seatLabel = (seat: Player): string => {
-    if (room.seats[seat] === AI_SEAT) return `AI (${seat})`;
-    if (isLocal) return mySeat ? `You (${seat})` : `Player ${seat}`;
-    if (mySeat === seat) return `You (${seat})`;
-    return `Player ${seat}`;
-  };
-  const xLabel = seatLabel("X");
-  const oLabel = seatLabel("O");
-
-  // Terminal and pure spectator states share their wording with the replay
-  // viewer (spectatorStatus); only the seat-aware mid-game lines are bespoke.
-  // "Your turn" is checked before the empty-seat case so a solo player who is on
-  // turn (e.g. O after swapping seats) is prompted to act rather than told to
-  // wait - mirroring canShiftNow, which also drops the bothSeated requirement.
-  // A local room has no "opponent" - one player moves for both sides - so it
-  // always reads the neutral, whose-turn-it-is status the spectator view uses.
-  let status: StatusInfo;
-  if (isLocal) {
-    status = spectatorStatus(winner, currentTurn, gameOver);
-  } else if (!gameOver && mySeat && currentTurn === mySeat) {
-    status = { message: "Your turn", tone: playerTone(currentTurn) };
-  } else if (!gameOver && !bothSeated) {
-    // Before a seat is taken: a vs-AI game is waiting on the human to choose a
-    // side; an online room is waiting on a second player to join.
-    status = isAi
-      ? { message: "Pick a mark", tone: "neutral" }
-      : { message: "Waiting for opponent", tone: "neutral" };
-  } else if (!gameOver && mySeat) {
-    status = { message: "Opponent's turn", tone: playerTone(currentTurn) };
-  } else {
-    status = spectatorStatus(winner, currentTurn, gameOver);
-  }
-
-  const turnActive = (seat: Player) => !gameOver && currentTurn === seat;
-
-  // X's shift is conditional, so it shows three states; only meaningful once the
-  // board is larger than 3x3 (on 3x3 X never earns a shift). O's is always its
-  // ability, so it only ever reads used/available.
-  const xShiftLabel = room.xShiftUsed
-    ? "used"
-    : canXShift({ size: room.size, turn: room.actions.length })
-      ? "available"
-      : "locked";
+  const { xLabel, oLabel, isLocal, status, xActive, oActive, xShiftLabel } =
+    deriveGameView({ room, mySeat, currentTurn, gameOver });
 
   return (
     <div className={styles.root}>
@@ -481,8 +505,8 @@ const GameView = (props: Props) => {
           winLength={room.winLength}
           xLabel={xLabel}
           oLabel={oLabel}
-          xActive={turnActive("X")}
-          oActive={turnActive("O")}
+          xActive={xActive}
+          oActive={oActive}
           size={room.size}
           xShiftUsed={room.xShiftUsed}
           oShiftUsed={room.oShiftUsed}
