@@ -1,6 +1,7 @@
-# Tic-Tac-Toe
+# Trick-Tac-Toe
 
-A multiplayer tic-tac-toe app built with Next.js (App Router) and TypeScript.
+A multiplayer trick-tac-toe app (a tic-tac-toe variant) built with Next.js
+(App Router) and TypeScript.
 Players join game rooms from a lobby to play across browsers or spectate a live
 game.
 
@@ -11,8 +12,8 @@ game.
   on one device). The list is paginated
   (6 rooms per page) with Previous/Next navigation once there is more than one
   page. A "How to play" button by the title opens a dialog explaining the rules,
-  including player O's grid shift, before you enter a room. The dialog ends with
-  a looping animation illustrating the shift: a directional arrow sweeps across a
+  including player O's trick, before you enter a room. The dialog ends with
+  a looping animation illustrating the trick: a directional arrow sweeps across a
   mini-board, marks slide one cell, and marks pushed off the leading edge fall
   away. The animation respects `prefers-reduced-motion`.
 - **Seat claiming:** visitors claim an open X or O seat, and everyone else
@@ -32,21 +33,21 @@ game.
   connected and reverts to 1.5s if the stream can't connect (e.g. a buffering
   proxy), so updates always flow. A seat auto-releases after 30s without a
   heartbeat (for example, when its player closes the tab).
-- **Grid-shift action (O only):** to offset X's first-move advantage, player O
-  gets one once-per-game action that slides the whole 3x3 grid one cell
+- **Trick action (O only):** to offset X's first-move advantage, player O
+  gets one once-per-game trick that slides the whole 3x3 grid one cell
   (up/down/left/right).
   Any marks pushed off the leading edge are removed, and empty cells enter
   behind.
-  When the shift lands, every remaining mark slides in from the cell it came
+  When the trick lands, every remaining mark slides in from the cell it came
   from so the move reads as a single coherent motion; the animation plays
   identically for both players and any spectators.
-  Shifting is an alternative to placing a mark and uses up O's turn, so O weighs
-  reshaping the board against taking a square.
+  Playing a trick is an alternative to placing a mark and uses up O's turn, so O
+  weighs reshaping the board against taking a square.
   A win is always three in a row.
 - **AI opponent:** in a vs-AI room both seats start open; use the seat buttons to
   pick X or O and the AI claims the opposite seat instantly. The computer plays
   either side server-side with minimax and never loses on the 3x3 board. When the
-  AI holds O it also decides when to spend the one-time grid shift, weighing it
+  AI holds O it also decides when to spend the one-time trick, weighing it
   against its best placement each turn. Leaving your seat fully resets the round
   so the next visitor can pick either side again.
 - **Local pass-and-play:** in a Local room one player claims both seats with a
@@ -57,7 +58,7 @@ game.
   AI room.
 - **Move history:** one mini-board snapshot per move, oldest first and newest
   last, each labelled with who moved and what they did (a named cell or O's
-  grid shift). On desktop it appears as a faded column to the left of the board,
+  trick). On desktop it appears as a faded column to the left of the board,
   fades up to full visibility on hover, and scrolls within a bounded height via
   up/down arrow buttons. On mobile (≤760px) it sits below the board as a
   horizontally scrolling strip; the up/down arrows are hidden and native swipe
@@ -87,11 +88,11 @@ game.
   Archived games can no longer be played, but each one can be replayed turn by
   turn (step forward/back, jump to start/end, or auto-play) on its own
   `/replay/[id]` page.
-  Each forward step is animated: placed marks drop in, and O's grid-shift plays
+  Each forward step is animated: placed marks drop in, and O's trick plays
   the same sliding-mark animation as the live game, accompanied by a transient
   directional arrow that sweeps and fades across the board.
   A caption below the board narrates every move ("X marked center" /
-  "O shifted the grid left") so a shift turn is never mistaken for a skipped move.
+  "O tricked the grid left") so a trick turn is never mistaken for a skipped move.
   Jumps and backward steps show the position with no motion; animations and the
   directional arrow are suppressed under `prefers-reduced-motion`.
   The archive survives the room being reset for a new round, so a single room can
@@ -157,7 +158,7 @@ utils/gameLogic.ts        # Pure game logic: winner detection, O's whole-grid
 utils/roomClient.ts       # Browser fetch helpers for the room API; `subscribeRoom` opens an SSE stream
 utils/apiHelpers.ts       # Shared request/response helpers for the room API routes
 utils/winningLineGeometry.ts # Pure winning-line overlay geometry (cell-center percentages)
-utils/historyLabels.ts    # Pure move-history labels: player parity, cell/shift names (`describeAction`), and full-sentence replay captions (`actionSentence`)
+utils/historyLabels.ts    # Pure move-history labels: player parity, cell/trick names (`describeAction`), and full-sentence replay captions (`actionSentence`)
 lib/roomStore.ts          # In-memory server store (Map on globalThis); all validation
 lib/gameConfig.ts         # Server-side POC config singleton (active ShiftMode); globalThis-backed, not persisted
 lib/roomTypes.ts          # Shared room, seat, score, completed-game, and player-stats types

@@ -30,7 +30,7 @@ const SCENES: Record<ShiftMode, Scene> = {
   // Classic: every mark slides exactly one cell over; marks pushed off the
   // leading (right) edge fall away.
   classic: {
-    caption: "Grid shift: O slides the grid one cell",
+    caption: "Trick (classic): O slides the grid one cell",
     marks: [
       { id: "x-tl", player: "X", row: 0, col: 0, to: 1 },
       { id: "o-tr", player: "O", row: 0, col: 2, to: "fall" },
@@ -47,7 +47,7 @@ const SCENES: Record<ShiftMode, Scene> = {
   // 1's X survives while its O packs in, and row 2's lone edge X sweeps off
   // while its O slides one cell in behind it.
   collapse: {
-    caption: "Grid collapse: O slides consecutive marks off the edge",
+    caption: "Trick (collapse): O slides consecutive marks off the edge",
     marks: [
       { id: "c-o0", player: "O", row: 0, col: 0, to: 2 },
       { id: "c-x0a", player: "X", row: 0, col: 1, to: "fall" },

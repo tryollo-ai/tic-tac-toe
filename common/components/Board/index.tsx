@@ -355,7 +355,7 @@ const Board = (props: Props) => {
     <div
       className={styles.root}
       role="grid"
-      aria-label="Tic-tac-toe board"
+      aria-label="Trick-tac-toe board"
       style={{ gridTemplateColumns: `repeat(${size}, 1fr)` }}
     >
       {board.map((value, index) => (

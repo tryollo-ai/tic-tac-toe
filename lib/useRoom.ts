@@ -41,8 +41,8 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   "game-over": "The game is already over.",
   "seat-taken": "That seat was just taken.",
   "not-participant": "Only a seated player can do that.",
-  "shift-used": "You have already used your shift.",
-  "shift-unavailable": "Your grid shift isn't available yet.",
+  "shift-used": "You have already used your trick.",
+  "shift-unavailable": "Your trick isn't available yet.",
 };
 
 /** Map a thrown error to a known room-error message, or the given fallback. */

@@ -3,8 +3,8 @@ import "./globals.scss";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "Tic-Tac-Toe",
-  description: "Play tic-tac-toe against a friend or an unbeatable AI.",
+  title: "Trick-Tac-Toe",
+  description: "Play trick-tac-toe against a friend or an unbeatable AI.",
 };
 
 type Props = {

@@ -185,7 +185,7 @@ const Lobby = () => {
     <div className={styles.root}>
       <header className={styles.header}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>Tic-Tac-Toe</h1>
+          <h1 className={styles.title}>Trick-Tac-Toe</h1>
           <button
             type="button"
             className={styles.howToButton}
@@ -196,8 +196,8 @@ const Lobby = () => {
           </button>
         </div>
         <p className={styles.subtitle}>
-          A twist on tic-tac-toe: player O goes second but gets a one-time grid
-          shift. Join a room to play or spectate a live game.
+          A twist on tic-tac-toe: player O goes second but gets a one-time
+          trick. Join a room to play or spectate a live game.
         </p>
       </header>
 
@@ -373,7 +373,7 @@ const Lobby = () => {
         isOpen={howToOpen}
         close={() => setHowToOpen(false)}
         title="How to play"
-        description="Tic tac toe - but with a twist!"
+        description="Trick-tac-toe - tic-tac-toe, but with a twist!"
       >
         <p className={styles.howToParagraph}>
           X moves first, O second - take turns
@@ -381,12 +381,12 @@ const Lobby = () => {
           (across, down, or diagonally) wins.
         </p>
         <p className={styles.howToParagraph}>
-          The twist: once per game, instead of placing a mark, O can reshape the
-          whole board with <strong>Grid Collapse</strong>:
+          The twist: once per game, instead of placing a mark, O can play a{" "}
+          <strong>trick</strong> that reshapes the whole board:
         </p>
         <ShiftAnimation mode={activeShiftMode} />
         <p className={styles.howToParagraph} style={{ marginTop: 24 }}>
-          On larger boards, Player X also gets the ability to shift the board in
+          On larger boards, Player X also earns a trick to slide the board in
           any direction by 1.
         </p>
       </UIDialog>

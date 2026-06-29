@@ -6,14 +6,14 @@ import type { Direction, GameAction, Player } from "@/utils/gameLogic";
  * moved and what they did. `player` is derived from the action's position in the
  * ordered log (X takes the even indices, O the odd ones), and `move` is a short,
  * unambiguous description of the move - a named cell for a placement (e.g.
- * "center", "top-left") or "shift <direction>" for O's grid shift.
+ * "center", "top-left") or "trick <direction>" for O's grid trick.
  */
 export type ActionSummary = {
   player: Player;
   move: string;
 };
 
-/** Plain-word direction for O's grid shift, as shown in the history. */
+/** Plain-word direction for O's grid trick, as shown in the history. */
 const SHIFT_WORDS: Record<Direction, string> = {
   top: "up",
   bottom: "down",
@@ -39,7 +39,7 @@ export function cellName(index: number, size: number = INITIAL_SIZE): string {
 /**
  * Summarize the action at position `index` in a game's ordered action log:
  * the player who moved (X on even indices, O on odd) and a compact description
- * of the move (a named cell for a placement, or "shift <direction>").
+ * of the move (a named cell for a placement, or "trick <direction>").
  */
 export function describeAction(
   action: GameAction,
@@ -50,14 +50,14 @@ export function describeAction(
   const move =
     action.kind === "place"
       ? cellName(action.index, size)
-      : `shift ${SHIFT_WORDS[action.dir]}`;
+      : `trick ${SHIFT_WORDS[action.dir]}`;
   return { player, move };
 }
 
 /**
  * A full-sentence narration of the action at `index`, for the replay's per-move
- * caption: e.g. "X marked center" for a placement, or "O shifted the grid down"
- * for O's whole-grid shift - the latter spelled out so a shift turn never reads
+ * caption: e.g. "X marked center" for a placement, or "O tricked the grid down"
+ * for O's whole-grid trick - the latter spelled out so a trick turn never reads
  * as a no-op.
  */
 export function actionSentence(
@@ -68,5 +68,5 @@ export function actionSentence(
   const player: Player = index % 2 === 0 ? "X" : "O";
   return action.kind === "place"
     ? `${player} marked ${cellName(action.index, size)}`
-    : `${player} shifted the grid ${SHIFT_WORDS[action.dir]}`;
+    : `${player} tricked the grid ${SHIFT_WORDS[action.dir]}`;
 }

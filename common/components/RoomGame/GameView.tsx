@@ -25,7 +25,7 @@ import styles from "./styles.module.scss";
 const SHIFT_DEBUG_ENABLED = process.env.NODE_ENV === "development";
 
 /**
- * The four grid-shift choices. Each renders as a single arrow on the matching
+ * The four trick directions. Each renders as a single arrow on the matching
  * edge of the board (`slotClass`), with a spelled-out label for assistive tech.
  */
 const SHIFT_OPTIONS: {
@@ -34,10 +34,10 @@ const SHIFT_OPTIONS: {
   label: string;
   slotClass: "shiftSlotTop" | "shiftSlotBottom" | "shiftSlotLeft" | "shiftSlotRight";
 }[] = [
-  { dir: "top", glyph: "↑", label: "Shift up", slotClass: "shiftSlotTop" },
-  { dir: "bottom", glyph: "↓", label: "Shift down", slotClass: "shiftSlotBottom" },
-  { dir: "left", glyph: "←", label: "Shift left", slotClass: "shiftSlotLeft" },
-  { dir: "right", glyph: "→", label: "Shift right", slotClass: "shiftSlotRight" },
+  { dir: "top", glyph: "↑", label: "Trick up", slotClass: "shiftSlotTop" },
+  { dir: "bottom", glyph: "↓", label: "Trick down", slotClass: "shiftSlotBottom" },
+  { dir: "left", glyph: "←", label: "Trick left", slotClass: "shiftSlotLeft" },
+  { dir: "right", glyph: "→", label: "Trick right", slotClass: "shiftSlotRight" },
 ];
 
 type Props = {
@@ -147,8 +147,8 @@ const GameView = (props: Props) => {
 
   const turnActive = (seat: Player) => !gameOver && currentTurn === seat;
 
-  // X's shift is conditional, so it shows three states; only meaningful once the
-  // board is larger than 3x3 (on 3x3 X never earns a shift). O's is always its
+  // X's trick is conditional, so it shows three states; only meaningful once the
+  // board is larger than 3x3 (on 3x3 X never earns a trick). O's is always its
   // ability, so it only ever reads used/available.
   const xShiftLabel = room.xShiftUsed
     ? "used"
@@ -156,9 +156,9 @@ const GameView = (props: Props) => {
       ? "available"
       : "locked";
 
-  // The "use grid shift" trigger + hint. Rendered in the viewer's own info row
+  // The "use trick" trigger + hint. Rendered in the viewer's own info row
   // (gated by canShiftNow, which is already seat- and turn-specific), so exactly
-  // one row shows it. Shared by both seats since X's and O's shift arm the same way.
+  // one row shows it. Shared by both seats since X's and O's trick arm the same way.
   const shiftControls = (
     <div className={styles.shiftControls}>
       <button
@@ -170,7 +170,7 @@ const GameView = (props: Props) => {
         disabled={paused}
         aria-pressed={shiftActive}
       >
-        {shiftActive ? "Cancel shift" : "Use grid shift"}
+        {shiftActive ? "Cancel trick" : "Use trick"}
       </button>
       <p className={styles.shiftControlsHint}>
         {shiftActive
@@ -341,7 +341,7 @@ const GameView = (props: Props) => {
                   [styles.shiftStatusUsed]: room.xShiftUsed,
                 })}
               >
-                Grid shift: {xShiftLabel}
+                Trick: {xShiftLabel}
               </span>
             ) : (
               <span className={styles.infoAbility}>Moves first</span>
@@ -363,7 +363,7 @@ const GameView = (props: Props) => {
                 [styles.shiftStatusUsed]: room.oShiftUsed,
               })}
             >
-              Grid shift: {room.oShiftUsed ? "used" : "available"}
+              Trick: {room.oShiftUsed ? "used" : "available"}
             </span>
 
             {canShiftNow && mySeat === "O" && shiftControls}

@@ -44,19 +44,19 @@ describe("describeAction", () => {
     });
   });
 
-  it("summarizes a shift with its plain-word direction", () => {
+  it("summarizes a trick with its plain-word direction", () => {
     expect(describeAction({ kind: "shift", dir: "top" }, 1)).toEqual({
       player: "O",
-      move: "shift up",
+      move: "trick up",
     });
     expect(describeAction({ kind: "shift", dir: "bottom" }, 1).move).toBe(
-      "shift down",
+      "trick down",
     );
     expect(describeAction({ kind: "shift", dir: "left" }, 1).move).toBe(
-      "shift left",
+      "trick left",
     );
     expect(describeAction({ kind: "shift", dir: "right" }, 1).move).toBe(
-      "shift right",
+      "trick right",
     );
   });
 });
@@ -71,12 +71,12 @@ describe("actionSentence", () => {
     );
   });
 
-  it("spells out O's grid shift with its plain-word direction", () => {
+  it("spells out O's grid trick with its plain-word direction", () => {
     expect(actionSentence({ kind: "shift", dir: "top" }, 1)).toBe(
-      "O shifted the grid up",
+      "O tricked the grid up",
     );
     expect(actionSentence({ kind: "shift", dir: "bottom" }, 1)).toBe(
-      "O shifted the grid down",
+      "O tricked the grid down",
     );
   });
 });
