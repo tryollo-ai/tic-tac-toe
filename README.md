@@ -17,6 +17,14 @@ game.
 - **Seat claiming:** visitors claim an open X or O seat, and everyone else
   spectates. Your identity is stored per browser, and only the seat-holder whose
   turn it is can move.
+- **Invite player:** a button in the room sidebar copies a shareable link to the
+  room to the clipboard so a seated player or spectator can pass it to someone
+  else to join or spectate. The link is built from the current page's origin
+  (`window.location.origin + /room/<id>`), so it stays correct across
+  environments (localhost, preview, prod). The button shows a transient "Link
+  copied!" confirmation for 1.5 s, then reverts. It is rendered unconditionally
+  alongside the seat-claim and leave buttons, so it is always available regardless
+  of role. The button is only present in live rooms, not the read-only replay view.
 - **Near-real-time play:** rooms receive live pushes over a Server-Sent Events
   stream (`GET /api/rooms/[id]/stream`), so moves and seat changes appear for
   everyone within ~1–2 seconds. Polling falls back to 10s while the stream is

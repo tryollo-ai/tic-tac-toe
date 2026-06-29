@@ -1,0 +1,46 @@
+// Sits at the foot of the player-info column, spanning its full width so it
+// lines up with the X / O rows above it. Accent-tinted to read as a share
+// action; the copied state swaps to a solid success-ish accent fill.
+.root {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: var(--accent);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.copied {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+
+  &:hover {
+    background: var(--accent);
+  }
+}
