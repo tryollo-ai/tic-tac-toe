@@ -14,9 +14,10 @@ type Props = {
 
 /**
  * The shared top bar for the room and replay views: a back-to-lobby link, the
- * game name, a tag for the locked-in win condition (board size + run length),
- * and a mode tag. Both views render an identical header, so it lives here as one
- * component owning the markup and styles.
+ * game name, an optional rules tag (board size + run length), and a mode tag.
+ * The replay view passes `size`/`winLength` to show the rules tag in the header;
+ * the live game view omits them because the win-length badge in the info panel
+ * already surfaces the run length above the player list.
  */
 const RoomHeader = (props: Props) => {
   const showRules = props.size != null && props.winLength != null;
