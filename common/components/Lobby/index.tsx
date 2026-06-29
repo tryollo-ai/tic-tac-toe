@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IoHelpCircleOutline } from "react-icons/io5";
@@ -134,6 +135,111 @@ const HowToPlayDialog = (props: {
       direction by 1.
     </p>
   </UIDialog>
+);
+
+/**
+ * The "Open rooms" list: a page of joinable/spectatable live rooms (each a
+ * GameCard with a per-seat taken/open footer) plus prev/next pagination when the
+ * full list spans more than one page. Joining is delegated to `onJoin`; paging is
+ * driven entirely by the parent's clamped page state.
+ */
+const OpenRoomsSection = (props: {
+  rooms: RoomSummary[];
+  totalPages: number;
+  activePage: number;
+  setPage: Dispatch<SetStateAction<number>>;
+  onJoin: (id: string) => void;
+}) => (
+  <section className={styles.listSection}>
+    <h2 className={styles.sectionTitle}>Open rooms</h2>
+    <p className={styles.sectionHint}>
+      Join a live multiplayer room to play, or spectate a game in progress.
+    </p>
+    <ul className={styles.roomList}>
+      {props.rooms.map((room) => (
+        <GameCard
+          key={room.id}
+          board={room.board}
+          name={room.name}
+          mode={room.mode}
+          onClick={() => props.onJoin(room.id)}
+          badgeClass={`${styles.badge} ${styles[`badge_${room.status === "in-progress" ? "inProgress" : room.status}`]}`}
+          badgeLabel={STATUS_LABEL[room.status]}
+        >
+          <div className={styles.seats}>
+            <span className={room.seatsTaken.X ? styles.seatTaken : styles.seatOpen}>
+              X {room.seatsTaken.X ? "taken" : "open"}
+            </span>
+            <span className={room.seatsTaken.O ? styles.seatTaken : styles.seatOpen}>
+              O {room.seatsTaken.O ? "taken" : "open"}
+            </span>
+          </div>
+        </GameCard>
+      ))}
+    </ul>
+
+    {props.totalPages > 1 && (
+      <nav className={styles.pagination} aria-label="Rooms pages">
+        <button
+          type="button"
+          className={styles.pageButton}
+          onClick={() => props.setPage((p) => Math.max(0, p - 1))}
+          disabled={props.activePage === 0}
+        >
+          Previous
+        </button>
+        <span className={styles.pageStatus} aria-live="polite">
+          Page {props.activePage + 1} of {props.totalPages}
+        </span>
+        <button
+          type="button"
+          className={styles.pageButton}
+          onClick={() => props.setPage((p) => Math.min(props.totalPages - 1, p + 1))}
+          disabled={props.activePage === props.totalPages - 1}
+        >
+          Next
+        </button>
+      </nav>
+    )}
+  </section>
+);
+
+/**
+ * The "Your completed games" list: the games this browser finished, each a
+ * GameCard whose badge shows the outcome and whose footer offers a turn-by-turn
+ * replay plus a relative finish time. Opening a replay is delegated to `onReplay`.
+ */
+const CompletedGamesSection = (props: {
+  games: CompletedGameSummary[];
+  onReplay: (id: string) => void;
+}) => (
+  <section className={styles.listSection}>
+    <h2 className={styles.sectionTitle}>Your completed games</h2>
+    <p className={styles.sectionHint}>
+      Games you have finished can no longer be played, but you can replay them
+      turn by turn.
+    </p>
+    <ul className={styles.roomList}>
+      {props.games.map((game) => (
+        <GameCard
+          key={game.id}
+          board={game.board}
+          name={game.name}
+          mode={game.mode}
+          onClick={() => props.onReplay(game.id)}
+          badgeClass={`${styles.badge} ${game.winner ? styles[`badge_${game.winner === "X" ? "x" : "o"}`] : styles.badge_draw}`}
+          badgeLabel={resultLabel(game.winner)}
+        >
+          <div className={styles.completedFooter}>
+            <span className={styles.replayHint}>▶ Replay</span>
+            <span className={styles.completedTime}>
+              {timeAgo(game.completedAt, Date.now())}
+            </span>
+          </div>
+        </GameCard>
+      ))}
+    </ul>
+  </section>
 );
 
 const Lobby = () => {
@@ -315,89 +421,20 @@ const Lobby = () => {
           )}
 
           {rooms && rooms.length > 0 && pageRooms && (
-            <section className={styles.listSection}>
-              <h2 className={styles.sectionTitle}>Open rooms</h2>
-              <p className={styles.sectionHint}>
-                Join a live multiplayer room to play, or spectate a game in
-                progress.
-              </p>
-              <ul className={styles.roomList}>
-                {pageRooms.map((room) => (
-                  <GameCard
-                    key={room.id}
-                    board={room.board}
-                    name={room.name}
-                    mode={room.mode}
-                    onClick={() => router.push(`/room/${room.id}`)}
-                    badgeClass={`${styles.badge} ${styles[`badge_${room.status === "in-progress" ? "inProgress" : room.status}`]}`}
-                    badgeLabel={STATUS_LABEL[room.status]}
-                  >
-                    <div className={styles.seats}>
-                      <span className={room.seatsTaken.X ? styles.seatTaken : styles.seatOpen}>
-                        X {room.seatsTaken.X ? "taken" : "open"}
-                      </span>
-                      <span className={room.seatsTaken.O ? styles.seatTaken : styles.seatOpen}>
-                        O {room.seatsTaken.O ? "taken" : "open"}
-                      </span>
-                    </div>
-                  </GameCard>
-                ))}
-              </ul>
-
-              {totalPages > 1 && (
-                <nav className={styles.pagination} aria-label="Rooms pages">
-                  <button
-                    type="button"
-                    className={styles.pageButton}
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    disabled={activePage === 0}
-                  >
-                    Previous
-                  </button>
-                  <span className={styles.pageStatus} aria-live="polite">
-                    Page {activePage + 1} of {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className={styles.pageButton}
-                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                    disabled={activePage === totalPages - 1}
-                  >
-                    Next
-                  </button>
-                </nav>
-              )}
-            </section>
+            <OpenRoomsSection
+              rooms={pageRooms}
+              totalPages={totalPages}
+              activePage={activePage}
+              setPage={setPage}
+              onJoin={(id) => router.push(`/room/${id}`)}
+            />
           )}
 
           {completed && completed.length > 0 && (
-            <section className={styles.listSection}>
-              <h2 className={styles.sectionTitle}>Your completed games</h2>
-              <p className={styles.sectionHint}>
-                Games you have finished can no longer be played, but you can
-                replay them turn by turn.
-              </p>
-              <ul className={styles.roomList}>
-                {completed.map((game) => (
-                  <GameCard
-                    key={game.id}
-                    board={game.board}
-                    name={game.name}
-                    mode={game.mode}
-                    onClick={() => router.push(`/replay/${game.id}`)}
-                    badgeClass={`${styles.badge} ${game.winner ? styles[`badge_${game.winner === "X" ? "x" : "o"}`] : styles.badge_draw}`}
-                    badgeLabel={resultLabel(game.winner)}
-                  >
-                    <div className={styles.completedFooter}>
-                      <span className={styles.replayHint}>▶ Replay</span>
-                      <span className={styles.completedTime}>
-                        {timeAgo(game.completedAt, Date.now())}
-                      </span>
-                    </div>
-                  </GameCard>
-                ))}
-              </ul>
-            </section>
+            <CompletedGamesSection
+              games={completed}
+              onReplay={(id) => router.push(`/replay/${id}`)}
+            />
           )}
         </div>
 
