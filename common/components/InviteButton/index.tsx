@@ -41,9 +41,14 @@ const InviteButton = (props: Props) => {
       type="button"
       className={classNames(styles.root, { [styles.copied]: copied })}
       onClick={copy}
-      aria-live="polite"
+      aria-label={copied ? "Link copied!" : "Invite player"}
     >
-      {copied ? "Link copied!" : "Invite player"}
+      <span aria-hidden="true">
+        {copied ? "Link copied!" : "Invite player"}
+      </span>
+      <span aria-live="polite" className={styles.srOnly}>
+        {copied ? "Link copied!" : ""}
+      </span>
     </button>
   );
 };
