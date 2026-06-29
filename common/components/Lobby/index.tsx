@@ -255,12 +255,18 @@ const Lobby = () => {
               badgeLabel={STATUS_LABEL[room.status]}
             >
               <div className={styles.seats}>
-                <span className={room.seatsTaken.X ? styles.seatTaken : styles.seatOpen}>
-                  X {room.seatsTaken.X ? "taken" : "open"}
-                </span>
-                <span className={room.seatsTaken.O ? styles.seatTaken : styles.seatOpen}>
-                  O {room.seatsTaken.O ? "taken" : "open"}
-                </span>
+                {room.mode === "local" && room.seatsTaken.X && room.seatsTaken.O ? (
+                  <span className={styles.seatTaken}>1 player (X &amp; O)</span>
+                ) : (
+                  <>
+                    <span className={room.seatsTaken.X ? styles.seatTaken : styles.seatOpen}>
+                      X {room.seatsTaken.X ? "taken" : "open"}
+                    </span>
+                    <span className={room.seatsTaken.O ? styles.seatTaken : styles.seatOpen}>
+                      O {room.seatsTaken.O ? "taken" : "open"}
+                    </span>
+                  </>
+                )}
               </div>
             </GameCard>
           ))}
