@@ -176,13 +176,13 @@ const Readout = (props: {
 );
 
 /**
- * Dev-only harness for tuning the grid-shift animation. Renders the real
- * <Board> on a fixed scene, loops the shift in a chosen direction, and exposes
- * the {@link BoardAnimationConfig} springs/timings as live sliders so the motion
- * can be dialled in without editing code. The JSON readout can be pasted back
- * into DEFAULT_BOARD_ANIMATION once a feel is settled.
+ * The harness's animation-loop and config-tuning engine: the chosen
+ * direction/mode, the live {@link BoardAnimationConfig}, the self-flipping
+ * play/rest loop that drives the board, and the serialized-config + copy state.
+ * Returns render-ready board state, selectors that restart the loop on a
+ * direction/mode switch, the spring/number field setters, and the readout.
  */
-const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
+const useShiftDebug = () => {
   const [direction, setDirection] = useState<Direction>("right");
   const [mode, setMode] = useState<ShiftMode>("collapse");
   const [anim, setAnim] = useState<BoardAnimationConfig>(DEFAULT_BOARD_ANIMATION);
@@ -231,6 +231,54 @@ const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
     );
   };
 
+  return {
+    board: playing ? shifted : INITIAL,
+    transition,
+    anim,
+    direction,
+    mode,
+    // Switching direction/mode drops back to rest for a clean restart.
+    selectDirection: (dir: Direction) => {
+      setDirection(dir);
+      setPlaying(false);
+    },
+    selectMode: (m: ShiftMode) => {
+      setMode(m);
+      setPlaying(false);
+    },
+    setSpring,
+    setNum,
+    source,
+    copied,
+    reset: () => setAnim(DEFAULT_BOARD_ANIMATION),
+    copy,
+  };
+};
+
+/**
+ * Dev-only harness for tuning the grid-shift animation. Renders the real
+ * <Board> on a fixed scene, loops the shift in a chosen direction, and exposes
+ * the {@link BoardAnimationConfig} springs/timings as live sliders so the motion
+ * can be dialled in without editing code. The JSON readout can be pasted back
+ * into DEFAULT_BOARD_ANIMATION once a feel is settled.
+ */
+const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
+  const {
+    board,
+    transition,
+    anim,
+    direction,
+    mode,
+    selectDirection,
+    selectMode,
+    setSpring,
+    setNum,
+    source,
+    copied,
+    reset,
+    copy,
+  } = useShiftDebug();
+
   return (
     <div className={styles.backdrop} role="dialog" aria-label="Shift animation debug">
       <div className={styles.panel}>
@@ -245,7 +293,7 @@ const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
           <div className={styles.stage}>
             <div className={styles.boardWrap}>
               <Board
-                board={playing ? shifted : INITIAL}
+                board={board}
                 winningLine={null}
                 onSquareClick={() => {}}
                 disabled
@@ -254,21 +302,9 @@ const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
               />
             </div>
 
-            <DPad
-              direction={direction}
-              onSelect={(dir) => {
-                setDirection(dir);
-                setPlaying(false);
-              }}
-            />
+            <DPad direction={direction} onSelect={selectDirection} />
 
-            <ModeToggle
-              mode={mode}
-              onSelect={(m) => {
-                setMode(m);
-                setPlaying(false);
-              }}
-            />
+            <ModeToggle mode={mode} onSelect={selectMode} />
           </div>
 
           <div className={styles.controls}>
@@ -304,7 +340,7 @@ const ShiftDebug = ({ onClose }: { onClose: () => void }) => {
             <Readout
               source={source}
               copied={copied}
-              onReset={() => setAnim(DEFAULT_BOARD_ANIMATION)}
+              onReset={reset}
               onCopy={copy}
             />
           </div>
