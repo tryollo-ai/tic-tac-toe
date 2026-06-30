@@ -65,6 +65,22 @@ model Room {
   @@map("rooms")
 }
 
+/// A live viewer-presence heartbeat: one row per (room, viewer) currently
+/// watching a room. Purely liveness, never game state - it is rewritten on every
+/// stream/poll tick and swept by TTL exactly like the seat heartbeats, and used
+/// only to count how many people are viewing a room at any moment. A composite
+/// (room, player) key makes each viewer at most one row, so the count is a simple
+/// `COUNT(*)` over the room's un-expired rows.
+model RoomParticipant {
+  roomId   String   @map("room_id")
+  playerId String   @map("player_id")
+  lastSeen DateTime @map("last_seen") @db.Timestamptz
+
+  @@id([roomId, playerId])
+  @@index([roomId, lastSeen])
+  @@map("room_participants")
+}
+
 /// An archived, finished game. Mirrors `CompletedGame` in lib/roomTypes.ts. The
 /// ordered action log is the single source of truth; the final board/winner are
 /// derived from it at read time.

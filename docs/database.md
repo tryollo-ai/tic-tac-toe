@@ -5,7 +5,7 @@ Room and completed-game state is persisted in Postgres (Neon in production) via
 This replaces the per-instance in-memory `Map` that made production rooms vanish
 or reappear when serverless instances rotated (issue #49).
 
-- Schema: [`prisma/schema.prisma`](../prisma/schema.prisma) - two models, `Room` and `CompletedGame`.
+- Schema: [`prisma/schema.prisma`](../prisma/schema.prisma) - three models: `Room`, `CompletedGame`, and `RoomParticipant` (viewer-presence heartbeats for the live watcher count).
 - Migrations: [`prisma/migrations/`](../prisma/migrations) - managed by Prisma Migrate; never edit applied migration SQL by hand.
 - Client: [`lib/prisma.ts`](../lib/prisma.ts) - a cached `PrismaClient` singleton (the standard Next.js pattern) so serverless instances don't leak connection pools.
 
@@ -84,7 +84,7 @@ with `npx prisma ...`, which works regardless of package manager; the equivalent
    psql "$DATABASE_URL" -c '\dt'
    ```
 
-   You should see `rooms` and `completed_games` (plus Prisma's
+   You should see `rooms`, `completed_games`, and `room_participants` (plus Prisma's
    `_prisma_migrations` bookkeeping table).
 
 ## Production (Vercel)

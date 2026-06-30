@@ -35,6 +35,13 @@ import {
 
 /** A seat with no heartbeat for this long is auto-released. */
 const SEAT_TTL_MS = 30_000;
+/**
+ * A viewer whose presence hasn't been heartbeat for this long no longer counts
+ * as watching. Shorter than the seat TTL because a viewer leaving should drop
+ * the count promptly; the stream re-heartbeats every ~1s, and the polling
+ * fallback well within this window, so an active watcher never expires.
+ */
+const VIEWER_TTL_MS = 12_000;
 /** Rooms idle longer than this are reaped lazily on list/create. */
 const ROOM_IDLE_MS = 6 * 60 * 60 * 1000;
 
@@ -514,13 +521,65 @@ export async function getRoom(
   return result.ok ? result.room : null;
 }
 
-export function toView(room: Room): RoomView {
+/**
+ * Serialize a room for the client. `viewerCount` is the live count of people
+ * watching the room (see {@link countViewers}); it is passed in rather than read
+ * here so `toView` stays pure and synchronous, and is omitted when a caller has
+ * no count to report.
+ */
+export function toView(room: Room, viewerCount?: number): RoomView {
   const result = calculateWinner(room.board, room.winLength);
   return {
     ...room,
     status: computeStatus(room.board, room.winLength),
     winningLine: result ? result.line : null,
+    ...(viewerCount === undefined ? {} : { viewerCount }),
   };
+}
+
+/**
+ * Record that `playerId` is currently watching room `id`, refreshing (or
+ * inserting) their single presence row's heartbeat. Idempotent per tick: the
+ * composite (room, player) key means a viewer is at most one row, so repeated
+ * heartbeats just bump `lastSeen`. Liveness only - it touches neither the room
+ * nor its `lastActivity`, so a silent spectator never keeps a room from being
+ * reaped for idleness.
+ */
+export async function heartbeatViewer(
+  id: string,
+  playerId: string,
+): Promise<void> {
+  const seen = new Date(now());
+  await prisma.roomParticipant.upsert({
+    where: { roomId_playerId: { roomId: id, playerId } },
+    create: { roomId: id, playerId, lastSeen: seen },
+    update: { lastSeen: seen },
+  });
+}
+
+/** Drop a viewer's presence row, e.g. when their stream disconnects, so the
+ *  count falls immediately instead of waiting out the TTL. */
+export async function removeViewer(
+  id: string,
+  playerId: string,
+): Promise<void> {
+  await prisma.roomParticipant
+    .delete({ where: { roomId_playerId: { roomId: id, playerId } } })
+    // A viewer with no row (already swept or never recorded) is a no-op.
+    .catch(() => undefined);
+}
+
+/**
+ * How many people are currently watching room `id`. Only rows whose `lastSeen`
+ * is within {@link VIEWER_TTL_MS} are counted, so the compound `(roomId,
+ * lastSeen)` index is used cleanly. Seated players are included — everyone with
+ * a live heartbeat here is a viewer.
+ */
+export async function countViewers(id: string): Promise<number> {
+  const cutoff = new Date(now() - VIEWER_TTL_MS);
+  return prisma.roomParticipant.count({
+    where: { roomId: id, lastSeen: { gte: cutoff } },
+  });
 }
 
 export function toCompletedSummary(game: CompletedGame): CompletedGameSummary {

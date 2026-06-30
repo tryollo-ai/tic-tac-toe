@@ -33,9 +33,14 @@ game.
   connected and reverts to 1.5s if the stream can't connect (e.g. a buffering
   proxy), so updates always flow. A seat auto-releases after 30s without a
   heartbeat (for example, when its player closes the tab).
+- **Live viewer count:** a "👁 N watching" badge in the room shows how many people
+  (seated players and spectators) currently have the room open. Presence is
+  heartbeated on every SSE stream tick and polling-fallback request; the count
+  drops immediately when a viewer's stream disconnects rather than waiting out the
+  12-second TTL. The badge only appears for online multiplayer rooms; single-device
+  local/AI games omit it.
 - **Trick action (O only):** to offset X's first-move advantage, player O
-  gets one once-per-game trick that slides the whole 3x3 grid one cell
-  (up/down/left/right).
+  gets one once-per-game trick that slides the whole 3x3 grid one cell (up/down/left/right).
   Any marks pushed off the leading edge are removed, and empty cells enter
   behind.
   When the trick lands, every remaining mark slides in from the cell it came

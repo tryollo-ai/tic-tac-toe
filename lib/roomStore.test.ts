@@ -1,13 +1,16 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   claimSeat,
+  countViewers,
   createRoom,
   getPlayerStats,
   getRoom,
+  heartbeatViewer,
   leaveSeat,
   listCompletedGames,
   listRooms,
   makeMove,
+  removeViewer,
   shiftBoardAction,
   toView,
 } from "@/lib/roomStore";
@@ -25,7 +28,9 @@ const PX = "player-x";
 const PO = "player-o";
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE "rooms", "completed_games"');
+  await prisma.$executeRawUnsafe(
+    'TRUNCATE "rooms", "completed_games", "room_participants"',
+  );
 });
 
 afterAll(async () => {
@@ -576,6 +581,83 @@ describe("seat TTL sweeping", () => {
     // fresh, not the aged value.
     const row = await prisma.room.findUniqueOrThrow({ where: { id } });
     expect(row.seatSeenO?.getTime()).toBeGreaterThan(aged.getTime());
+  });
+});
+
+describe("viewer presence counting", () => {
+  it("counts distinct heartbeating viewers and is idempotent per viewer", async () => {
+    const created = await createRoom("viewed room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    expect(await countViewers(id)).toBe(0);
+
+    // Two viewers; the second heartbeat for the same viewer must not double-count.
+    await heartbeatViewer(id, "viewer-a");
+    await heartbeatViewer(id, "viewer-b");
+    await heartbeatViewer(id, "viewer-a");
+    expect(await countViewers(id)).toBe(2);
+  });
+
+  it("scopes the count to the room", async () => {
+    const a = await createRoom("room a", "two-player");
+    const b = await createRoom("room b", "two-player");
+    if (!a.ok || !b.ok) throw new Error("room creation failed");
+
+    await heartbeatViewer(a.room.id, "viewer-a");
+    await heartbeatViewer(b.room.id, "viewer-b");
+    await heartbeatViewer(b.room.id, "viewer-c");
+
+    expect(await countViewers(a.room.id)).toBe(1);
+    expect(await countViewers(b.room.id)).toBe(2);
+  });
+
+  it("excludes viewers whose heartbeat has expired past the TTL", async () => {
+    const created = await createRoom("viewed room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    await heartbeatViewer(id, "stale");
+    await heartbeatViewer(id, "fresh");
+
+    // Age one viewer's heartbeat well past the 12s TTL directly in the database.
+    await prisma.roomParticipant.update({
+      where: { roomId_playerId: { roomId: id, playerId: "stale" } },
+      data: { lastSeen: new Date(Date.now() - 60_000) },
+    });
+
+    // The count excludes the expired row without deleting it.
+    expect(await countViewers(id)).toBe(1);
+    const rows = await prisma.roomParticipant.findMany({ where: { roomId: id } });
+    expect(rows.map((r) => r.playerId).sort()).toEqual(["fresh", "stale"]);
+  });
+
+  it("drops a viewer immediately on removeViewer", async () => {
+    const created = await createRoom("viewed room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    await heartbeatViewer(id, "leaver");
+    expect(await countViewers(id)).toBe(1);
+
+    await removeViewer(id, "leaver");
+    expect(await countViewers(id)).toBe(0);
+    // Removing an absent viewer is a harmless no-op.
+    await removeViewer(id, "leaver");
+    expect(await countViewers(id)).toBe(0);
+  });
+
+  it("surfaces the count on the serialized view via toView", async () => {
+    const created = await createRoom("viewed room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    await heartbeatViewer(id, "viewer-a");
+    const room = await getRoom(id);
+    if (!room) throw new Error("room not found");
+
+    expect(toView(room).viewerCount).toBeUndefined();
+    expect(toView(room, await countViewers(id)).viewerCount).toBe(1);
   });
 });
 
