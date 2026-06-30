@@ -170,6 +170,7 @@ lib/roomTypes.ts          # Shared room, seat, score, completed-game, and player
 lib/usePlayerId.ts        # Client hook: stable per-browser player id
 lib/useRoomStream.ts      # Client hook: SSE subscription for live room updates
 lib/useStepCue.ts         # Client hook: derive a one-shot board-animation cue the render a step counter changes
+lib/useReducedMotion.ts   # Client hook: track `prefers-reduced-motion`, shared by the board/shift animations
 app/providers.tsx         # Client root: stable React Query QueryClientProvider
 constants/game.ts         # Cross-cutting domain constants (board size, AI seat sentinel)
 agent-kit/                # Self-contained "issue -> PR" agent loop + Claude review kit (scripts, workflows, config, setup skill)

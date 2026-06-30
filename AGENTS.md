@@ -58,7 +58,7 @@ All client reads/writes go through TanStack React Query (`@tanstack/react-query`
 
 - `common/components/<Name>/` - reusable components.
 - `utils/` - stateless/pure helpers; colocate each helper's types with it.
-- `lib/` - non-pure, non-component code (the store, the Prisma singleton, shared types, the player-id hook, the room-stream hook, the step-cue hook).
+- `lib/` - non-pure, non-component code (the store, the Prisma singleton, shared types, the player-id hook, the room-stream hook, the step-cue hook, the reduced-motion hook).
 - `constants/` - cross-cutting domain constants shared by more than one module. Keep module-internal tuning and component-local UI timings colocated with their owners.
 - `app/` - routes, pages, and API endpoints (App Router).
 
