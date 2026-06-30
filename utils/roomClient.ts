@@ -120,8 +120,9 @@ export function claimSeat(
   id: string,
   playerId: string,
   seat: "X" | "O",
+  name?: string,
 ): Promise<RoomView> {
-  return sendJson(`/api/rooms/${id}/seat`, "POST", { playerId, seat });
+  return sendJson(`/api/rooms/${id}/seat`, "POST", { playerId, seat, name });
 }
 
 export function leaveSeat(id: string, playerId: string): Promise<RoomView> {

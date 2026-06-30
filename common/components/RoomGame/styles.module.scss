@@ -189,6 +189,42 @@ $round-announce-ms: $round-announce-raw * 1ms;
   }
 }
 
+// "Your name" field, shown above the seat bar while the player is choosing a
+// seat. Stacks a small label over a full-width text input so it reads as a quick,
+// optional touch rather than a required form.
+.nameField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.nameLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.nameInput {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+}
+
 // Outer layout: the board frame fills the primary column and the two side
 // panels are absolutely positioned just outside it, bleeding into the page's
 // negative space. The history sits to the left of the board, the player-info box

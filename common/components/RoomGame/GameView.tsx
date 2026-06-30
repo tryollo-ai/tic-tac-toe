@@ -11,6 +11,7 @@ import type {
   ShiftMode,
 } from "@/utils/gameLogic";
 import { AI_SEAT, AUTO_RESET_MS } from "@/constants/game";
+import { MAX_PLAYER_NAME_LEN } from "@/lib/usePlayerName";
 import type { UseRoomResult } from "@/lib/useRoom";
 import Board, { type BoardTransition } from "@/common/components/Board";
 import BoardHistory from "@/common/components/BoardHistory";
@@ -139,6 +140,34 @@ const SeatBar = (props: {
         )}
       </>
     )}
+  </div>
+);
+
+/**
+ * The "your name" field shown before a player takes a seat in an online room, so
+ * the name they pick rides along with their seat claim and the opponent can see
+ * who they're playing against. Edits persist per-browser (see usePlayerName), so
+ * the value is prefilled on return. Hidden once seated - the seat label then
+ * shows the chosen name, and the claim already captured it.
+ */
+const NameField = (props: {
+  value: string;
+  maxLength: number;
+  onChange: (name: string) => void;
+}) => (
+  <div className={styles.nameField}>
+    <label className={styles.nameLabel} htmlFor="player-name">
+      Your name
+    </label>
+    <input
+      id="player-name"
+      className={styles.nameInput}
+      type="text"
+      value={props.value}
+      maxLength={props.maxLength}
+      placeholder="Add a name so your opponent knows you"
+      onChange={(event) => props.onChange(event.target.value)}
+    />
   </div>
 );
 
@@ -378,8 +407,12 @@ const deriveGameView = (args: {
   const seatLabel = (seat: Player): string => {
     if (room.seats[seat] === AI_SEAT) return `AI (${seat})`;
     if (isLocal) return mySeat ? `You (${seat})` : `Player ${seat}`;
-    if (mySeat === seat) return `You (${seat})`;
-    return `Player ${seat}`;
+    // A player-chosen name (if any) names the seat for both players, so each can
+    // see who they're playing against; an unnamed seat keeps the generic label.
+    // The local player's own seat still reads "You" when they gave no name.
+    const name = room.seatNames[seat];
+    if (mySeat === seat) return name ? `${name} (${seat})` : `You (${seat})`;
+    return name ? `${name} (${seat})` : `Player ${seat}`;
   };
 
   // Terminal and pure spectator states share their wording with the replay
@@ -399,7 +432,7 @@ const deriveGameView = (args: {
     // side; an online room is waiting on a second player to join.
     status = isAi
       ? { message: "Pick a mark", tone: "neutral" }
-      : { message: "Waiting for opponent", tone: "neutral" };
+      : { message: "Waiting for opponent", tone: "neutral", pending: true };
   } else if (!gameOver && mySeat) {
     status = { message: "Opponent's turn", tone: playerTone(currentTurn) };
   } else {
@@ -444,6 +477,14 @@ type Props = {
    * Defaults to classic when unknown.
    */
   trickMode?: ShiftMode;
+  /**
+   * The player's chosen display name and its setter. Supplied only by the online
+   * room (single-device games have no remote opponent to name); when present, a
+   * "your name" field is shown before the player takes a seat. The name is sent
+   * with the seat claim by the owning hook.
+   */
+  playerName?: string;
+  onPlayerNameChange?: (name: string) => void;
 };
 
 /**
@@ -504,7 +545,21 @@ const GameView = (props: Props) => {
 
       <RoomHeader name={room.name} mode={room.mode} />
 
-      <Status message={status.message} tone={status.tone} />
+      <Status message={status.message} tone={status.tone} pending={status.pending} />
+
+      {/* Online two-player rooms let the player name themselves before sitting
+          down, so the opponent sees who they're playing against. Shown only while
+          unseated (the seat label carries the name afterwards) and never in
+          vs-AI/local games, where there is no remote opponent to name. */}
+      {room.mode === "two-player" &&
+        !mySeat &&
+        props.onPlayerNameChange && (
+          <NameField
+            value={props.playerName ?? ""}
+            maxLength={MAX_PLAYER_NAME_LEN}
+            onChange={props.onPlayerNameChange}
+          />
+        )}
 
       {/* A local pass-and-play game auto-seats and plays immediately, so it has
           no seat bar. Online rooms and vs-AI games show seat controls: claim a

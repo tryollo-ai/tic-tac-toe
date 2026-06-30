@@ -30,6 +30,7 @@ function makeView(overrides: Partial<RoomView> = {}): RoomView {
     xIsNext: true,
     scores: { X: 0, O: 0, draws: 0 },
     seats: { X: "px", O: null },
+    seatNames: { X: null, O: null },
     mode: "two-player",
     oShiftUsed: false,
     xShiftUsed: false,

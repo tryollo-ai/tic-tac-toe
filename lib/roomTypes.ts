@@ -9,6 +9,16 @@ export interface Seats {
   O: string | null;
 }
 
+/**
+ * The display name each seat holder chose, so both players can see who they're
+ * playing against. Null when the seat is open or its holder gave no name. Follows
+ * the holder across the per-round seat swap, just like the scores.
+ */
+export interface SeatNames {
+  X: string | null;
+  O: string | null;
+}
+
 export interface Scores {
   X: number;
   O: number;
@@ -39,6 +49,8 @@ export interface Room {
   xIsNext: boolean;
   scores: Scores;
   seats: Seats;
+  /** Per-seat display names chosen by their holders; see {@link SeatNames}. */
+  seatNames: SeatNames;
   mode: RoomMode;
   /** Whether O has spent its one-time whole-grid shift this round. */
   oShiftUsed: boolean;

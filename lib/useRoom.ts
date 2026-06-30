@@ -80,6 +80,13 @@ type UseRoomOptions = {
    * single source of truth and this `lib/` hook imports no component styles.
    */
   roundAnnouncementMs: number;
+  /**
+   * The display name to send when this player claims a seat, so the opponent sees
+   * who they're playing against. Read live through a ref at claim time, so edits
+   * up to the moment of claiming are picked up. Optional; a blank/absent name
+   * leaves the seat nameless (falls back to the generic "Player X/O" label).
+   */
+  playerName?: string;
 };
 
 /**
@@ -255,8 +262,14 @@ export function useRoom(id: string, opts: UseRoomOptions): UseRoomResult {
     onSettled: () => setPaused(false),
   });
 
+  // The latest chosen name, read at claim time so edits right up to the click are
+  // sent. Kept in a ref so a name change doesn't re-create the claim mutation.
+  const playerNameRef = useRef(opts.playerName ?? "");
+  playerNameRef.current = opts.playerName ?? "";
+
   const claimMutation = useMutation({
-    mutationFn: (seat: Player) => claimSeat(id, playerId as string, seat),
+    mutationFn: (seat: Player) =>
+      claimSeat(id, playerId as string, seat, playerNameRef.current),
     ...writeOptions("Could not claim that seat."),
   });
 

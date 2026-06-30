@@ -220,6 +220,9 @@ export function useLocalGame(
       xIsNext: game.xIsNext,
       scores: game.scores,
       seats: game.seats,
+      // Single-device games have no remote opponent to name; the seat labels read
+      // "You"/"AI", so names stay null.
+      seatNames: { X: null, O: null },
       mode,
       oShiftUsed: game.oShiftUsed,
       xShiftUsed: game.xShiftUsed,

@@ -8,10 +8,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   return withPlayerRoute(request, params, async ({ id, body, playerId }) => {
-    const { seat } = body;
+    const { seat, name } = body;
     if (seat !== "X" && seat !== "O") return badRequest("invalid-seat");
 
-    return storeResponse(await claimSeat(id, seat, playerId));
+    // The display name is optional; the store sanitizes it (trim/clip/empty→null).
+    const displayName = typeof name === "string" ? name : undefined;
+    return storeResponse(await claimSeat(id, seat, playerId, displayName));
   });
 }
 

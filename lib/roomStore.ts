@@ -50,6 +50,18 @@ const emptyBoard = (size: number): Board => Array(size * size).fill(null);
 const INITIAL_SCORES: Scores = { X: 0, O: 0, draws: 0 };
 /** The two human-claimable seats, in turn order. */
 const SEATS = ["X", "O"] as const;
+/** Longest display name a player may choose; longer input is clipped. */
+const MAX_NAME_LEN = 20;
+
+/**
+ * Normalize a player-supplied display name: trim surrounding whitespace and clip
+ * to {@link MAX_NAME_LEN}. An empty (or whitespace-only / missing) name becomes
+ * null, so a nameless seat falls back to the generic "Player X/O" label.
+ */
+function sanitizeName(name: string | undefined): string | null {
+  const trimmed = (name ?? "").trim().slice(0, MAX_NAME_LEN);
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export type StoreResult =
   | { ok: true; room: Room }
@@ -103,6 +115,7 @@ function rowToRoom(row: RoomRow): Room {
     xIsNext: row.xIsNext,
     scores: { X: row.scoreX, O: row.scoreO, draws: row.scoreDraws },
     seats: { X: row.seatX, O: row.seatO },
+    seatNames: { X: row.seatXName, O: row.seatOName },
     mode: row.mode as RoomMode,
     oShiftUsed: row.oShiftUsed,
     xShiftUsed: row.xShiftUsed,
@@ -126,6 +139,8 @@ function roomToData(room: Room) {
     scoreDraws: room.scores.draws,
     seatX: room.seats.X,
     seatO: room.seats.O,
+    seatXName: room.seatNames.X,
+    seatOName: room.seatNames.O,
     seatSeenX: msToDate(room.seatSeen.X),
     seatSeenO: msToDate(room.seatSeen.O),
     mode: room.mode,
@@ -182,6 +197,7 @@ function sweepSeats(room: Room): void {
     if (seen === null || seen < cutoff) {
       room.seats[seat] = null;
       room.seatSeen[seat] = null;
+      room.seatNames[seat] = null;
     }
   });
 }
@@ -323,6 +339,9 @@ function swapSeats(room: Room): void {
   [room.seats.X, room.seats.O] = [room.seats.O, room.seats.X];
   [room.seatSeen.X, room.seatSeen.O] = [room.seatSeen.O, room.seatSeen.X];
   [room.scores.X, room.scores.O] = [room.scores.O, room.scores.X];
+  // Names follow their holder across the swap, so each player keeps their name
+  // when they change mark.
+  [room.seatNames.X, room.seatNames.O] = [room.seatNames.O, room.seatNames.X];
 }
 
 /**
@@ -469,6 +488,7 @@ export async function createRoom(
     // Both seats start open; in an AI room the human picks a side and the AI
     // takes the other seat on claim (see claimSeat).
     seats: { X: null, O: null },
+    seatNames: { X: null, O: null },
     mode,
     oShiftUsed: false,
     xShiftUsed: false,
@@ -674,8 +694,10 @@ export async function claimSeat(
   id: string,
   seat: "X" | "O",
   playerId: string,
+  name?: string,
 ): Promise<StoreResult> {
   const shiftMode = await getShiftMode();
+  const displayName = sanitizeName(name);
   return withRoomTx(id, (room, archive) => {
     sweepSeats(room);
     // A rejoiner gets an instant fresh board in the claim response rather than
@@ -685,8 +707,10 @@ export async function claimSeat(
 
     const holder = room.seats[seat];
     if (holder === playerId) {
-      // Idempotent re-claim of a seat you already hold.
+      // Idempotent re-claim of a seat you already hold; refresh the name too so a
+      // player can update it by re-claiming.
       room.seatSeen[seat] = now();
+      room.seatNames[seat] = displayName;
       return touched(room);
     }
     if (holder !== null) {
@@ -695,6 +719,7 @@ export async function claimSeat(
 
     room.seats[seat] = playerId;
     room.seatSeen[seat] = now();
+    room.seatNames[seat] = displayName;
 
     // In an AI room the human chooses a side; the AI fills the opposite seat and
     // - if that seat is X - opens the game immediately.
@@ -703,6 +728,7 @@ export async function claimSeat(
       if (room.seats[other] === null) {
         room.seats[other] = AI_SEAT;
         room.seatSeen[other] = null;
+        room.seatNames[other] = null;
       }
       runAiTurn(room, archive, shiftMode);
     } else if (room.mode === "local") {
@@ -712,6 +738,7 @@ export async function claimSeat(
       const other = otherPlayer(seat);
       room.seats[other] = playerId;
       room.seatSeen[other] = now();
+      room.seatNames[other] = displayName;
     }
     return touched(room);
   });
@@ -727,6 +754,7 @@ export async function leaveSeat(
       if (room.seats[seat] === playerId) {
         room.seats[seat] = null;
         room.seatSeen[seat] = null;
+        room.seatNames[seat] = null;
         left = true;
       }
     });
@@ -741,6 +769,7 @@ export async function leaveSeat(
         if (room.seats[seat] === AI_SEAT) {
           room.seats[seat] = null;
           room.seatSeen[seat] = null;
+          room.seatNames[seat] = null;
         }
       });
       clearRound(room);

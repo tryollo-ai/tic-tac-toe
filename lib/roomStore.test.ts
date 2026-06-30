@@ -545,6 +545,94 @@ describe("lazy next-round reset", () => {
   });
 });
 
+describe("player display names", () => {
+  it("stores a trimmed name per seat on claim and surfaces it", async () => {
+    const created = await createRoom("named room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    expect((await claimSeat(id, "X", PX, "  Alice  ")).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO, "Bob")).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seatNames).toEqual({ X: "Alice", O: "Bob" });
+  });
+
+  it("treats a blank or whitespace-only name as no name", async () => {
+    const created = await createRoom("nameless room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    expect((await claimSeat(id, "X", PX, "   ")).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO)).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seatNames).toEqual({ X: null, O: null });
+  });
+
+  it("clips an overlong name to the 20-char limit", async () => {
+    const created = await createRoom("long name room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    expect(
+      (await claimSeat(id, "X", PX, "a".repeat(40))).ok,
+    ).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seatNames.X).toBe("a".repeat(20));
+  });
+
+  it("lets a player update their name by re-claiming the seat", async () => {
+    const created = await createRoom("rename room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+
+    expect((await claimSeat(id, "X", PX, "Old")).ok).toBe(true);
+    expect((await claimSeat(id, "X", PX, "New")).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seatNames.X).toBe("New");
+  });
+
+  it("carries each player's name across the seat swap on reset", async () => {
+    const created = await createRoom("swap room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+    expect((await claimSeat(id, "X", PX, "Alice")).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO, "Bob")).ok).toBe(true);
+
+    // Alice (X) wins the top row, then age past the auto-reset delay.
+    expect((await makeMove(id, 0, PX)).ok).toBe(true);
+    expect((await makeMove(id, 3, PO)).ok).toBe(true);
+    expect((await makeMove(id, 1, PX)).ok).toBe(true);
+    expect((await makeMove(id, 5, PO)).ok).toBe(true);
+    expect((await makeMove(id, 2, PX)).ok).toBe(true); // X wins
+    await prisma.room.update({
+      where: { id },
+      data: { lastActivity: new Date(Date.now() - AUTO_RESET_MS - 1000) },
+    });
+
+    const room = await getRoom(id, PX); // heartbeat heals + swaps seats
+    // Seats swapped (Alice now O, Bob now X) and each name followed its player.
+    expect(room?.seats).toEqual({ X: PO, O: PX });
+    expect(room?.seatNames).toEqual({ X: "Bob", O: "Alice" });
+  });
+
+  it("clears a seat's name when its player leaves", async () => {
+    const created = await createRoom("leave room", "two-player");
+    if (!created.ok) throw new Error("room creation failed");
+    const { id } = created.room;
+    expect((await claimSeat(id, "X", PX, "Alice")).ok).toBe(true);
+    expect((await claimSeat(id, "O", PO, "Bob")).ok).toBe(true);
+
+    expect((await leaveSeat(id, PX)).ok).toBe(true);
+
+    const room = await getRoom(id);
+    expect(room?.seatNames).toEqual({ X: null, O: "Bob" });
+  });
+});
+
 describe("seat TTL sweeping", () => {
   it("auto-releases a seat whose heartbeat has expired", async () => {
     const { id } = await seatedRoom();

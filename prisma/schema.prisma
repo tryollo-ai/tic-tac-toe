@@ -51,6 +51,11 @@ model Room {
   scoreDraws  Int      @default(0) @map("score_draws")
   seatX       String?  @map("seat_x")
   seatO       String?  @map("seat_o")
+  /// Display name the seat holder chose, shown to both players so they can see
+  /// who they're playing against. Null when the seat is open or its holder gave
+  /// no name; cleared alongside the seat on leave/sweep and swapped with it.
+  seatXName   String?  @map("seat_x_name")
+  seatOName   String?  @map("seat_o_name")
   seatSeenX   DateTime? @map("seat_seen_x") @db.Timestamptz
   seatSeenO   DateTime? @map("seat_seen_o") @db.Timestamptz
   mode        String
