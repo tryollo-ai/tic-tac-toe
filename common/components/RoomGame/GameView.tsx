@@ -19,6 +19,7 @@ import Status, {
 import Scoreboard from "@/common/components/Scoreboard";
 import ShiftDebug from "@/common/components/ShiftDebug";
 import styles from "./styles.module.scss";
+import UISpacer from "@/common/components/UISpacer";
 
 /** Dev-only: surfaces the shift-animation tuning panel. Compiled out of
  *  production by the bundler's dead-code elimination on this constant. */
@@ -330,73 +331,78 @@ const GameView = (props: Props) => {
         </div>
 
         <aside className={styles.infoPanel}>
-          {props.showInvite && props.roomId && (
-            // Always available in an online room: copies a shareable link to
-            // this room. Local/AI games are single-device and not shareable, so
-            // they omit it.
-            <InviteButton roomId={props.roomId} />
-          )}
-
-          <span className={styles.winCondition}>
-            {room.winLength} in a row
-          </span>
-
-          {/* Live watcher count for online rooms only - the client-only
+          <div>
+            <span className={styles.winCondition}>
+              Win: {room.winLength} in a row
+            </span>
+          </div>
+          <div>
+            {/* Live watcher count for online rooms only - the client-only
               local/AI games are single-device, so a viewer count is meaningless
               there and `viewerCount` is left undefined. */}
-          {room.viewerCount !== undefined && (
-            <span
-              className={styles.viewerCount}
-              title="People watching this room"
-            >
-              <span className={styles.viewerCountEye} aria-hidden="true">
-                👁
-              </span>
-              {room.viewerCount} watching
-            </span>
-          )}
-
-          <div
-            className={classNames(styles.infoRow, {
-              [styles.infoRowActive]: turnActive("X"),
-            })}
-          >
-            <span className={classNames(styles.infoName, styles.infoNameX)}>
-              {xLabel}
-            </span>
-            {room.size > 3 ? (
+            {room.viewerCount !== undefined && (
               <span
-                className={classNames(styles.shiftStatus, {
-                  [styles.shiftStatusUsed]: room.xShiftUsed,
+                className={styles.viewerCount}
+                title="People in this room"
+              >
+              {room.viewerCount} players here
+            </span>
+            )}
+          </div>
+          <UISpacer h={6} />
+
+          <div className={styles.infoBox}>
+              {props.showInvite && props.roomId && (
+                // Always available in an online room: copies a shareable link to
+                // this room. Local/AI games are single-device and not shareable, so
+                // they omit it.
+                <InviteButton roomId={props.roomId} />
+              )}
+
+              <UISpacer h={10} />
+
+              <div
+                className={classNames(styles.infoRow, {
+                  [styles.infoRowActive]: turnActive("X"),
                 })}
               >
-                Trick: {xShiftLabel}
+              <span className={classNames(styles.infoName, styles.infoNameX)}>
+                {xLabel}
               </span>
-            ) : (
-              <span className={styles.infoAbility}>Moves first</span>
-            )}
+                {room.size > 3 ? (
+                  <span
+                    className={classNames(styles.shiftStatus, {
+                      [styles.shiftStatusUsed]: room.xShiftUsed,
+                    })}
+                  >
+                  Trick: {xShiftLabel}
+                </span>
+                ) : (
+                  <span className={styles.infoAbility}>Moves first</span>
+                )}
 
-            {canShiftNow && mySeat === "X" && shiftControls}
-          </div>
+                {canShiftNow && mySeat === "X" && shiftControls}
+              </div>
 
-          <div
-            className={classNames(styles.infoRow, {
-              [styles.infoRowActive]: turnActive("O"),
-            })}
-          >
-            <span className={classNames(styles.infoName, styles.infoNameO)}>
-              {oLabel}
-            </span>
-            <span
-              className={classNames(styles.shiftStatus, {
-                [styles.shiftStatusUsed]: room.oShiftUsed,
-              })}
-            >
-              Trick: {room.oShiftUsed ? "used" : "available"}
-            </span>
+              <div
+                className={classNames(styles.infoRow, {
+                  [styles.infoRowActive]: turnActive("O"),
+                })}
+              >
+              <span className={classNames(styles.infoName, styles.infoNameO)}>
+                {oLabel}
+              </span>
+                <span
+                  className={classNames(styles.shiftStatus, {
+                    [styles.shiftStatusUsed]: room.oShiftUsed,
+                  })}
+                >
+                Trick: {room.oShiftUsed ? "used" : "available"}
+              </span>
 
-            {canShiftNow && mySeat === "O" && shiftControls}
-          </div>
+                {canShiftNow && mySeat === "O" && shiftControls}
+              </div>
+            </div>
         </aside>
       </div>
 

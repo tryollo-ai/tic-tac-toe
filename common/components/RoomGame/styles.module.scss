@@ -268,23 +268,26 @@ $round-announce-ms: $round-announce-raw * 1ms;
   width: 160px;
   margin-left: 14px;
   min-width: 0;
-  padding: 10px;
+}
+
+.infoBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 14px;
+  padding: 10px;
 }
 
 // The locked-in win condition, surfaced above the player list as an
 // accent-tinted badge (grid size lives on the board itself, so only the run
 // length is shown here).
 .winCondition {
-  align-self: flex-start;
-  padding: 3px 10px;
+  padding: 0 4px;
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--accent);
-  background: var(--surface);
-  border-radius: 999px;
   white-space: nowrap;
 }
 
