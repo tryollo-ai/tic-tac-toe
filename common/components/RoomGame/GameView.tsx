@@ -3,7 +3,7 @@
 import { useState } from "react";
 import classNames from "classnames";
 import { canXShift } from "@/utils/gameLogic";
-import type { Direction, Player } from "@/utils/gameLogic";
+import type { Direction, Player, ShiftMode } from "@/utils/gameLogic";
 import { AI_SEAT, AUTO_RESET_MS } from "@/constants/game";
 import type { UseRoomResult } from "@/lib/useRoom";
 import Board from "@/common/components/Board";
@@ -52,6 +52,12 @@ type Props = {
   showInvite?: boolean;
   /** The room id the invite link points at; required when `showInvite`. */
   roomId?: string;
+  /**
+   * The active trick variant for O's trick, so the trick hint describes what it
+   * will actually do. Only O's trick uses this; X's is always the classic slide.
+   * Defaults to classic when unknown.
+   */
+  trickMode?: ShiftMode;
 };
 
 /**
@@ -159,6 +165,14 @@ const GameView = (props: Props) => {
   // The "use trick" trigger + hint. Rendered in the viewer's own info row
   // (gated by canShiftNow, which is already seat- and turn-specific), so exactly
   // one row shows it. Shared by both seats since X's and O's trick arm the same way.
+  // O's trick follows the active variant; X's is always the classic one-cell slide,
+  // so the at-rest hint describes whichever applies to the seat about to trick.
+  const effectiveTrickMode: ShiftMode =
+    mySeat === "O" ? (props.trickMode ?? "classic") : "classic";
+  const trickRestHint =
+    effectiveTrickMode === "collapse"
+      ? "Slide consecutive marks off one edge (uses your turn)."
+      : "Slide the whole grid one cell (uses your turn).";
   const shiftControls = (
     <div className={styles.shiftControls}>
       <button
@@ -175,7 +189,7 @@ const GameView = (props: Props) => {
       <p className={styles.shiftControlsHint}>
         {shiftActive
           ? "Pick a direction around the board (uses your turn)."
-          : "Slide the whole grid one cell (uses your turn)."}
+          : trickRestHint}
       </p>
     </div>
   );

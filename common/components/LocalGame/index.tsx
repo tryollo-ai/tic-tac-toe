@@ -18,7 +18,13 @@ type Props = {
  */
 const LocalGame = (props: Props) => {
   const game = useLocalGame(props.mode, props.config, props.name);
-  return <GameView game={game} showInvite={false} />;
+  return (
+    <GameView
+      game={game}
+      showInvite={false}
+      trickMode={props.config.shiftMode}
+    />
+  );
 };
 
 export default LocalGame;
